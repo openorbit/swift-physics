@@ -59,3 +59,5 @@ Time-dependent frame trees, rotating transforms, and their conventions are docum
 The IAU coefficient review, updated data, and independent SPICE reference tests are documented in [IAU_ROTATION_AUDIT.md](IAU_ROTATION_AUDIT.md).
 
 Body identities, sourced SI properties, and the injectable JPL GM catalogue are documented in [BODIES.md](BODIES.md).
+
+The common ephemeris contract, validating state-provider adapter, and body-query collection are documented in [EPHEMERIDES.md](EPHEMERIDES.md).
