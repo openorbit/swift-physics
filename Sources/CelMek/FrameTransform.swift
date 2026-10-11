@@ -144,9 +144,9 @@ public final class FrameTree {
   public init(name: String = "Inertial", pseudoInertial: Bool = true) {
     root = Frame(name: name, pseudoInertial: pseudoInertial)
   }
-  /// Adopts an existing root, for example CelestialFrames.vsop87E.
+  /// Adopts an existing frame as a local tree root. Its external ancestors
+  /// are outside this tree; queries remain within the registered subtree.
   public init(root: Frame) throws {
-    guard root.parent == nil else { throw FrameTransformError.disconnectedFrames }
     self.root = root
   }
   public func makeFrame(parent: Frame, name: String, pseudoInertial: Bool = false,
@@ -158,7 +158,17 @@ public final class FrameTree {
     frames.append(child)
     return child
   }
+  /// Registers an existing identity under its immutable parent. The provider
+  /// must map that parent into this frame. No reparenting or relabelling occurs.
+  public func registerFrame(_ frame: Frame, provider: any TransformProvider) throws {
+    guard frame !== root, !contains(frame), let parent = frame.parent, contains(parent) else {
+      throw FrameTransformError.disconnectedFrames
+    }
+    edges[ObjectIdentifier(frame)] = provider
+    frames.append(frame)
+  }
   private var frames: [Frame] = []
+  internal func isRegistered(_ frame: Frame) -> Bool { contains(frame) }
   private func contains(_ frame: Frame) -> Bool {
     frame === root || edges[ObjectIdentifier(frame)] != nil
   }

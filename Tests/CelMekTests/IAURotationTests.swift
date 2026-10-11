@@ -108,4 +108,46 @@ struct IAURotationTests {
     #expect(abs(result.rate - ((2+6*d)/86400 - 4*sin(g)*rate)*rad) < 1e-15)
     #expect(abs(result.acceleration - (6/(86400.0*86400) - 4*(cos(g)*rate*rate+sin(g)*accel))*rad) < 1e-22)
   }
+  @Test
+  func publicOrientationMatchesCSPICEWithAtomicTimeDerivatives() throws {
+    let url = try #require(Bundle.module.url(forResource: "iau-pck00011", withExtension: "json", subdirectory: "Fixtures"))
+    let reference = try JSONDecoder().decode(Reference.self, from: Data(contentsOf: url))
+    let start = try Epoch.j2000.advanced(by: CelMek.Duration(seconds: -4e9))
+    let end = try Epoch.j2000.advanced(by: CelMek.Duration(seconds: 4e9))
+    for sample in reference.samples {
+      let epoch = try Epoch(julianDate: JulianDateComponents(wholeDay: 2_451_545,
+        fractionalDay: sample.days, scale: .tdb))
+      let provider = try IAUOrientationProvider(body: sample.body, coverage: start...end, allowLegacyModel: true)
+      let orientation = try provider.orientation(at: epoch)
+      let transform = try FrameTransform(epoch: epoch, rotation: orientation.rotation,
+        angularVelocity: orientation.angularVelocity, angularAcceleration: orientation.angularAcceleration)
+      let rate = epoch.coordinateTimeRate(in: .tdb)
+      let second = epoch.coordinateTimeAcceleration(in: .tdb)
+      for column in 0..<3 {
+        var basis = SIMD3<Double>.zero
+        basis[column] = 1
+        let state = try CartesianState(epoch: epoch, frame: provider.referenceFrame,
+          position: basis, velocity: .zero, acceleration: .zero)
+        let result = try transform.applying(to: state, destination: provider.referenceFrame)
+        for row in 0..<3 {
+          let index = row*3+column
+          #expect(abs(result.position[row]-sample.rotation[index]) < 2e-9)
+          #expect(abs(result.velocity[row]-sample.derivative[index]*rate) < 2e-12)
+          let expected = sample.secondDerivative[index]*rate*rate + sample.derivative[index]*second
+          #expect(abs(result.acceleration![row]-expected) < 2e-14)
+        }
+      }
+    }
+  }
+
+  @Test
+  func timeScaleAccelerationMatchesRateDifferences() throws {
+    let epoch = try Epoch.j2000.advanced(by: CelMek.Duration(seconds: 1_000_000))
+    let step = try CelMek.Duration(seconds: 86400)
+    let before = try epoch.advanced(by: step.negated())
+    let after = try epoch.advanced(by: step)
+    let difference = (after.coordinateTimeRate(in: .tdb)-before.coordinateTimeRate(in: .tdb))/(2*86400)
+    #expect(abs(difference-epoch.coordinateTimeAcceleration(in: .tdb)) < 1e-20)
+  }
+
 }

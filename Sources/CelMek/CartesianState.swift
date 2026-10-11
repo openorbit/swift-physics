@@ -74,11 +74,6 @@ public protocol StateProvider {
 }
 
 /// Named astronomical frame identities that can be adopted as FrameTree roots.
-public enum CelestialFrames {
-  /// Solar-system barycentre origin; dynamical ecliptic and equinox J2000 axes.
-  /// This is the native VSOP87E frame, not an ICRF/equatorial frame alias.
-  public static let vsop87E = Frame(name: "VSOP87E barycentric ecliptic J2000", pseudoInertial: true)
-}
 
 private extension SIMD3 where Scalar == Double {
   var isFiniteVector: Bool { x.isFinite && y.isFinite && z.isFinite }

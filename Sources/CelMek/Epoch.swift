@@ -170,6 +170,17 @@ public struct Epoch: Hashable, Comparable, Sendable {
     }
   }
 
+  // Second derivative of coordinate seconds with respect to atomic seconds.
+  internal func coordinateTimeAcceleration(in scale: TimeScale) -> Double {
+    switch scale {
+    case .tai, .tt: return 0
+    case .tdb:
+      let g = Self.tdbMeanAnomaly(at: offsetFromJ2000)
+      let angularRate = 0.9856003 * Double.pi / (180 * 86_400)
+      return -(0.001658 * sin(g) + 0.000056 * sin(2*g)) * angularRate * angularRate
+    }
+  }
+
   // Both constants are exactly the intended decimal offsets at Double precision.
   private static let ttMinusTAI = try! Duration(wholeSeconds: 32, fractionalSecond: 0.184)
 

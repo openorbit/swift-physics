@@ -1,6 +1,6 @@
 # Frame transforms
 
-`FrameTree` connects `Math.Frame` identities with time-dependent `TransformProvider` edges. Each edge maps parent coordinates into child coordinates. A tree can adopt a celestial root such as `CelestialFrames.vsop87E`; queries between unrelated trees throw `disconnectedFrames`.
+`FrameTree` connects `Math.Frame` identities with time-dependent `TransformProvider` edges. Each edge maps parent coordinates into child coordinates. A tree can adopt a frame such as `CelestialFrames.vsop87E` as its local root, excluding its external ancestors. `CelestialFrames.makeTree()` registers the connected astronomical frames under ICRF. Queries to frames outside the registered tree throw `disconnectedFrames`.
 
 ```swift
 import CelMek
@@ -63,8 +63,75 @@ let relative = try tree.convert(earth.state(at: .j2000), to: body)
 // Position and velocity are zero, since the queried object is the origin.
 ```
 
-The example's axes are prescribed in the VSOP87 ecliptic frame; they do not represent Earth's geographic orientation or ITRF. Real planetary orientations must declare their reference axes and be transformed into the origin provider's frame before combination. The IAU tables and evaluator have been updated and checked against independent CSPICE fixtures; see [IAU_ROTATION_AUDIT.md](IAU_ROTATION_AUDIT.md). Public planetary orientation integration and coverage policies remain follow-up work.
+The example's axes are prescribed in the VSOP87 ecliptic frame; they do not represent Earth's geographic orientation or ITRF. Real planetary orientations must declare their reference axes and be transformed into the origin provider's frame before combination. The IAU tables and evaluator have been updated and checked against independent CSPICE fixtures; see [IAU_ROTATION_AUDIT.md](IAU_ROTATION_AUDIT.md). `IAUOrientationProvider` now exposes those orientations in ICRF axes with explicit caller-selected coverage, as described below.
 
 Origin acceleration defaults to `requireProvided`. When it is absent, the query throws `accelerationUnavailable`. Callers may explicitly choose `assumeZero` or `estimate(step:)`; the latter centrally differences velocities at neighbouring epochs using a positive elapsed-second interval. Supplied acceleration always takes precedence. Estimation introduces numerical error and requires coverage at both neighbouring epochs; its interval is caller-selected rather than an accuracy guarantee. Provider errors propagate, and returned epochs and frame identities are validated at every sample. Unknown acceleration in the input state remains unknown after conversion, even if origin acceleration was estimated.
 
 Choose a local body-centred parent where practical when operating on small distances: subtracting large barycentric coordinates still incurs ordinary Double cancellation.
+
+## Supported astronomical frames
+
+`CelestialFrames.makeTree()` registers shared immutable frame identities and fixed edges. Models retain their native frame. Convert on query:
+
+```swift
+let tree = try CelestialFrames.makeTree()
+let state = try earth.state(at: .j2000, in: CelestialFrames.icrf, using: tree)
+```
+
+| Frame | Origin | Axes / connection |
+| --- | --- | --- |
+| `icrf` | Solar-system barycentre | ICRF-aligned equatorial axes; the tree root |
+| `meanEquatorJ2000` | Solar-system barycentre | Mean dynamical equator/equinox J2000 using the IAU 2000 fixed frame-bias angles |
+| `eclipticJ2000` | Solar-system barycentre | Ecliptic/equinox J2000 defined from EME2000 with the IAU 1976 obliquity, 84381.448 arcsec |
+| `fk5J2000` | Solar-system barycentre | FK5 axes frozen at J2000, connected through the fixed Hipparcos/ICRS orientation tie |
+| `vsop87E` | Solar-system barycentre | Native VSOP87E dynamical ecliptic/equinox J2000, connected through its published FK5 matrix |
+| `makeGCRF(earth:)` | Earth's centre | Newtonian geocentric frame with ICRF-aligned axes; caller supplies geocentre motion |
+| `makeGeocentricFrames(earth:).eme2000` | Earth's centre | EME2000 mean equator/equinox J2000, sharing GCRF's moving origin |
+
+The [original VSOP87 description](https://raw.githubusercontent.com/ctdk/vsop87/master/vsop87.txt) publishes its FK5 conversion matrix. A quaternion reconstructed from that rounded matrix preserves orthogonality; reference tests agree within 8e-13 per matrix entry. The native frame is distinct from `eclipticJ2000`.
+
+The fixed frame bias follows the IAU 2000 convention described by [ERFA BP00](https://github.com/liberfa/erfa/blob/master/src/bp00.c). The separate FK5-to-ICRF connection uses the fixed J2000 orientation in [ERFA FK5HIP](https://github.com/liberfa/erfa/blob/master/src/fk5hip.c). This is an approximate frame tie through the Hipparcos realization, without its time-dependent stellar catalogue spin or zonal-error corrections; it does not imply a precision realization of ICRF3. Matrix tests use the independent ERFA reference values.
+
+`meanEquatorJ2000` and `eclipticJ2000` have barycentric origins. `makeGeocentricFrames` creates GCRF and EME2000 with Earth-centred origins, sharing the same translation edge. `makeGCRF` supplies only Newtonian translation, not the full relativistic BCRS/GCRS transformation. Its acceleration policy has the same explicit choices as body-fixed frames.
+
+```swift
+let geocentric = try tree.makeGeocentricFrames(
+  earth: earth, accelerationPolicy: .estimate(step: CelMek.Duration(seconds: 60)))
+let earthCentre = try earth.state(at: .j2000, in: geocentric.eme2000, using: tree)
+// Position and velocity are zero: EME2000 has Earth's moving origin.
+```
+
+`FrameConvertedStateProvider` presents a native provider in a connected destination frame, for composition with origin/orientation providers. It holds the tree weakly to avoid ownership cycles; the caller must retain the tree. A query after tree release throws `frameTreeUnavailable`. `registerFrame(_:provider:)` registers an existing identity under its immutable parent, without reparenting. Re-registering an identity or connecting it before its parent throws.
+
+## IAU orientations in the frame tree
+
+`IAUOrientationProvider` declares ICRF axes directly. [NAIF's frame documentation](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/FORTRAN/req/frames.html) explains that generic text-PCK IAU orientations use ICRF axes despite the SPICE label J2000; that label is not used here to alias EME2000.
+
+```swift
+let start = try Epoch(julianDate: 2451545, scale: .tdb)
+let end = try start.advanced(by: CelMek.Duration(seconds: 86400))
+let orientation = try IAUOrientationProvider(body: "mars", coverage: start...end)
+let marsICRF = try FrameConvertedStateProvider(mars, in: CelestialFrames.icrf, using: tree)
+let marsFixed = try tree.makeBodyFixedFrame(
+  name: "IAU Mars", centre: marsICRF, orientation: orientation,
+  accelerationPolicy: .estimate(step: CelMek.Duration(seconds: 60)))
+let bodyState = try mars.state(at: start, in: marsFixed, using: tree)
+```
+
+Coverage is required and caller-selected; it is not a certified physical-validity interval. Origin acceleration estimation also needs neighbouring ephemeris samples. `availableBodies` lists the existing 73 models. Earth and Moon require `allowLegacyModel: true` to expose the labelled older approximations; this does not provide ITRF or a precision lunar attitude.
+
+The provider converts TDB angular derivatives using both first and second derivatives of the provisional `Epoch` time adapter. Public-provider regression tests use all 511 CSPICE samples, including rotation rate and acceleration; the physical accuracy limits of that time adapter remain documented in [TIME.md](TIME.md).
+
+## Earth frames still to implement
+
+The remaining names in the original Math frame comments are tracked explicitly:
+
+| Frame | Required implementation and inputs |
+| --- | --- |
+| CIRF | GCRF to celestial intermediate axes: a selected precession/nutation model and CIO locator; observed pole corrections when requested |
+| TIRF | CIRF to terrestrial intermediate axes: Earth rotation angle driven by explicit UT1 |
+| ITRF | TIRF to a stated terrestrial realization: polar motion and terrestrial-origin locator, with EOP coverage and interpolation policies |
+| TOD | Equinox-based true equator/equinox of date using a stated precession/nutation model |
+| GTOD | TOD to Greenwich true-of-date axes using UT1 and consistent apparent sidereal time |
+
+Those names are not yet exported as callable identities. Their providers must also supply derivatives and model/data provenance. UTC-to-UT1 ingestion will need leap seconds and DUT1, while a caller providing explicit UT1 can bypass UTC conversion. Merely labelling the legacy nutation or Earth spin approximation as one of these frames would not implement the defined convention.

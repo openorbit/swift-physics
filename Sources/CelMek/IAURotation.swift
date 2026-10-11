@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import Foundation
 
-// Internal pending public orientation/frame integration and coverage policies.
+// Internal coefficient evaluator used by the public IAUOrientationProvider.
 // Coefficients come from the pinned NAIF PCK; all stored angles are in degrees.
 enum IAURotationProvenance {
   case iau2015Corrected2019
