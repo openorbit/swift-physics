@@ -11,8 +11,8 @@ public enum TimeArithmeticError: Error, Equatable, Sendable {
 public enum TimeScale: Hashable, Sendable {
   case tai
   case tt
-  /// Low-order geocentric approximation: sampled error <37 µs over 1950–2050.
-  /// See TIME.md; this is not a precision relativistic conversion.
+  /// TDB representation. Default: the low-order geocentric approximation.
+  /// Select an explicit TDBTimeModel for different accuracy and coverage.
   case tdb
 }
 
@@ -102,11 +102,15 @@ public struct Epoch: Hashable, Comparable, Sendable {
     self.offsetFromJ2000 = offsetFromJ2000
   }
 
-  public init(julianDate: Double, scale: TimeScale) throws {
-    try self.init(julianDate: JulianDateComponents(value: julianDate, scale: scale))
+  public init(julianDate: Double, scale: TimeScale, using model: (any TDBTimeModel)? = nil) throws {
+    try self.init(julianDate: JulianDateComponents(value: julianDate, scale: scale), using: model)
   }
 
-  public init(julianDate: JulianDateComponents) throws {
+  public init(julianDate: JulianDateComponents, using model: (any TDBTimeModel)? = nil) throws {
+    if julianDate.scale == .tdb, let model {
+      self = try Self.invertTDB(julianDate, using: model)
+      return
+    }
     let (days, overflow) = julianDate.wholeDay.subtractingReportingOverflow(2_451_545)
     guard !overflow else { throw TimeArithmeticError.outOfRange }
     let (seconds, multiplyOverflow) = days.multipliedReportingOverflow(by: 86_400)
@@ -138,13 +142,15 @@ public struct Epoch: Hashable, Comparable, Sendable {
     try offsetFromJ2000.subtracting(other.offsetFromJ2000)
   }
 
-  public func julianDate(in scale: TimeScale) throws -> JulianDateComponents {
+  public func julianDate(in scale: TimeScale, using model: (any TDBTimeModel)? = nil) throws -> JulianDateComponents {
     let represented: Duration
     switch scale {
     case .tt: represented = offsetFromJ2000
     case .tai: represented = try offsetFromJ2000.subtracting(Self.ttMinusTAI)
     case .tdb:
-      represented = try offsetFromJ2000.adding(Duration(seconds: Self.tdbMinusTT(at: offsetFromJ2000)))
+      let correction = try model.map { try tdbCorrection(using: $0).tdbMinusTT }
+        ?? Duration(seconds: Self.tdbMinusTT(at: offsetFromJ2000))
+      represented = try offsetFromJ2000.adding(correction)
     }
     // Floor division keeps the remainder positive for dates before J2000.
     var days = represented.wholeSeconds / 86_400
@@ -189,7 +195,7 @@ public struct Epoch: Hashable, Comparable, Sendable {
   /// offset to avoid subtracting large Julian dates. Six-hour comparisons with
   /// ERFA Fairhead–Bretagnon over 1950–2050 found 36.49 µs maximum error.
   /// See TIME.md for scope; this is not a precision relativistic model.
-  private static func tdbMinusTT(at tt: Duration) -> Double {
+  internal static func tdbMinusTT(at tt: Duration) -> Double {
     let g = tdbMeanAnomaly(at: tt)
     return 0.001658 * sin(g) + 0.000014 * sin(2 * g)
   }

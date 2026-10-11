@@ -40,4 +40,9 @@ The adapter evaluates the complete implemented series using split TDB date compo
 
 Legacy `position(jd:)` retains its TDB Julian-date input and AU/AU-day outputs for compatibility. Other legacy ephemerides retain their documented units: the lunar model and spherical outputs require their own coordinate and derivative adapters, and DE441 integration remains separate work. SI normalization currently applies to the new shared state boundary, not every legacy API.
 
+`VSOP87StateProvider(body:tdbModel:)` configures a provider with a selected time model
+for normal frame-tree queries. Direct `state(at:using:)` queries also accept a model.
+The selected correction determines both the TDB epoch and velocity chain rule; its
+coverage errors propagate. Defaults retain the two-term adapter. See [TIME.md](TIME.md).
+
 Public-import Swift Testing checks cover input normalization, missing acceleration, frame identity, invalid components and overflow, a planetary reference sample, and all nine VSOP87 bodies' velocities against position differences over elapsed seconds.

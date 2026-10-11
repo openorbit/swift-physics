@@ -135,13 +135,32 @@ extension vsop87_body: StateProvider {
   /// Uses the provisional Epoch TDB approximation and the complete coefficient
   /// series. Acceleration is unavailable. No scientific coverage bound is implied.
   public func state(at epoch: Epoch) throws -> CartesianState {
-    let date = try epoch.julianDate(in: .tdb)
+    try state(at: epoch, using: nil)
+  }
+
+  /// Select a TDB model with enforced coverage and matching derivative conversion.
+  public func state(at epoch: Epoch, using model: (any TDBTimeModel)?) throws -> CartesianState {
+    let sample = try model.map { try epoch.tdbCorrection(using: $0) }
+    let date = try sample.map { try epoch.tdbDate(using: $0) } ?? epoch.julianDate(in: .tdb)
     let t = (Double(date.wholeDay - 2_451_545) + date.fractionalDay) / 365_250
     let (position, velocity) = positionAndVelocity(t: t)
     // The series differentiates with respect to TDB time. Apply the same time
     // adapter's rate so the state derivative follows Epoch's atomic seconds.
-    let atomicVelocity = velocity * epoch.coordinateTimeRate(in: .tdb)
+    let atomicVelocity = velocity * (sample?.rate ?? epoch.coordinateTimeRate(in: .tdb))
     return try CartesianState(epoch: epoch, frame: frame, position: position,
                                velocity: atomicVelocity, units: .astronomicalUnitsAndDays)
+  }
+}
+
+/// A VSOP87 provider configured with an explicit TDB model for frame-tree queries.
+public struct VSOP87StateProvider: StateProvider {
+  public let body: vsop87_body
+  public let tdbModel: any TDBTimeModel
+  public var frame: Math.Frame { body.frame }
+  public init(body: vsop87_body, tdbModel: any TDBTimeModel) {
+    self.body = body; self.tdbModel = tdbModel
+  }
+  public func state(at epoch: Epoch) throws -> CartesianState {
+    try body.state(at: epoch, using: tdbModel)
   }
 }

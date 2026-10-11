@@ -113,6 +113,7 @@ application boundary; select an alternate provider or approximation explicitly.
 | Error family | Meaning and caller action |
 | --- | --- |
 | `TimeArithmeticError` | Nonfinite input or unsupported arithmetic range; validate numeric inputs and simulation intervals. |
+| `TDBModelError` | Outside selected coverage, invalid correction, wrong sample epoch, or inversion did not converge; select covered data and correct the model contract. |
 | `UTCError` | Invalid table/data, invalid UTC second label, or outside table coverage; correct the label or supply an appropriate table. |
 | `CalendarConversionError` | Invalid day/clock, outside calendar range, or missing UTC table; correct the reading or provide the required data. |
 | `CartesianStateError` | Nonfinite position, velocity or acceleration, including unit-conversion overflow; correct the state inputs. |

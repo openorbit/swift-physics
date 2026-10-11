@@ -13,12 +13,14 @@ public struct IAUOrientationProvider: OrientationProvider {
   public let coverage: ClosedRange<Epoch>
   public let referenceFrame: Frame = CelestialFrames.icrf
   public let usesLegacyModel: Bool
+  public let tdbModel: (any TDBTimeModel)?
   public static var availableBodies: [String] { iauRotationModels.keys.sorted() }
 
-  public init(body: String, coverage: ClosedRange<Epoch>, allowLegacyModel: Bool = false) throws {
+  public init(body: String, coverage: ClosedRange<Epoch>, allowLegacyModel: Bool = false, tdbModel: (any TDBTimeModel)? = nil) throws {
     guard let model = iauRotationModels[body] else { throw IAUOrientationError.unknownBody }
     let legacy = model.provenance == .legacy2009
     guard !legacy || allowLegacyModel else { throw IAUOrientationError.legacyModelRequiresOptIn }
+    self.tdbModel = tdbModel
     self.body = body
     self.coverage = coverage
     usesLegacyModel = legacy
@@ -26,11 +28,12 @@ public struct IAUOrientationProvider: OrientationProvider {
 
   public func orientation(at epoch: Epoch) throws -> BodyOrientation {
     guard coverage.contains(epoch) else { throw IAUOrientationError.outsideCoverage }
-    let date = try epoch.julianDate(in: .tdb)
+    let sample = try tdbModel.map { try epoch.tdbCorrection(using: $0) }
+    let date = try sample.map { try epoch.tdbDate(using: $0) } ?? epoch.julianDate(in: .tdb)
     let days = Double(date.wholeDay - 2_451_545) + date.fractionalDay
     let elements = try IAURotModel().elements(body: body, tdbDaysSinceJ2000: days)
-    let rate = epoch.coordinateTimeRate(in: .tdb)
-    let acceleration = epoch.coordinateTimeAcceleration(in: .tdb)
+    let rate = sample?.rate ?? epoch.coordinateTimeRate(in: .tdb)
+    let acceleration = sample?.acceleration ?? epoch.coordinateTimeAcceleration(in: .tdb)
     func angleTransform(_ angle: Double, _ first: Double, _ second: Double,
                         axis: SIMD3<Double>) throws -> FrameTransform {
       try FrameTransform(epoch: epoch,

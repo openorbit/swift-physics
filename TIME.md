@@ -76,8 +76,8 @@ an implicit coverage restriction; callers must choose whether this model suits t
 
 For scale, a 36.483 µs epoch error corresponds to about 1.1 m of position error for
 motion at 30 km/s, before other model errors. This can suit game ephemerides, but
-metre-level work should select a more accurate time model. A configurable precision
-TDB model remains follow-up work. TT/TAI arithmetic and `Epoch` storage are independent
+metre-level work should select a more accurate time model. The optional full model
+below supports callers needing a more accurate conversion. TT/TAI arithmetic and `Epoch` storage are independent
 of the TDB approximation.
 
 Regression tests use 4,874 independently generated ERFA samples, including all four
@@ -92,6 +92,57 @@ trips check numerical inversion, separately from physical accuracy.
 dates. `Tools/characterize_tdb_adapter.py` regenerates the survey and fixtures using
 an external ERFA shared library. This developer reference adds no C target or runtime
 dependency to the package.
+
+### Selecting a TDB model
+
+`TDBTimeModel` supplies a correction at an atomic/TT `Epoch`, a coverage interval and
+provenance. `TDBCorrection` carries TDB−TT as a split duration, `dTDB/dTT` as a positive
+finite rate, and `d²TDB/dTT²` in 1/s. Returned epochs are validated. Models should be
+deterministic for fixed inputs; custom providers define their own data errors and ownership.
+
+`FairheadTDBModel` evaluates the full 787-term geocentric Fairhead–Bretagnon series
+and the planetary-mass adjustments used by ERFA 2.0.1, in native Swift. The supported
+coverage is 1950-01-01 TT through 2050-01-01 TT inclusive; callers may narrow that
+interval. Wider intervals are rejected rather than borrowing the reference's accuracy
+claim beyond its stated range. Topocentric observer terms are absent. Analytic first
+and second derivatives include the series amplitudes' time dependence.
+
+```swift
+let model = try FairheadTDBModel()
+let date = try Epoch.j2000.julianDate(in: .tdb, using: model)
+let epoch = try Epoch(julianDate: date, using: model)
+let reading = try epoch.calendar(in: .tdb, tdbModel: model)
+let recovered = try reading.epoch(tdbModel: model)
+
+let earthProvider = VSOP87StateProvider(body: earth, tdbModel: model)
+let tree = try CelestialFrames.makeTree()
+let icrf = try earthProvider.state(at: epoch, in: CelestialFrames.icrf, using: tree)
+let marsAxes = try IAUOrientationProvider(
+  body: "mars", coverage: model.coverage, tdbModel: model)
+```
+
+Use the same selected model for forward/inverse dates and for providers that share
+those epochs. `earth.state(at:using:)` also accepts a model directly. The configured
+VSOP provider and IAU orientation provider use one correction sample for both the date
+and derivative chain rule. Orientation queries must satisfy both orientation and model
+coverage. `TwoTermTDBModel(coverage:)` offers the inexpensive approximation with an
+explicit caller-selected interval; that choice does not establish an accuracy guarantee.
+
+Existing calls without a model retain their previous two-term behavior. The optional
+model is consulted only for TDB representations; TT/TAI/UTC arithmetic does not need it.
+Reverse conversion uses Newton iteration, a 12-iteration limit and explicit errors for
+nonconvergence, wrong-epoch corrections and out-of-coverage queries. At covered boundaries,
+TDB labels within 30 picoseconds of the boundary's predicted label return that boundary
+to accommodate split-JD rounding. No uncovered model sample is evaluated.
+
+The Swift full-series offsets agree with 4,874 independent ERFA fixtures within the
+2-femtosecond test tolerance. This is numerical agreement with a reference model, **not**
+a femtosecond physical accuracy claim. Derivative checks use independently differenced
+reference values; round trips also cover both coverage boundaries and a synthetic model
+with a deliberately non-unit rate. The reference's nanosecond-level physical statement
+and its model limitations described above still apply. Coefficient extraction is reproducible
+with `Tools/generate_tdb_series.py`; BSD attribution is retained in
+`Documentation/licenses/ERFA.txt`. No C target or runtime dependency is added.
 
 UTC uses `UTCDate` with an integer modified Julian day (midnight) and split
 `secondOfDay`, plus an explicitly supplied `LeapSecondTable`. It is separate from

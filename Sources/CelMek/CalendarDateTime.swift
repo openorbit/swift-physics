@@ -64,7 +64,7 @@ public struct CalendarDateTime: Hashable, Sendable {
     }
     self.date = date; self.hour = hour; self.minute = minute; self.second = second; self.scale = scale
   }
-  public func epoch(using table: LeapSecondTable? = nil) throws -> Epoch {
+  public func epoch(using table: LeapSecondTable? = nil, tdbModel: (any TDBTimeModel)? = nil) throws -> Epoch {
     let seconds = try Duration(wholeSeconds: Int64(hour*3600+minute*60)).adding(second)
     if scale == .utc {
       guard let table else { throw CalendarConversionError.leapSecondTableRequired }
@@ -73,15 +73,15 @@ public struct CalendarDateTime: Hashable, Sendable {
     let continuous: TimeScale = scale == .tai ? .tai : (scale == .tt ? .tt : .tdb)
     let jd = try JulianDateComponents(wholeDay: date.modifiedJulianDay+2400000,
       fractionalDay: 0.5+seconds.seconds/86400,scale: continuous)
-    return try Epoch(julianDate: jd)
+    return try Epoch(julianDate: jd, using: tdbModel)
   }
 }
 
 extension Epoch {
-  public init(calendar: CalendarDateTime, using table: LeapSecondTable? = nil) throws {
-    self = try calendar.epoch(using: table)
+  public init(calendar: CalendarDateTime, using table: LeapSecondTable? = nil, tdbModel: (any TDBTimeModel)? = nil) throws {
+    self = try calendar.epoch(using: table, tdbModel: tdbModel)
   }
-  public func calendar(in scale: CalendarTimeScale, using table: LeapSecondTable? = nil) throws -> CalendarDateTime {
+  public func calendar(in scale: CalendarTimeScale, using table: LeapSecondTable? = nil, tdbModel: (any TDBTimeModel)? = nil) throws -> CalendarDateTime {
     let mjd: Int64
     let seconds: Duration
     if scale == .utc {
@@ -90,7 +90,7 @@ extension Epoch {
       mjd = date.modifiedJulianDay; seconds = date.secondOfDay
     } else {
       let continuous: TimeScale = scale == .tai ? .tai : (scale == .tt ? .tt : .tdb)
-      let jd = try julianDate(in: continuous)
+      let jd = try julianDate(in: continuous, using: tdbModel)
       // JD turns at noon; Gregorian clock days turn at midnight.
       let shifted = try JulianDateComponents(wholeDay: jd.wholeDay-2400001,
         fractionalDay: jd.fractionalDay+0.5,scale: continuous)
