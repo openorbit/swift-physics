@@ -64,7 +64,11 @@ fileprivate let dt : [(Int,Double)] = [
   (1990, 56.9), (1992, 58.3), (1994, 60.0), (1996, 61.6), (1998, 63.0),
 ]
 
+/// Legacy piecewise estimate of TD - UT in seconds, using the embedded
+/// 1620...1998 table and existing polynomial extrapolations outside it.
+/// Returns NaN for nonfinite years; no modern accuracy guarantee is implied.
 public func deltaT(year: Double) -> Double {
+  guard year.isFinite else { return .nan }
   let t = (year - 2000) / 100
   if year < 948 {
     return 2177 + 497 * t + 44.1 * t * t
@@ -77,22 +81,10 @@ public func deltaT(year: Double) -> Double {
     return 102 + 102 * t + 25.3 * t * t + 0.37 * (year - 2100)
   }
   
-  let intYear = Int(year)
-  
-  var dt0: Double
-  var dt1: Double
-  if ((intYear & 1) != 0) {
-    assert(dt[(intYear - 1620) / 2].0 == intYear - 1)
-    dt0 = (dt[(intYear - 1620) / 2].1 + dt[(intYear - 1620) / 2 + 1].1) / 2
-    dt1 = dt[(intYear - 1620) / 2 + 1].1
-  } else {
-    assert(dt[(intYear - 1620) / 2].0 == intYear)
-    dt0 = dt[(intYear - 1620) / 2].1
-    dt1 = (dt[(intYear - 1620) / 2].1 + dt[(intYear - 1620) / 2 + 1].1) / 2
-  }
-  
-  let fraction = modf(year).1
-  return dt0 * (1-fraction) + dt1 * fraction
+  if year == 1998 { return dt[dt.count - 1].1 }
+  let index = Int((year - 1620) / 2)
+  let fraction = (year - Double(dt[index].0)) / 2
+  return dt[index].1 * (1 - fraction) + dt[index + 1].1 * fraction
 }
 
 

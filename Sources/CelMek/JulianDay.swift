@@ -30,30 +30,13 @@ public struct GregorianDate {
     self.day = day
   }
   public init?(year: Int, dayInYear: Double) {
-    // Meeus, p66
-    if dayInYear < 0 {
-      return nil
-    }
-    if isGregorianLeapYear(year) {
-      if dayInYear >= 367 {
-        return nil
-      }
-    } else {
-      if dayInYear >= 366 {
-        return nil
-      }
-    }
-
-    let K = isGregorianLeapYear(year) ? 1 : 2
-    let M1 = 9 * (Double(K) + dayInYear) / 275
-    let M = dayInYear < 32 ? 1 : Int(Double(M1) + 0.98)
-    let D1 = Int(Double(275 * M) / 9)
-    let D2 = K * Int(Double(M + 9) / 12)
-    let D = dayInYear - Double(D1) + Double(D2 + 30)
-    
+    let leap = isGregorianLeapYear(year)
+    guard dayInYear.isFinite, dayInYear >= 1,
+          dayInYear < (leap ? 367 : 366) else { return nil }
+    let (month, day) = calendarMonthAndDay(dayInYear: dayInYear, leap: leap)
     self.year = year
-    self.month = Month(rawValue: M)!
-    self.day = D
+    self.month = month
+    self.day = day
   }
 }
 
@@ -78,30 +61,13 @@ public struct JulianDate {
   }
 
   public init?(year: Int, dayInYear: Double) {
-    // Meeus, p66
-    if dayInYear < 0 {
-      return nil
-    }
-    if isJulianLeapYear(year) {
-      if dayInYear >= 367 {
-        return nil
-      }
-    } else {
-      if dayInYear >= 366 {
-        return nil
-      }
-    }
-
-    let K = isJulianLeapYear(year) ? 1 : 2
-    let M1 = 9 * (Double(K) + dayInYear) / 275
-    let M = dayInYear < 32 ? 1 : Int(Double(M1) + 0.98)
-    let D1 = Int(Double(275 * M) / 9)
-    let D2 = K * Int(Double(M + 9) / 12)
-    let D = dayInYear - Double(D1) + Double(D2 + 30)
-    
+    let leap = isJulianLeapYear(year)
+    guard dayInYear.isFinite, dayInYear >= 1,
+          dayInYear < (leap ? 367 : 366) else { return nil }
+    let (month, day) = calendarMonthAndDay(dayInYear: dayInYear, leap: leap)
     self.year = year
-    self.month = Month(rawValue: M)!
-    self.day = D
+    self.month = month
+    self.day = day
   }
 }
 extension JulianDate: CustomStringConvertible {
@@ -167,7 +133,7 @@ extension GregorianDate {
     // Meeus, p65
     let K = isGregorianLeapYear(year) ? 1 : 2
     let N1 = 275 * month.rawValue / 9
-    let N2 = (K * month.rawValue + 9) / 12
+    let N2 = K * ((month.rawValue + 9) / 12)
     let N = Double(N1 - N2 - 30) + day
     return N
   }
@@ -178,7 +144,7 @@ extension JulianDate {
     // Meeus, p65
     let K = isJulianLeapYear(year) ? 1 : 2
     let N1 = 275 * month.rawValue / 9
-    let N2 = (K * month.rawValue + 9) / 12
+    let N2 = K * ((month.rawValue + 9) / 12)
     let N = Double(N1 - N2 - 30) + day
     return N
   }
@@ -232,11 +198,10 @@ extension Double {
 
 extension Double {
   public var weekday: Weekday {
-    // Meeus, p65
-    // Flooring and adding 0.5 to ensure we handle all JDs, not only those starting at 0h
-    // Remember that JD starts at noon, so 0.5 is midnight.
-    let adjustedJD = floor(self) + 0.5 + 1.5
-    let weekdayNumber = Int(adjustedJD.remainder(dividingBy: 7))
+    precondition(isFinite, "Weekday requires a finite Julian date")
+    // Julian dates change their integer part at noon; civil days start at midnight.
+    let remainder = fmod(floor(self + 0.5), 7)
+    let weekdayNumber = Int(fmod(remainder + 8, 7))
     return Weekday(rawValue: weekdayNumber)!
   }
 }
@@ -252,4 +217,18 @@ public func julianCenturiesFromJ2000(jd: Double) -> Double {
   // Meeus, Eq. 12.1
   let T =  (jd - 2451545) / 36525
   return T
+}
+
+// The ordinal range is checked before this helper is called. Keeping the
+// fractional day intact avoids shifting late hours into the following month.
+private func calendarMonthAndDay(dayInYear: Double, leap: Bool) -> (Month, Double) {
+  let lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  var remaining = dayInYear
+  for (index, length) in lengths.enumerated() {
+    if remaining < Double(length + 1) {
+      return (Month(rawValue: index + 1)!, remaining)
+    }
+    remaining -= Double(length)
+  }
+  preconditionFailure("Ordinal day outside the validated calendar year")
 }

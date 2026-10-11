@@ -119,199 +119,68 @@ public enum MoslemMonth : Int {
   case DhuLHijja = 12;
 }
 
+/// A Gregorian calendar date; this legacy type does not identify a time scale.
 public struct Date {
-  var year: Int32;
-  var month: Month;
-  var day: UInt8;
-  
-  /*
-   init?(packedDate str: String)
-   {
-   // I, J, K designate 1800, 1900 and 2000, we assume this is consistent
-   // in the future
-   var year = (str[str.startIndex].unicodeScalars.first!.value - Character("I").unicodeScalars.first!.value) * 100 + 1800;
-   year += 10 * (str[str.index(str.startIndex, offsetBy:1)].unicodeScalars.first!.value - Character("0").unicodeScalars.first!.value);
-   year += str[str.index(str.startIndex, offsetBy:2)].unicodeScalars.first!.value - Character("0").unicodeScalars.first!.value;
-   var month = -1;
-   if str[str.index(str.startIndex, offestBy:3)].isASCII && str[str.index(str.startIndex, offsetBy:3)].isNumber {
-   month = str[str.index(str.startIndex, offsetBy:3)].unicodeScalars.first!.value - Character("0").unicodeScalars.first!.value;
-   } else {
-   month = str[str.index(str.startIndex, offsetBy:3)] - "A" + 10;
-   }
-   var day = -1;
-   if str[str.index(str.startIndex, offestBy:4)].isASCII && str[str.index(str.startIndex, offestBy:4)].isNumber {
-   day = str[str.index(str.startIndex, offestBy:4)] - Character("0").unicodeScalars.first!.value;
-   } else {
-   day = str[str.index(str.startIndex, offestBy:4)] - Character("A").unicodeScalars.first!.value + 10;
-   }
-   
-   self.year = year;
-   self.month = month;
-   self.day = day;
-   }
-   */
-  func
-  isValid() -> Bool
-  {
-    if isLeapYear(year) {
-      if (day <= month_length_leap[Int(month.rawValue)-1]) {
-        return true;
-      }
-    } else {
-      if (day <= month_length[Int(month.rawValue)-1]) {
-        return true;
-      }
-    }
-    return false;
+  var year: Int32
+  var month: Month
+  var day: UInt8
+
+  func isValid() -> Bool {
+    let lengths = isLeapYear(year) ? month_length_leap : month_length
+    return day >= 1 && Int(day) <= lengths[month.rawValue - 1]
   }
 }
 
+/// A clock reading without timezone or leap-second information.
 public struct Time {
-  var hh: UInt8;
-  var mm: UInt8;
-  var sec: Double;
-  func
-  isValid() -> Bool
-  {
-    // Using 61 for seconds bounds to account for possible leap seconds
-    if (hh < 24 && mm < 60 && 0.0 <= sec && sec < 61.0) {
-      return true;
-    }
-    
-    return false;
+  var hh: UInt8
+  var mm: UInt8
+  var sec: Double
+
+  func isValid() -> Bool {
+    return hh < 24 && mm < 60 && sec.isFinite && sec >= 0 && sec < 60
   }
-  
 }
 
 public struct DateTime {
-  var date: Date;
-  var time: Time;
-  func
-  isValid() -> Bool
-  {
-    return date.isValid() && time.isValid();
+  var date: Date
+  var time: Time
+
+  func isValid() -> Bool {
+    return date.isValid() && time.isValid()
   }
 
-  init?(isoDate str: String)
-  {
-    //    var year:Int32 = 0, month:Int32 = 1, day:UInt8 = 1, hour:UInt8 = 0, minute:UInt8 = 0;
-    //    var tz : Character = "\0"; var dummy: Character;
-    //    var tz_h_offset:UInt8 = 0, tz_m_offset:UInt8 = 0;
-    //    var secs: Double = 0.0;
-    var dateTimeComps: [String];
-    if str.firstIndex(of: "T") !=  nil {
-      dateTimeComps = str.components(separatedBy: "T")
-    } else {
-      dateTimeComps = str.components(separatedBy: " ")
-    }
-    if dateTimeComps.count > 2 {
-      return nil;
-    }
-    
-    // Parse date
-    let dateComps = dateTimeComps[0].components(separatedBy: "-");
-    if dateComps.count != 3 {
-      return nil
-    }
+  /// Parses YYYY-MM-DD with optional HH:mm:ss[.fraction], separated by T or space.
+  /// This is a calendar reading, not a UTC instant. Timezone suffixes and leap
+  /// seconds are rejected until a time-scale-aware API can validate them.
+  init?(isoDate str: String) {
+    let components = str.components(separatedBy: str.contains("T") ? "T" : " ")
+    guard components.count == 1 || components.count == 2 else { return nil }
+    let dateComponents = components[0].components(separatedBy: "-")
+    guard dateComponents.count == 3,
+          dateComponents.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
+          let year = Int32(dateComponents[0]),
+          let monthNumber = Int(dateComponents[1]),
+          let month = Month(rawValue: monthNumber),
+          let day = UInt8(dateComponents[2]) else { return nil }
+    date = Date(year: year, month: month, day: day)
+    guard date.isValid() else { return nil }
 
-    guard let yyyy = Int32(dateComps[0]) else {
-      return nil
-    }
-    guard let mm = Int(dateComps[1]) else {
-      return nil
-    }
-    guard let dd = UInt8(dateComps[2]) else {
-      return nil
-    }
-    guard let mmAsMonth = Month(rawValue: mm) else {
-      return nil
-    }
-    
-    if (dd < 1) {
-      return nil;
-    }
-    
-    if (isLeapYear(yyyy)) {
-      if (dd > month_length_leap[Int(mmAsMonth.rawValue)-1]) {
-        return nil;
-      }
-    } else {
-      if (dd > month_length[Int(mmAsMonth.rawValue)-1]) {
-        return nil;
-      }
-    }
-    
-    date = Date(year: yyyy, month: mmAsMonth, day: dd)
-    
-    if dateTimeComps.count == 2 {
-      // Parse time
-      let timeComps = dateTimeComps[1].components(separatedBy: ":")
-      
-      guard let hh = UInt8(timeComps[0]) else {
-        return nil
-      }
-      guard let mm = UInt8(timeComps[1]) else {
-        return nil;
-      }
-      guard let secs = Double(timeComps[2]) else {
-        return nil;
-      }
-      
-      if hh >= 24 {
-        return nil
-      }
-      if mm >= 60 {
-        return nil
-      }
-      
-      if secs >= 61 { // Leapseconds
-        return nil
-      }
-      
-      time = Time(hh: hh, mm: mm, sec: secs)
+    if components.count == 2 {
+      let clock = components[1].components(separatedBy: ":")
+      guard clock.count == 3,
+            clock[0].allSatisfy({ $0.isASCII && $0.isNumber }),
+            clock[1].allSatisfy({ $0.isASCII && $0.isNumber }),
+            let hour = UInt8(clock[0]), let minute = UInt8(clock[1]) else { return nil }
+      let seconds = clock[2].components(separatedBy: ".")
+      guard seconds.count == 1 || seconds.count == 2,
+            seconds.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
+            let second = Double(clock[2]) else { return nil }
+      time = Time(hh: hour, mm: minute, sec: second)
     } else {
       time = Time(hh: 0, mm: 0, sec: 0)
     }
-    
-#if false
-    
-    if (i == 4) {
-      var hhmm_bytes = 0, sec_bytes = 0;
-      
-      var j = sscanf(str + iso_date_bytes, "%d:%d%n", &hour, &minute, &hhmm_bytes);
-      j = sscanf(str + iso_date_bytes + hhmm_bytes, ":%lf%n", &secs, &sec_bytes);
-      
-      j = sscanf(str + iso_date_bytes + hhmm_bytes + sec_bytes, "%c%d:%d",
-                 &tz, &tz_h_offset, &tz_m_offset);
-      
-    }
-    
-    
-    if (tz == "+") {
-      time.hh -= tz_h_offset;
-      time.mm -= tz_m_offset;
-    }
-    
-    if (tz == "-") {
-      time.hh += tz_h_offset;
-      time.mm -= tz_m_offset;
-    }
-    
-    if (time.sec >= 60.0) {
-      time.mm += UInt8(time.sec / 60.0);
-      time.sec = fmod(time.sec, 60.0);
-    }
-    
-    if (time.mm >= 60) {
-      time.hh += time.mm / 60;
-      time.mm = time.mm % 60;
-    }
-    
-    if (time.hh >= 24) {
-      date.day += time.hh / 24;
-      time.hh = time.hh % 24;
-    }
-#endif
+    guard time.isValid() else { return nil }
   }
 }
 
@@ -346,18 +215,29 @@ cm_tdbToTcb(tdb: Double) -> Double
   return (tdb - CM_TDB0 / 86400.0 - CM_LB * CM_TCB_0) / (1.0-CM_LB);
 }
 
-func
-cm_ttToTdb(tt: Double)->Double
-{
-  let g = 357.53.deg + 0.9856003.deg * ( tt - 2451545.0 );
-  
-  return tt + (0.001658 * sin( g ) + 0.000014 * sin( 2*g ))/SEC_PER_JD;
+/// Low-order periodic approximation to TDB - TT, in Julian days.
+/// Both arguments/results of the conversion routines are Julian dates.
+/// This is not a replacement for a precision relativistic time model.
+private func tdbMinusTT(atTT tt: Double) -> Double {
+  let g = 357.53.deg + 0.9856003.deg * (tt - 2451545.0)
+  return (0.001658 * sin(g) + 0.000014 * sin(2 * g)) / SEC_PER_JD
+}
+
+func cm_ttToTdb(tt: Double) -> Double {
+  return tt + tdbMinusTT(atTT: tt)
 }
 
 func
 cm_tdbToTt(tdb: Double) -> Double
 {
-  return 0
+  // Solve the same forward approximation rather than using a different model.
+  var tt = tdb
+  for _ in 0..<3 {
+    let next = tdb - tdbMinusTT(atTT: tt)
+    if next == tt { break }
+    tt = next
+  }
+  return tt
 }
 
 func
@@ -397,21 +277,12 @@ cm_ttToTcg(tt: Double)->Double
   return (tt - EJD)/(1.0 - CM_LG) + EJD;
 }
 
-func
-cm_tdtToTdb( tdt: Double)->Double
-{
-  let T = (tdt - 2451545.0) / 36525;
-  let g = (M_2_PI * (357.528 + 35999.050 * T)) / 360.0;
-  let TDB = tdt + 0.001658 * sin(g + 0.0167 * sin(g));
-  return TDB;
+/// Legacy TDT spelling for TT; delegates to the shared approximation.
+func cm_tdtToTdb(tdt: Double) -> Double {
+  return cm_ttToTdb(tt: tdt)
 }
 
-func
-cm_tdbToTdt( tdb: Double)->Double
-{
-  let T = (tdb - 2451545.0) / 36525;
-  let g = (M_2_PI * (357.528 + 35999.050 * T)) / 360.0;
-  let TDT = tdb - 0.001658 * sin(g + 0.0167 * sin(g));
-  return TDT;
+/// Legacy TDT spelling for TT; delegates to the shared approximation inverse.
+func cm_tdbToTdt(tdb: Double) -> Double {
+  return cm_tdbToTt(tdb: tdb)
 }
-
