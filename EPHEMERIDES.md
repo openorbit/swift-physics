@@ -69,7 +69,8 @@ Implement `EphemerisProvider` directly for a new model. `frame` defaults to
 that path. A custom implementation's direct `state(at:)` is its own responsibility.
 Frame conversion through an existing StateProvider API preserves provider errors.
 
-There is no shared cache or dependence on query order. Collections do not make
+Collections do not implicitly cache or depend on query order. Optional caching is
+described below. Collections do not make
 mutable or file-backed providers thread-safe. Providers retain their own data and
 concurrency contracts, and must avoid strongly retaining a frame tree that owns them.
 The metadata interval includes queryable endpoints; numerical derivative stencils
@@ -241,3 +242,76 @@ later conversion. Tests check all derivatives, frame round trips, mixed time met
 coverage and identity rejection, missing acceleration, and scale-independent weights.
 
 Analytic adapters accept an explicit shared accuracy level; supported levels and their meaning are documented in [ACCURACY.md](ACCURACY.md).
+
+## Batch queries and explicit caches
+
+Ephemeris providers expose `states(at: [Epoch])`. Collections expose
+`states(of:at:)` for one body and `states(for: [EphemerisRequest])` for mixed bodies.
+Results preserve the input order and duplicate requests, with exact epochs. Empty
+provider/request batches return an empty array; a one-body collection query still
+validates that body's selection even when its epoch list is empty. Batches are
+sequential and fail at the first error, without returning a partial array. Earlier
+successful calls may have populated an explicitly selected cache.
+
+```swift
+let cache = try MemoryEphemerisCache(capacity: 512)
+let cached = try CachedEphemerisProvider(provider: earthModel, cache: cache)
+let samples = try cached.states(at: epochs)
+let collection = try EphemerisCollection(providers: [cached, moonModel])
+let states = try collection.states(for: [
+  EphemerisRequest(body: .moon, epoch: epoch),
+  EphemerisRequest(body: .earth, epoch: epoch)
+])
+// After replacing data dependencies while preserving metadata:
+try cached.invalidate()
+// Release all shared storage when changing scenes:
+cache.removeAll()
+```
+
+`CachedEphemerisProvider` memoizes native Cartesian states at exact atomic epochs.
+It does not round time, interpolate, sample neighbours, cache transforms, or change
+accuracy settings. Construct a new wrapper for new metadata, body, origin, frame,
+coverage, time model or accuracy configuration. Each wrapper receives its own opaque
+scope; wrappers sharing storage cannot collide even when their bodies and epochs
+match. Metadata, including requested/effective accuracy, is retained unchanged.
+Scopes are runtime identities, not persistent model/version keys.
+
+Queries check coverage before accessing storage. Both cache hits and computed
+results must match the requested epoch, declared frame and acceleration availability.
+Provider and custom-cache errors propagate. Failed evaluations are never stored.
+The cache trusts the actual numerical values supplied by its storage implementation;
+it cannot independently certify an externally injected state's physical correctness.
+
+`MemoryEphemerisCache` requires a positive capacity and uses least-recently-used
+eviction with O(1) lookup/update. Both lookups and overwrites refresh recency. Capacity
+bounds total entries across all scopes sharing that cache. `count` reports current
+entries. Storage mutations use a lock, and list links avoid ownership cycles. Scope
+invalidation removes only that wrapper's entries; clearing storage removes all
+scopes. Entries retain their states/frame identities until invalidation, eviction or
+cache release.
+
+Invalidation rotates the wrapper's generation before clearing its old storage.
+Queries already in flight may complete with their original results but cannot store
+them in the old generation after invalidation. Later queries use the new generation.
+External calls to the shared memory cache's `removeAll()` clear storage but do not
+rotate wrapper generations; use `cached.invalidate()` when changing model data.
+If custom-cache removal throws, the wrapper still uses its new generation and the
+error propagates, while stale storage remains the custom cache's responsibility.
+
+Cache storage locking does not serialize native provider evaluations or make custom
+providers thread-safe. Concurrent misses may evaluate the same epoch more than once.
+The caller must respect the underlying provider's concurrency contract. Cache
+protocol callbacks must not reenter their invoking wrapper. No unchecked Sendable
+conformance or concurrency guarantee for frame identities is introduced.
+
+Custom storage implements `EphemerisStateCache` using the full `EphemerisCacheKey`
+(scope plus exact epoch). It must preserve native states faithfully and handle its
+own capacity, persistence and synchronization. The built-in cache is intentionally
+in-memory; file coefficient/record caches remain independent model concerns.
+
+Query-order independence assumes the configured ephemeris is deterministic at a
+given epoch. Hits and eviction can change cost, but not numerical results. Mutable
+model/data dependencies require explicit invalidation; no data changes are detected
+automatically. Tests check ordered and reversed batches, duplicate and subnanosecond
+keys, LRU eviction, scope isolation, generation changes during evaluation, failures,
+invalid cache hits, and mixed-body fail-fast queries.
