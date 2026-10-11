@@ -213,3 +213,57 @@ Independent ERFA 2.0.1 fixtures cover both conventions and six epochs; regenerat
 with `Tools/generate_observed_pole_fixtures.py` against an external ERFA library.
 Additional tests check milliarcsecond parsing, prediction policy, cubic interpolation,
 coverage/gap rejection and UT1 continuity during the 2016 leap second.
+
+## Local orbital and spacecraft attitude frames
+
+`makeLocalOrbitalFrame` creates a spacecraft-centred frame from motion in a
+pseudo-inertial parent. An optional `centralBody` state provider defines relative
+position and velocity; omitting it uses the parent origin. For barycentric states,
+supply the intended central body explicitly. Both providers must have the same
+frame identity, and each returned sample must match its requested epoch.
+
+| Axes | X | Y | Z |
+| --- | --- | --- | --- |
+| `rtn` (RSW/QSW) | radial outward | Z × X | orbital normal r × v |
+| `tnw` | velocity | Z × X | orbital normal r × v |
+| `lvlhCCSDS` | Y × Z, transverse | negative orbital normal | nadir, negative radial |
+
+All axes are normalized and right-handed. These definitions follow the explicit
+[Orekit local orbital conventions](https://www.orekit.org/site-orekit-13.1/apidocs/org/orekit/frames/LOFType.html).
+The CCSDS suffix is intentional: other uses of “LVLH” mean the RTN/QSW convention.
+TNW follows velocity rather than the transverse direction on non-circular orbits.
+
+```swift
+let local = try tree.makeLocalOrbitalFrame(
+  name: "Spacecraft RTN", spacecraft: spacecraft, centralBody: earth,
+  axes: .rtn, derivativeStep: CelMek.Duration(seconds: 1),
+  accelerationPolicy: .requireProvided)
+
+let attitude = try LocalOrbitalOrientationProvider(
+  spacecraft: spacecraft, centralBody: earth, axes: .lvlhCCSDS,
+  derivativeStep: CelMek.Duration(seconds: 1),
+  mountingRotation: Quaternion(angle: .pi / 2, axis: SIMD3(1, 0, 0)))
+let body = try tree.makeSpacecraftFrame(
+  name: "Spacecraft body", spacecraft: spacecraft, attitude: attitude)
+```
+
+`makeSpacecraftFrame` also accepts any custom `OrientationProvider`, including a
+prescribed fixed-axis attitude. Its rotation maps reference coordinates into body
+coordinates. The orbital provider's mounting rotation maps orbital coordinates
+into body coordinates and rotates the angular derivatives accordingly. This is a
+prescribed attitude; no control or rigid-body dynamics is implied.
+
+Orbital angular velocity and acceleration use a five-point matrix stencil on atomic
+seconds. The caller must select a positive `derivativeStep` that resolves the motion;
+both state providers need coverage at the epoch and ±1 and ±2 steps. Acceleration
+is not required to calculate orbital axes, but spacecraft-origin translation uses
+the existing explicit `OriginAccelerationPolicy`. Frame rates include the orbital
+rotation; these frames are registered as non-inertial.
+
+Zero relative position, zero relative velocity, and an undefined orbital plane
+throw separate `LocalOrbitalFrameError` cases. A dimensionless `minimumPlaneSine`
+(default 1e-12) rejects nearly parallel position/velocity before normalization.
+The implementation normalizes before taking cross products to avoid overflow from
+SI-scale angular momentum. It neither invents an arbitrary plane nor freezes the
+last valid axes. Invalid configuration, rotating input frames, frame/epoch mismatch,
+and neighbouring-provider coverage errors also fail explicitly.
