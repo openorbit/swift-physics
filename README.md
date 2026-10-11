@@ -24,6 +24,11 @@ In addition to the celestial mechanics algorithms,
 various functionality related to Aerodynamics have been added.
 It is probable that we will rename the package `swift-physics` at some point.
 
+## Time API
+
+Precise epochs, durations, and explicit TAI/TT/provisional TDB representations are
+documented in [TIME.md](TIME.md).
+
 ## Testing
 
 The tests use Swift Testing and require a Swift 6 or newer toolchain. Run all
