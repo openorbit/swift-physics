@@ -122,16 +122,48 @@ Coverage is required and caller-selected; it is not a certified physical-validit
 
 The provider converts TDB angular derivatives using both first and second derivatives of the provisional `Epoch` time adapter. Public-provider regression tests use all 511 CSPICE samples, including rotation rate and acceleration; the physical accuracy limits of that time adapter remain documented in [TIME.md](TIME.md).
 
-## Earth frames still to implement
+## Earth frames
 
-The remaining names in the original Math frame comments are tracked explicitly:
+`makeEarthFrames` adds both IAU 2006/2000A frame chains, using native Swift calculations. The algorithms and coefficient series are adapted
+from [ERFA 2.0.1](https://github.com/liberfa/erfa/tree/v2.0.1); attribution and BSD terms
+are retained in `Documentation/licenses/ERFA.txt`. There is no C target or ERFA
+runtime dependency. ERFA is used as an external reference for regression fixtures.
 
-| Frame | Required implementation and inputs |
-| --- | --- |
-| CIRF | GCRF to celestial intermediate axes: a selected precession/nutation model and CIO locator; observed pole corrections when requested |
-| TIRF | CIRF to terrestrial intermediate axes: Earth rotation angle driven by explicit UT1 |
-| ITRF | TIRF to a stated terrestrial realization: polar motion and terrestrial-origin locator, with EOP coverage and interpolation policies |
-| TOD | Equinox-based true equator/equinox of date using a stated precession/nutation model |
-| GTOD | TOD to Greenwich true-of-date axes using UT1 and consistent apparent sidereal time |
+| Frame | Parent | Transform |
+| --- | --- | --- |
+| CIRF | GCRF | Bias/precession/nutation and CIO locator |
+| TIRF | CIRF | Earth rotation angle from UT1 |
+| ITRF (caller realization label) | TIRF | Polar motion and terrestrial origin locator s′ |
+| TOD | GCRF | Bias/precession/nutation, true equator/equinox of date |
+| GTOD | TOD | Greenwich apparent sidereal time consistent with the CIO chain |
 
-Those names are not yet exported as callable identities. Their providers must also supply derivatives and model/data provenance. UTC-to-UT1 ingestion will need leap seconds and DUT1, while a caller providing explicit UT1 can bypass UTC conversion. Merely labelling the legacy nutation or Earth spin approximation as one of these frames would not implement the defined convention.
+```swift
+let eop = try ConstantEarthOrientationProvider(
+  ut1MinusTT: CelMek.Duration(seconds: -64.184),
+  polarMotionX: 0, polarMotionY: 0,
+  coverage: start...end, provenance: "Explicit constant approximation")
+let frames = try tree.makeEarthFrames(
+  earth: earth, earthOrientation: eop, terrestrialRealization: "ITRF2020",
+  accelerationPolicy: .estimate(step: CelMek.Duration(seconds: 60)))
+let terrestrial = try earth.state(at: .j2000, in: frames.itrf, using: tree)
+```
+
+The example offset is illustrative, not a current Earth-orientation measurement.
+Implement `EarthOrientationProvider` for measured EOP with your selected interpolation,
+coverage and provenance. Samples supply UT1−TT in seconds and polar motion in radians;
+this avoids an implicit leap-second table. No UTC/DUT1 file ingestion is included yet.
+The constant provider is an explicit approximation and rejects extrapolation.
+
+Angular velocity and acceleration use a five-point matrix stencil in atomic SI
+seconds, with a configurable 60-second default step. Provider coverage must include
+±2 steps around every query, so nominal coverage endpoints cannot be queried with
+that stencil. EOP interpolation discontinuities affect derivatives; choose a smooth
+provider when acceleration matters. No derivative accuracy guarantee is implied
+for arbitrary step sizes or interpolators.
+
+The initial implementation uses the theoretical celestial intermediate pole;
+observed dX/dY corrections remain future work. ITRF naming records the caller's
+realization: these rotations do not implement station coordinates, tectonic motion,
+or Helmert ties between realizations. GCRF retains the Newtonian translation limitation
+above. Tests check published ERFA matrices, CIO/equinox route consistency, rotating
+state derivatives and explicit coverage failures.

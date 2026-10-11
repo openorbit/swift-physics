@@ -86,4 +86,4 @@ public class Frame {
 
 // Astronomical identities and providers live above Math in CelMek:
 // ICRF, EME2000, Ecliptic J2000, and Newtonian GCRF are implemented there.
-// CIRF/TIRF/ITRF and the equinox-based TOD/GTOD chain remain tracked in ROADMAP.md.
+// CIRF/TIRF/ITRF and TOD/GTOD are constructed by CelMek.FrameTree.makeEarthFrames.
