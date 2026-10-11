@@ -53,7 +53,38 @@ Regression tests demonstrate nanosecond increments on offsets of ±500 billion s
 
 TDB is provisional: its physical error and valid astronomical interval have not been independently characterized. It must not be treated as a precision relativistic conversion merely because the epoch storage is precise. `Epoch` storage and TT/TAI arithmetic are independent of that optional adapter.
 
-UTC is intentionally deferred until a versioned leap-second provider and explicit coverage policy are implemented. UT1 requires separate Earth-orientation data. No local timezone, wall clock, leap-second table, or implicit UTC conversion is used by these types. Calendar parsing and scale-aware civil date presentation remain follow-up work.
+UTC uses `UTCDate` with an integer modified Julian day (midnight) and split
+`secondOfDay`, plus an explicitly supplied `LeapSecondTable`. It is separate from
+`TimeScale`: an ordinary 86400-second Julian day cannot unambiguously label the
+extra UTC second. No implicit leap-second smearing or wall-clock conversion occurs.
+
+```swift
+let table = LeapSecondTable.iersBulletinC72
+let leap = try UTCDate(modifiedJulianDay: 57753,
+                       secondOfDay: CelMek.Duration(seconds: 86400.25))
+let instant = try Epoch(utc: leap, using: table) // 2016-12-31 23:59:60.25 UTC
+let restored = try instant.utc(using: table)
+let tai = try instant.julianDate(in: .tai)
+```
+
+The frozen table follows [IERS Leap_Second.dat](https://hpiers.obspm.fr/iers/bul/bulc/Leap_Second.dat),
+updated through Bulletin C 72 (July 2026). Its UTC coverage starts at 1972-01-01
+(MJD 41317) and ends exclusively at 2027-06-28 midnight (MJD 61584), the stated
+expiry date. Pre-1972 UTC frequency adjustments are unsupported. The table never
+extrapolates beyond coverage and never refreshes itself over the network.
+
+Supply updated entries or parse IERS text with `LeapSecondTable(iersData:...)`;
+version, source and exclusive coverage are required caller metadata. Data loading
+is separate from evaluation. Row MJD values define effective midnights; the redundant
+calendar columns are checked for integer syntax. Tables must be ordered and changes
+must be ±1 second. Negative leap days are supported, although none occur in the
+bundled history. Invalid leap labels and out-of-coverage dates throw `UTCError`.
+
+UTC days contain 86399, 86400 or 86401 labelled seconds. `secondOfDay` is validated
+against the chosen table, so 86400 is accepted only on positive leap days. Advance
+`Epoch` by SI durations for simulation arithmetic, rather than adding nominal UTC
+calendar days. Calendar parsing/presentation and UTC-to-UT1 via DUT1 remain follow-up
+work; UT1 still requires separate Earth-orientation data.
 
 ## Validation
 

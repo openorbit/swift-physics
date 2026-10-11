@@ -7,7 +7,7 @@ public enum TimeArithmeticError: Error, Equatable, Sendable {
 }
 
 /// Continuous time scales supported by the initial epoch adapters.
-/// UTC needs a leap-second data provider and is deliberately not represented here.
+/// UTC uses UTCDate and an explicit LeapSecondTable rather than a continuous JD.
 public enum TimeScale: Hashable, Sendable {
   case tai
   case tt
