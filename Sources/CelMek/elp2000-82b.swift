@@ -321,7 +321,10 @@ fileprivate let ELP_115_0_RAD = (115.0 * 1.0e-6).deg
 public func
 elp2000_82b(_ jde:Double) -> SIMD3<Double>
 {
-  let T = elp2000_82b_T(jde);
+  return meeusMoonPosition(centuries: elp2000_82b_T(jde))
+}
+
+internal func meeusMoonPosition(centuries T: Double) -> SIMD3<Double> {
 
   // Compute parameters in degrees.
   // Mean longitude . mean equinox of the date, incl light delay
