@@ -158,6 +158,18 @@ public struct Epoch: Hashable, Comparable, Sendable {
     lhs.offsetFromJ2000 < rhs.offsetFromJ2000
   }
 
+  // Derivative of a scale's coordinate seconds with respect to the elapsed
+  // atomic seconds stored by Epoch. Used when adapting provider velocities.
+  internal func coordinateTimeRate(in scale: TimeScale) -> Double {
+    switch scale {
+    case .tai, .tt: return 1
+    case .tdb:
+      let g = Self.tdbMeanAnomaly(at: offsetFromJ2000)
+      let angularRate = 0.9856003 * Double.pi / (180 * 86_400)
+      return 1 + (0.001658 * cos(g) + 0.000028 * cos(2 * g)) * angularRate
+    }
+  }
+
   // Both constants are exactly the intended decimal offsets at Double precision.
   private static let ttMinusTAI = try! Duration(wholeSeconds: 32, fractionalSecond: 0.184)
 
@@ -165,10 +177,14 @@ public struct Epoch: Hashable, Comparable, Sendable {
   /// offset to avoid subtracting large Julian dates. Its physical error is not
   /// characterized; it is not a precision relativistic time-scale model.
   private static func tdbMinusTT(at tt: Duration) -> Double {
+    let g = tdbMeanAnomaly(at: tt)
+    return 0.001658 * sin(g) + 0.000014 * sin(2 * g)
+  }
+
+  private static func tdbMeanAnomaly(at tt: Duration) -> Double {
     let days = Double(tt.wholeSeconds) / 86_400 + tt.fractionalSecond / 86_400
     let degrees = (357.53 + 0.9856003 * days).truncatingRemainder(dividingBy: 360)
-    let g = degrees * .pi / 180
-    return 0.001658 * sin(g) + 0.000014 * sin(2 * g)
+    return degrees * .pi / 180
   }
 }
 

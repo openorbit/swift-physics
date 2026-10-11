@@ -17,6 +17,7 @@
 //
 
 import Foundation
+import Math
 
 public enum vsop87_body_id : Int {
   case vsop87_sun
@@ -41,10 +42,16 @@ public class vsop87_body {
     terms_y = ty;
     terms_z = tz;
   }
+  /// Legacy VSOP87E query: TDB Julian date in, position AU and velocity AU/day out.
+  /// Use state(at:) for an epoch/frame-tagged result normalized to SI units.
   public func position(jd : Double) -> (SIMD3<Double>, SIMD3<Double>, Double, vsop87_body_id)
   {
-    let t = (jd - 2451545.0) / 365250.0;
+    let t = (jd - 2451545.0) / 365250.0
+    let (position, velocity) = positionAndVelocity(t: t)
+    return (position, velocity, jd, body_id)
+  }
 
+  private func positionAndVelocity(t: Double) -> (SIMD3<Double>, SIMD3<Double>) {
     var x = [Double](repeating: 0, count: 6);
     var y = [Double](repeating: 0, count: 6);
     var z = [Double](repeating: 0, count: 6);
@@ -117,6 +124,24 @@ public class vsop87_body {
 
     let pos = SIMD3<Double>(px, py, pz);
     let vel = SIMD3<Double>(velx/365250.0, vely/365250.0,  velz/365250.0);
-    return (pos, vel, jd, body_id);
+    return (pos, vel)
+  }
+}
+
+extension vsop87_body: StateProvider {
+  public var frame: Math.Frame { CelestialFrames.vsop87E }
+
+  /// Native barycentric state in metres and metres per elapsed atomic second.
+  /// Uses the provisional Epoch TDB approximation and the complete coefficient
+  /// series. Acceleration is unavailable. No scientific coverage bound is implied.
+  public func state(at epoch: Epoch) throws -> CartesianState {
+    let date = try epoch.julianDate(in: .tdb)
+    let t = (Double(date.wholeDay - 2_451_545) + date.fractionalDay) / 365_250
+    let (position, velocity) = positionAndVelocity(t: t)
+    // The series differentiates with respect to TDB time. Apply the same time
+    // adapter's rate so the state derivative follows Epoch's atomic seconds.
+    let atomicVelocity = velocity * epoch.coordinateTimeRate(in: .tdb)
+    return try CartesianState(epoch: epoch, frame: frame, position: position,
+                               velocity: atomicVelocity, units: .astronomicalUnitsAndDays)
   }
 }
