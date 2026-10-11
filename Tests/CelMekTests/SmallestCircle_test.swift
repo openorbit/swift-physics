@@ -16,11 +16,13 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 import Math
 
-final class SmallestCircle_tests : XCTestCase {
+@Suite
+struct SmallestCircle_tests {
+  @Test
   func testSmallestCircle() {
     // Meeus, Example 20.a
     let mercury = EquatorialCoordinate(rightAscension:
@@ -49,7 +51,7 @@ final class SmallestCircle_tests : XCTestCase {
                                                seconds: 3.7).toRad())
     let d = smallestCircle(mercury, jupiter, saturn)
 
-    XCTAssertEqual(d, 4.26364.deg, accuracy: 0.000005)
+    #expect(abs((d) - (4.26364.deg)) <= 0.000005)
   }
 }
 

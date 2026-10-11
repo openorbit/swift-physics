@@ -16,10 +16,12 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class vsop87_tests: XCTestCase {
+@Suite
+struct vsop87_tests {
+  @Test
   func testSun() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -68,18 +70,19 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = sun.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_sun)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_sun)
 
     }
     
   }
+  @Test
   func testMercury() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       
@@ -128,19 +131,20 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = mercury.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_mercury)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_mercury)
 
     }
     
   }
   
+  @Test
   func testVenus() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -187,22 +191,23 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = venus.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_venus)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_venus)
 
     }
     
   }  
   
+  @Test
   func testEarth() {
     // This is an example of a functional test case.
-    // Use XCTAssert and related functions to verify your tests produce the correct
+    // Use expectations to verify your tests produce the correct
     // results.
     // jd, expected pos, expected velocity
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
@@ -248,18 +253,19 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = earth.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_earth)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_earth)
     }
     
   }
   
+  @Test
   func testMars() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -306,18 +312,19 @@ final class vsop87_tests: XCTestCase {
     ];
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = mars.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_mars)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_mars)
     }
     
   }
   
+  @Test
   func testJupiter() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -364,17 +371,18 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = jupiter.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_jupiter)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_jupiter)
     }
     
   }
+  @Test
   func testSaturn() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -421,16 +429,17 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = saturn.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000005)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_saturn)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000005)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_saturn)
     }
   }
+  @Test
   func testUranus() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -477,16 +486,17 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = uranus.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000005)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_uranus)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000005)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_uranus)
     }
   }
+  @Test
   func testNeptune() {
     let testValues: [(Double,(Double,Double,Double), (Double,Double,Double))] = [
       (2451545.0,
@@ -532,14 +542,14 @@ final class vsop87_tests: XCTestCase {
     
     for (ejd, (ex,ey,ez), (evx,evy,evz)) in testValues {
       let (p, v, jd, body) = neptune.position(jd: ejd)
-      XCTAssertEqual(p.x, ex, accuracy: 0.0000000001);
-      XCTAssertEqual(p.y, ey, accuracy: 0.0000000001);
-      XCTAssertEqual(p.z, ez, accuracy: 0.0000000001);
-      XCTAssertEqual(v.x,evx, accuracy: 0.0000001);
-      XCTAssertEqual(v.y,evy, accuracy: 0.0000001)
-      XCTAssertEqual(v.z,evz, accuracy: 0.0000001);
-      XCTAssertEqual(jd,ejd)
-      XCTAssertEqual(body, .vsop87_neptune)
+      #expect(abs((p.x) - (ex)) <= 0.0000000001);
+      #expect(abs((p.y) - (ey)) <= 0.0000000001);
+      #expect(abs((p.z) - (ez)) <= 0.0000000001);
+      #expect(abs((v.x) - (evx)) <= 0.0000001);
+      #expect(abs((v.y) - (evy)) <= 0.0000001)
+      #expect(abs((v.z) - (evz)) <= 0.0000001);
+      #expect(jd == ejd)
+      #expect(body == .vsop87_neptune)
     }
   }
 }

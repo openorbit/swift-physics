@@ -16,19 +16,21 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class PlanetaryOrbits_tests : XCTestCase {
+@Suite
+struct PlanetaryOrbits_tests {
+  @Test
   func testMercuryMean() {
     // Meeus, Example 31.a
     let elements = elementsOfMercuryForMeanEquinox(jd: 2475460.5)
-    XCTAssertEqual(elements.meanLongitude, 203.494701, accuracy: 0.0000005)
-    XCTAssertEqual(elements.semimajorAxis, 0.387098310)
-    XCTAssertEqual(elements.eccentricity, 0.20564510, accuracy: 0.0000005)
-    XCTAssertEqual(elements.inclinationOnEclipticPlane, 7.006171, accuracy: 0.0000005)
-    XCTAssertEqual(elements.longitudeOfAscendingNode, 49.107650, accuracy: 0.0000005)
-    XCTAssertEqual(elements.longitudeOfPerihelion, 78.475382, accuracy: 0.0000005)
+    #expect(abs((elements.meanLongitude) - (203.494701)) <= 0.0000005)
+    #expect(elements.semimajorAxis == 0.387098310)
+    #expect(abs((elements.eccentricity) - (0.20564510)) <= 0.0000005)
+    #expect(abs((elements.inclinationOnEclipticPlane) - (7.006171)) <= 0.0000005)
+    #expect(abs((elements.longitudeOfAscendingNode) - (49.107650)) <= 0.0000005)
+    #expect(abs((elements.longitudeOfPerihelion) - (78.475382)) <= 0.0000005)
   }
 }
 

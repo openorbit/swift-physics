@@ -16,42 +16,47 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 import Math
 
-final class EarthGlobe_tests : XCTestCase {
+@Suite
+struct EarthGlobe_tests {
+  @Test
   func testPComp() {
     // Meeus, example 11.a
     let (psin, pcos) = pcomp(H: 1706, geographicLat: 33.356111.deg)
-    XCTAssertEqual(psin, 0.546861, accuracy: 0.0000005)
-    XCTAssertEqual(pcos, 0.836339, accuracy: 0.0000005)
+    #expect(abs((psin) - (0.546861)) <= 0.0000005)
+    #expect(abs((pcos) - (0.836339)) <= 0.0000005)
   }
   
+  @Test
   func testRadiusOfCurvatureOfMeridian() {
     // Meeus, p84
     let eqRad = radiusOfCurvatureOfMeridian(geographicalLat: 0.0)
-    XCTAssertEqual(eqRad, 6335.44, accuracy: 0.005)
+    #expect(abs((eqRad) - (6335.44)) <= 0.005)
     let polRad = radiusOfCurvatureOfMeridian(geographicalLat: 90.0.deg)
-    XCTAssertEqual(polRad, 6399.60, accuracy: 0.005)
+    #expect(abs((polRad) - (6399.60)) <= 0.005)
     
     // Meeus, example 11.b
     let chicagoRad = radiusOfCurvatureOfMeridian(geographicalLat: 42.0.deg)
-    XCTAssertEqual(chicagoRad, 6364.033, accuracy: 0.0005)
+    #expect(abs((chicagoRad) - (6364.033)) <= 0.0005)
   }
   
+  @Test
   func testParallelOfLatitudeRadius() {
     // Meeus, p84
     let eqRad = parallelOfLatitudeRadius(geographicalLat: 0.0)
-    XCTAssertEqual(eqRad, EARTH_EQUATORIAL_RADIUS_KM, accuracy: 0.000005)
+    #expect(abs((eqRad) - (EARTH_EQUATORIAL_RADIUS_KM)) <= 0.000005)
     let polRad = parallelOfLatitudeRadius(geographicalLat: 90.0.deg)
-    XCTAssertEqual(polRad, 0.0, accuracy: 0.00001)
+    #expect(abs((polRad) - (0.0)) <= 0.00001)
     
     // Meeus, example 11.b
     let chicagoRad = parallelOfLatitudeRadius(geographicalLat: 42.0.deg)
-    XCTAssertEqual(chicagoRad, 4747.001, accuracy: 0.0005)
+    #expect(abs((chicagoRad) - (4747.001)) <= 0.0005)
   }
   
+  @Test
   func testGeodesicDistanceFast() {
     // Meeus, Example 11.c
     let paris = GeographicCoordinate(
@@ -62,9 +67,10 @@ final class EarthGlobe_tests : XCTestCase {
       latitude: AngleOfArc(degrees: 38, minutes: 55, seconds: 17).toRad(),
       longitude: AngleOfArc(degrees: 77, minutes: 3, seconds: 56).toRad())
     let s = geodesicDistanceFast(p0: paris, p1: washington)
-    XCTAssertEqual(s, 6166, accuracy: 0.5)
+    #expect(abs((s) - (6166)) <= 0.5)
   }
 
+  @Test
   func testGeodesicDistance() {
     // Meeus, Example 11.c
     let paris = GeographicCoordinate(
@@ -75,6 +81,6 @@ final class EarthGlobe_tests : XCTestCase {
       latitude: AngleOfArc(degrees: 38, minutes: 55, seconds: 17).toRad(),
       longitude: AngleOfArc(degrees: 77, minutes: 3, seconds: 56).toRad())
     let s = geodesicDistance(p0: paris, p1: washington)
-    XCTAssertEqual(s, 6181.63, accuracy: 0.005)
+    #expect(abs((s) - (6181.63)) <= 0.005)
   }
 }

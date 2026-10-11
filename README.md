@@ -24,6 +24,15 @@ In addition to the celestial mechanics algorithms,
 various functionality related to Aerodynamics have been added.
 It is probable that we will rename the package `swift-physics` at some point.
 
+## Testing
+
+The tests use Swift Testing and require a Swift 6 or newer toolchain. Run all
+test targets with:
+
+```sh
+swift test
+```
+
 ## License
 
 Apache 2.0

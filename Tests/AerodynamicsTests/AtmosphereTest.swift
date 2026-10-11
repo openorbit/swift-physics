@@ -5,12 +5,14 @@
 //  Created by Mattias Holm on 2023-11-05.
 //
 
-import XCTest
+import Testing
 import Aerodynamics
-final class AtmosphereTest: XCTestCase {
+@Suite
+struct AtmosphereTest {
 
+    @Test
     func testExample() throws {
       let atm = EarthAtmosphere()
-      XCTAssertEqual(1.789, atm.dynamicViscosity(at: 0))
+      #expect(1.789 == atm.dynamicViscosity(at: 0))
     }
 }

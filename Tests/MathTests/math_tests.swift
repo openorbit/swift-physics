@@ -16,79 +16,92 @@
 // limitations under the License.
 //
 
-import XCTest
+import Foundation
+import Testing
 @testable import Math;
 
-final class math_tests : XCTestCase {
+@Suite
+struct math_tests {
+  @Test
   func testRadToDeg() {
-    XCTAssertEqual(0.0.asDeg, 0.0);
-    XCTAssertEqual(1.0.asDeg, 57.2958, accuracy:  0.00005);
+    #expect(0.0.asDeg == 0.0);
+    #expect(abs((1.0.asDeg) - (57.2958)) <= 0.00005);
   }
   
+  @Test
   func testDegToRad() {
-    XCTAssertEqual(0.0.deg, 0.0);
-    XCTAssertEqual(1.0.deg, 0.0174533, accuracy:  0.00000005);
+    #expect(0.0.deg == 0.0);
+    #expect(abs((1.0.deg) - (0.0174533)) <= 0.00000005);
   }
   
+  @Test
   func testDegToHours() {
-    XCTAssertEqual(0.0.degAsHours, 0.0);
-    XCTAssertEqual(15.0.degAsHours, 1.0);
+    #expect(0.0.degAsHours == 0.0);
+    #expect(15.0.degAsHours == 1.0);
   }
+  @Test
   func testHoursToDeg() {
-    XCTAssertEqual(0.0.hoursAsDeg, 0.0);
-    XCTAssertEqual(1.0.hoursAsDeg, 15.0);
+    #expect(0.0.hoursAsDeg == 0.0);
+    #expect(1.0.hoursAsDeg == 15.0);
   }
   
+  @Test
   func testHourAngleToDeg() {
     // Meeus, Astronomical Algorithms 2nd edition, Example 1.a
     let ra = HourAngle(hours: 9, minutes: 14, seconds: 55.8)
-    XCTAssertEqual(ra.toDeg(), 138.73250, accuracy: 0.000005);
+    #expect(abs((ra.toDeg()) - (138.73250)) <= 0.000005);
   }
   
+  @Test
   func testHourAngleToRad() {
     // Meeus, p8 Example 1.a
     let ra = HourAngle(hours: 9, minutes: 14, seconds: 55.8)
-    XCTAssertEqual(ra.toRad(), 2.4213389045, accuracy: 1.0e-6);
+    #expect(abs((ra.toRad()) - (2.4213389045)) <= 1.0e-6);
   }
   
+  @Test
   func testAngleOfArcToDeg() {
     let angle = AngleOfArc(degrees: -14, minutes: 43, seconds: 8.2)
-    XCTAssertEqual(angle.toDeg(), -14.718944, accuracy: 0.0000005)
+    #expect(abs((angle.toDeg()) - (-14.718944)) <= 0.0000005)
 
   }
 
+  @Test
   func testQuaternionMult() {
     let a = Quaternion(x: 1.4, y: 5.7, z: 2.0, w: -2.1)
     let b = Quaternion(x: 0.2, y: 0.1, z: 1.0, w: 8.0)
 
     let r = a * b
     
-    XCTAssertEqual(r.x, 16.28)
-    XCTAssertEqual(r.y, 44.390)
-    XCTAssertEqual(r.z, 12.900)
-    XCTAssertEqual(r.w, -19.65, accuracy:  0.00000001)
+    #expect(r.x == 16.28)
+    #expect(r.y == 44.390)
+    #expect(r.z == 12.900)
+    #expect(abs((r.w) - (-19.65)) <= 0.00000001)
   }
 
+  @Test
   func testMatrixZero() {
     let m = Matrix3x3.zero
     for i in 0..<3 {
       for j in 0..<3 {
-        XCTAssertEqual(m[i, j], 0)
+        #expect(m[i, j] == 0)
       }
     }
   }
+  @Test
   func testMatrixIdent() {
     let m = Matrix3x3.identity
     for i in 0..<3 {
       for j in 0..<3 {
         if i == j {
-          XCTAssertEqual(m[i, j], 1)
+          #expect(m[i, j] == 1)
         } else {
-          XCTAssertEqual(m[i, j], 0)
+          #expect(m[i, j] == 0)
         }
       }
     }
   }
+  @Test
   func testMatrixVectorMultiply() {
     let v = SIMD3<Double>(2, 1, 3)
     let a = Matrix3x3(elements: [1,2,3,
@@ -96,11 +109,12 @@ final class math_tests : XCTestCase {
                                  7,8,9])
     let r = a * v
 
-    XCTAssertEqual(r[0], 13)
-    XCTAssertEqual(r[1], 31)
-    XCTAssertEqual(r[2], 49)
+    #expect(r[0] == 13)
+    #expect(r[1] == 31)
+    #expect(r[2] == 49)
   }
 
+  @Test
   func testMatrixMatrixMultiply() {
     let a = Matrix3x3(elements: [2, 3, 1,
                                  7, 4, 1,
@@ -115,31 +129,33 @@ final class math_tests : XCTestCase {
                                         79,-31,-15])
     for i in 0..<3 {
       for j in 0..<3 {
-        XCTAssertEqual(expected[i,j], r[i,j])
+        #expect(expected[i,j] == r[i,j])
       }
     }
   }
+  @Test
   func testMatrixToQuaternion() {
     let identMatrix = Matrix3x3.identity
     let qFromIdentity = identMatrix.quaternion
     let qExpected = Quaternion.identity
 
-    XCTAssertEqual(qFromIdentity.x, qExpected.x)
-    XCTAssertEqual(qFromIdentity.y, qExpected.y)
-    XCTAssertEqual(qFromIdentity.z, qExpected.z)
-    XCTAssertEqual(qFromIdentity.w, qExpected.w)
+    #expect(qFromIdentity.x == qExpected.x)
+    #expect(qFromIdentity.y == qExpected.y)
+    #expect(qFromIdentity.z == qExpected.z)
+    #expect(qFromIdentity.w == qExpected.w)
     
     // Second test, 90 degree around x
     let m = Matrix3x3(elements: [1, 0, 0,
                                  0, 0,-1,
                                  0, 1, 0])
     let q = m.quaternion
-    XCTAssertEqual(q.x, 0.7071067811865475)
-    XCTAssertEqual(q.y, 0.0)
-    XCTAssertEqual(q.z, 0.0)
-    XCTAssertEqual(q.w, 0.7071067811865476)
+    #expect(q.x == 0.7071067811865475)
+    #expect(q.y == 0.0)
+    #expect(q.z == 0.0)
+    #expect(q.w == 0.7071067811865476)
   }
 
+  @Test
   func testQuaternionToMatrix() {
     let identityQuaternion = Quaternion.identity
     let mFromIdentiy = identityQuaternion.matrix
@@ -147,7 +163,7 @@ final class math_tests : XCTestCase {
 
     for i in 0..<3 {
       for j in 0..<3 {
-        XCTAssertEqual(mExpected[i,j], mFromIdentiy[i,j])
+        #expect(mExpected[i,j] == mFromIdentiy[i,j])
       }
     }
 
@@ -159,11 +175,12 @@ final class math_tests : XCTestCase {
     let m = q.matrix
     for i in 0..<3 {
       for j in 0..<3 {
-        XCTAssertEqual(m[i,j], mExpected90[i,j], accuracy: 0.000000001)
+        #expect(abs((m[i,j]) - (mExpected90[i,j])) <= 0.000000001)
       }
     }
   }
 
+  @Test
   func testCubeToSphere() {
     // Cube sphere mapping test data. Center points for each cube face are
     // supposed to be mapped to identical coordinates.
@@ -231,12 +248,13 @@ final class math_tests : XCTestCase {
 
     for testCase in testdata {
       let res = cubeToSphere(testCase[0])
-      XCTAssertEqual(res.x, testCase[1].x, accuracy: 0.00000001)
-      XCTAssertEqual(res.y, testCase[1].y, accuracy: 0.00000001)
-      XCTAssertEqual(res.z, testCase[1].z, accuracy: 0.00000001)
+      #expect(abs((res.x) - (testCase[1].x)) <= 0.00000001)
+      #expect(abs((res.y) - (testCase[1].y)) <= 0.00000001)
+      #expect(abs((res.z) - (testCase[1].z)) <= 0.00000001)
     }
   }
 
+  @Test
   func testSphereToCube() {
     // Same test data as for test_cube_sphere_map, only the reverse mapping
     // is tested.
@@ -300,9 +318,9 @@ final class math_tests : XCTestCase {
 
     for testCase in testdata {
       let res = sphereToCube(testCase[1])
-      XCTAssertEqual(res.x, testCase[0].x, accuracy: 0.000001)
-      XCTAssertEqual(res.y, testCase[0].y, accuracy: 0.000001)
-      XCTAssertEqual(res.z, testCase[0].z, accuracy: 0.000001)
+      #expect(abs((res.x) - (testCase[0].x)) <= 0.000001)
+      #expect(abs((res.y) - (testCase[0].y)) <= 0.000001)
+      #expect(abs((res.z) - (testCase[0].z)) <= 0.000001)
     }
   }
 }

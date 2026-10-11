@@ -16,26 +16,28 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class DynamicalTime_tests : XCTestCase {
+@Suite
+struct DynamicalTime_tests {
+  @Test
   func testDynamicalTime() {
     // Meeus, p 78
     let date0 = GregorianDate(year: 1990, month: .January, day: 27)
     let dt0 = deltaT(year: date0.years())
-    XCTAssertEqual(dt0, 57, accuracy: 0.1)
+    #expect(abs((dt0) - (57)) <= 0.1)
 
 
     // Meeus, example 10.a
     let date1 = GregorianDate(year: 1977, month: .February, day: 18)
     let dt1 = deltaT(year: date1.years())
-    XCTAssertEqual(dt1, 48, accuracy: 0.4)
+    #expect(abs((dt1) - (48)) <= 0.4)
 
 
     // Meeus, example 10.b
     let date2 = JulianDate(year: 333, month: .February, day: 6.3333333333)
     let dt2 = deltaT(year: date2.years())
-    XCTAssertEqual(dt2, 6146, accuracy: 0.1)
+    #expect(abs((dt2) - (6146)) <= 0.1)
   }
 }

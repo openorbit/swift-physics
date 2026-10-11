@@ -16,22 +16,26 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class jd_tests : XCTestCase {
+@Suite
+struct jd_tests {
+  @Test
   func testGregorianToJD() {
     // Meeus, example 7.a
     let date = GregorianDate(year: 1957, month: .October, day: 4.81)
-    XCTAssertEqual(date.toJD(), 2436116.31)
+    #expect(date.toJD() == 2436116.31)
   }
   
+  @Test
   func testJulianToJD() {
     // Meeus, example 7.b
     let date = JulianDate(year: 333, month: .January, day: 27.5)
-    XCTAssertEqual(date.toJD(), 1842713.0)
+    #expect(date.toJD() == 1842713.0)
   }
   
+  @Test
   func testGregorianConversions() {
     // Meeus, p 62
     let dates = [
@@ -47,15 +51,16 @@ final class jd_tests : XCTestCase {
     ]
     
     for (date, jd) in dates {
-      XCTAssertEqual(date.toJD(), jd)
+      #expect(date.toJD() == jd)
       
       let gdate = jd.toGregorian()
-      XCTAssertEqual(gdate.year, date.year)
-      XCTAssertEqual(gdate.month, date.month)
-      XCTAssertEqual(gdate.day, date.day)
+      #expect(gdate.year == date.year)
+      #expect(gdate.month == date.month)
+      #expect(gdate.day == date.day)
     }
   }
   
+  @Test
   func testJulianConversion() {
     // Meeus, p 62
     let dates = [
@@ -69,69 +74,77 @@ final class jd_tests : XCTestCase {
     ]
     
     for (date, jd) in dates {
-      XCTAssertEqual(date.toJD(), jd)
+      #expect(date.toJD() == jd)
     }
   }
   
+  @Test
   func testMJDConversion() {
     // Meeus, p 63
     let date = GregorianDate(year: 1858, month: .November, day: 17.0)
-    XCTAssertEqual(date.toJD().asMJD, 0.0)
+    #expect(date.toJD().asMJD == 0.0)
   }
   
+  @Test
   func testWeekday() {
     // Meeus, p65
     let date = GregorianDate(year: 1954, month: .June, day: 30.1)
-    XCTAssertEqual(date.toJD().weekday, .Wednesday)
+    #expect(date.toJD().weekday == .Wednesday)
   }
   
+  @Test
   func testDayOfYear() {
     // Meeus, p65, examples 7.f and 7.g
     let date_7f = GregorianDate(year: 1978, month: .November, day: 14)
-    XCTAssertEqual(date_7f.dayOfYear(), 318)
+    #expect(date_7f.dayOfYear() == 318)
     
     let date_7g = GregorianDate(year: 1988, month: .April, day: 22)
-    XCTAssertEqual(date_7g.dayOfYear(), 113)
+    #expect(date_7g.dayOfYear() == 113)
   }
 
-  func testGregorianDateFromDayInYear() {
+  @Test
+  func testGregorianDateFromDayInYear() throws {
     // Meeus, p65, examples 7.f and 7.g in reverse
-    let date_7f = GregorianDate(year: 1978, dayInYear: 318)!
-    XCTAssertEqual(date_7f.year, 1978)
-    XCTAssertEqual(date_7f.month, .November)
-    XCTAssertEqual(date_7f.day, 14)
+    let date_7f = try #require(GregorianDate(year: 1978, dayInYear: 318))
+    #expect(date_7f.year == 1978)
+    #expect(date_7f.month == .November)
+    #expect(date_7f.day == 14)
     
-    let date_7g = GregorianDate(year: 1988, dayInYear: 113)!
-    XCTAssertEqual(date_7g.year, 1988)
-    XCTAssertEqual(date_7g.month, .April)
-    XCTAssertEqual(date_7g.day, 22)
+    let date_7g = try #require(GregorianDate(year: 1988, dayInYear: 113))
+    #expect(date_7g.year == 1988)
+    #expect(date_7g.month == .April)
+    #expect(date_7g.day == 22)
   }
   
+  @Test
   func testJulianYears() {
     let date = JulianDate(year: 333, month: .February, day: 6.33333333333)
-    XCTAssertEqual(date.years(), 333.1, accuracy: 0.01)
+    #expect(abs((date.years()) - (333.1)) <= 0.01)
   }
   
+  @Test
   func testGregorianYears() {
     let date = GregorianDate(year: 1999, month: .February, day: 6.33333333333)
-    XCTAssertEqual(date.years(), 1999.1, accuracy: 0.01)
+    #expect(abs((date.years()) - (1999.1)) <= 0.01)
   }
 
+  @Test
   func testJD0() {
     let jd0_1999 = jd0(year: 1999)
     let greg0_1999 = GregorianDate(year: 1999, month: .January, day: 0.0)
     let jd0_expect = greg0_1999.toJD()
-    XCTAssertEqual(jd0_1999, jd0_expect)
+    #expect(jd0_1999 == jd0_expect)
   }
   
+  @Test
   func testGregorianToJulianConversion() {
     let gregDate = GregorianDate(year: 2023, month: .January, day: 4)
     let jd = gregDate.toJD()
     let julianDate = jd.toJulian()
     
-    XCTAssertEqual(julianDate.year, 2022)
-    XCTAssertEqual(julianDate.month, .December)
-    XCTAssertEqual(julianDate.day, 22)
+    #expect(julianDate.year == 2022)
+    #expect(julianDate.month == .December)
+    #expect(julianDate.day == 22)
 
   }
 }

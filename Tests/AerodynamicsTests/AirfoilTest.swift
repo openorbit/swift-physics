@@ -5,10 +5,12 @@
 //  Created by Mattias Holm on 2023-11-03.
 //
 
-import XCTest
+import Testing
 @testable import Aerodynamics
 
-final class AirfoilTest: XCTestCase {
+@Suite
+struct AirfoilTest {
+    @Test
     func testParametricAirfoil() throws {
       let airfoilString = """
 name: NACA 2412
@@ -54,8 +56,8 @@ data:
   - [ 18.000,   1.5415,   0.06805,  0.06374,  -0.0116]
   - [ 19.000,   1.4942,   0.08893,  0.08508,  -0.0189]
 """
-      let airfoil = ParametricAirfoil(withString: airfoilString)!
+      let airfoil = try #require(ParametricAirfoil(withString: airfoilString))
       print("\(airfoil.liftCoefficient(at: 0.0, for: 1e6))")
-      XCTAssert(0.2442 == airfoil.liftCoefficient(at: 0.0, for: 1e6))
+      #expect(0.2442 == airfoil.liftCoefficient(at: 0.0, for: 1e6))
     }
 }
