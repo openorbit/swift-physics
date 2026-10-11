@@ -26,7 +26,7 @@ The initializer normalizes units once at the boundary:
 
 Here AU is exactly 149,597,870,700 metres and a day is 86,400 seconds. Nonfinite components and conversion overflow throw `CartesianStateError`. Input vectors must already be Cartesian coordinates in the supplied frame; units do not convert spherical coordinates or time scales.
 
-Frame equality uses object identity, so two frames with the same name are distinct. A frame defines both origin and axes. Frame transformations and relative-state operations remain future work; changing a frame label cannot convert coordinates. The existing mutable frame tree also prevents a concurrency guarantee for these types.
+Frame equality uses object identity, so two frames with the same name are distinct. A frame defines both origin and axes. [FrameTree](FRAMES.md) supplies transformations between connected frames; changing a frame label cannot convert coordinates. These types do not promise concurrent mutation or Sendable conformance.
 
 ## VSOP87 provider
 

@@ -73,7 +73,7 @@ public protocol StateProvider {
   func state(at epoch: Epoch) throws -> CartesianState
 }
 
-/// Named astronomical frame identities. Transform connections are future work.
+/// Named astronomical frame identities that can be adopted as FrameTree roots.
 public enum CelestialFrames {
   /// Solar-system barycentre origin; dynamical ecliptic and equinox J2000 axes.
   /// This is the native VSOP87E frame, not an ICRF/equatorial frame alias.

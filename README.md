@@ -43,3 +43,5 @@ swift test
 Apache 2.0
 
 Shared Cartesian states use metres and metres per second, with explicit unit conversion and a VSOP87 provider adapter. See [STATES.md](STATES.md).
+
+Time-dependent frame trees, rotating transforms, and their conventions are documented in [FRAMES.md](FRAMES.md).

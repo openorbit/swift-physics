@@ -40,8 +40,8 @@ public struct Transformation {
 }
 
 public class Frame {
-  weak var parent: Frame?
-  var depth: Int
+  public let parent: Frame?
+  public let depth: Int
   public let name: String
   public let pseudoInertial: Bool
 
