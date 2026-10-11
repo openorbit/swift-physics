@@ -47,17 +47,23 @@ public struct EphemerisMetadata {
   /// Time argument consumed by the underlying model. State derivatives are converted
   /// to elapsed atomic seconds regardless of this coordinate-time representation.
   public let modelTimeScale: TimeScale
+  /// All coordinate-time arguments used by a composed model.
+  public let modelTimeScales: Set<TimeScale>
   public let velocityMethod: EphemerisDerivativeMethod
   public let accelerationMethod: EphemerisDerivativeMethod
   public let provenance: PhysicalDataProvenance
   public init(body: BodyIdentifier, origin: BodyIdentifier, frame: Frame,
               coverage: ClosedRange<Epoch>, coverageBasis: EphemerisCoverageBasis,
               modelTimeScale: TimeScale, velocityMethod: EphemerisDerivativeMethod,
-              accelerationMethod: EphemerisDerivativeMethod, provenance: PhysicalDataProvenance) throws {
+              accelerationMethod: EphemerisDerivativeMethod, provenance: PhysicalDataProvenance,
+              modelTimeScales: Set<TimeScale>? = nil) throws {
     try body.validate(); try origin.validate()
     try velocityMethod.validate(); try accelerationMethod.validate()
     // CartesianState always supplies velocity. An unavailable velocity cannot be represented.
     guard velocityMethod != .unavailable else { throw EphemerisError.invalidMetadata }
+    let scales = modelTimeScales ?? [modelTimeScale]
+    guard scales.contains(modelTimeScale) else { throw EphemerisError.invalidMetadata }
+    self.modelTimeScales = scales
     self.body = body; self.origin = origin; self.frame = frame; self.coverage = coverage
     self.coverageBasis = coverageBasis; self.modelTimeScale = modelTimeScale
     self.velocityMethod = velocityMethod; self.accelerationMethod = accelerationMethod

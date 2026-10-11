@@ -156,3 +156,86 @@ modern Pluto ephemerides.
 Tests preserve the legacy published lunar/Pluto cases, verify spherical-to-Cartesian
 units, compare derivative steps and differentiated ICRF trajectories, check precession
 against ERFA, and validate native coverage endpoints and collection integration.
+
+## Explicit origin conversion and barycentres
+
+`makeOriginConvertedEphemeris` subtracts a new-origin state from a target state.
+Both inputs must declare the same original origin and have the exact same native
+frame identity. The method registers a translated child frame with unchanged axes,
+so its new origin is represented by a physical frame edge rather than a metadata
+relabel. Position, velocity and available acceleration are subtracted in SI units.
+The usable coverage is the closed intersection of the input intervals; disjoint
+coverage fails before registering a frame.
+
+```swift
+// moonBarycentric and earthBarycentric already use the same barycentric frame.
+let lunarGeocentric = try tree.makeOriginConvertedEphemeris(
+  target: moonBarycentric, newOrigin: earthBarycentric,
+  frameName: "Earth-centred lunar ephemeris",
+  accelerationPolicy: .estimate(step: CelMek.Duration(seconds: 60)))
+let relative = try lunarGeocentric.state(at: epoch)
+```
+
+This operation requires actual states of both objects. It cannot derive Earth from
+an Earth–Moon barycentre alone or resolve a planet from its system barycentre without
+the missing relative motion and mass data. Transform differently oriented inputs
+into a common frame first, then wrap the converted StateProviders with metadata
+that accurately describes that frame's origin, coverage and derivative methods.
+When translation has already been performed by a frame transform, update the declared
+origin too; do not subtract the same origin a second time.
+
+The native subtraction query requires no frame-tree lookup. Its acceleration is
+available only when both inputs supply acceleration; neither zero nor estimated
+acceleration is selected implicitly. The registered edge's `OriginAccelerationPolicy`
+governs later frame transformations. With `requireProvided`, transformations throw
+if new-origin acceleration is missing. An explicitly estimated or zero acceleration
+for that edge does not manufacture acceleration in the recentered ephemeris.
+Neighbour coverage for estimation further restricts converted queries, beyond the
+native metadata interval. The edge checks custom ephemeris results before use.
+
+### Constructing a barycentre
+
+`BarycentreEphemeris` computes the constant-mass weighted combination of at least
+two distinct constituent bodies. All constituents must share the same declared
+origin and native frame. Positive finite relative masses and their provenance are
+required; they are normalized internally, so a common mass scale is irrelevant.
+The output body identity must differ from every constituent. Missing constituents
+cannot be inferred, and duplicate identities are rejected.
+
+```swift
+let ratios = try PhysicalDataProvenance(source: "Selected Earth/Moon mass ratio", version: "application data 1")
+let emb = try BarycentreEphemeris(
+  bodyIdentifier: .earthMoonBarycentre,
+  components: [
+    BarycentreComponent(ephemeris: earthBarycentric, relativeMass: earthToMoonMassRatio, provenance: ratios),
+    BarycentreComponent(ephemeris: moonBarycentric, relativeMass: 1, provenance: ratios)
+  ],
+  provenance: PhysicalDataProvenance(source: "Computed Earth–Moon barycentre", version: "1"))
+```
+
+Use a ratio compatible with the actual ephemeris solution; no ratio is inferred from
+the bundled body catalogue. GM ratios can represent mass ratios only when their
+coordinate conventions and source solutions are compatible. Ratios are constant:
+time-varying masses would require extra velocity/acceleration terms and a different
+provider. The combined field records component ephemeris and mass-ratio provenance.
+
+Coverage is the intersection of every component's interval. Acceleration remains
+unknown if any component lacks it. Analytic derivative metadata is retained only
+when every input derivative is analytic; other available combinations are labelled
+as supplied compositions. Floating-point cancellation still limits small relative
+states computed from large barycentric coordinates, and extreme mass ratios may
+underflow normalized weights.
+
+Mixed model time arguments are permitted because all input states have already
+converted derivatives into atomic seconds. `modelTimeScale` retains the target's
+(or first component's) primary argument for compatibility; `modelTimeScales` records
+the complete set of arguments involved. No time conversion occurs during subtraction
+or weighted composition. Constituent providers remain responsible for their own
+TT/TDB conversions and coverage. Physical consistency across different solutions
+is a caller decision, not guaranteed by matching identifiers.
+
+Both providers are immutable and introduce no query-order cache or hidden fallback.
+Registered origin edges retain providers without retaining their tree; any existing
+FrameConvertedStateProviders still hold their tree weakly. Retain the tree for
+later conversion. Tests check all derivatives, frame round trips, mixed time metadata,
+coverage and identity rejection, missing acceleration, and scale-independent weights.

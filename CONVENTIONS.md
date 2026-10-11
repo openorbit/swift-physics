@@ -121,6 +121,7 @@ application boundary; select an alternate provider or approximation explicitly.
 | `FrameQueryError` | Provider result uses the wrong frame, or an adapter's weakly referenced tree was released; fix the provider contract or retain the tree. |
 | `BodyFixedFrameError` | Origin/orientation frames differ, origin acceleration is missing, or an estimation step is invalid; align frames and choose an explicit acceleration policy. |
 | `IAUOrientationError` | Unknown body, legacy model requires opt-in, or query outside selected coverage; choose a supported model and coverage. |
+| `EphemerisOriginError` | Incompatible origin/frame, disjoint coverage, duplicate or insufficient barycentre components, or invalid mass ratios; provide compatible covered states and explicit positive ratios. |
 | `EphemerisError` | Invalid metadata/derivative methods, mismatched frame or acceleration claims, coverage failure, duplicate or unsupported body; align provider metadata and use covered queries. |
 | `BodyModelError` | Mismatched model identities, invalid surface directions/positions, singular point-mass gravity or nonfinite results; select compatible models and valid local coordinates. |
 | `CelestialBodyError` | Invalid identity, physical values or provenance; duplicate catalogue identity or absent body; provide validated metadata and an explicit catalogue. |
