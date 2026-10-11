@@ -2,11 +2,16 @@
 import Foundation
 import Math
 
-/// Complete built-in VSOP87E series, with explicit caller coverage and TDB model.
-public struct VSOP87Ephemeris: EphemerisProvider {
+/// Coverage-aware VSOP87E coefficient selection, with an explicit TDB model.
+public struct VSOP87Ephemeris: AccuracyAwareEphemerisProvider {
   public let metadata: EphemerisMetadata
+  public let accuracy: AccuracyLevel
+  public let effectiveAccuracy: AccuracyLevel
+  public var availableAccuracyLevels: Set<AccuracyLevel> { Set(AccuracyLevel.allCases) }
+  public let coefficientSelection: VSOP87CoefficientSelection
   private let provider: VSOP87StateProvider
-  public init(body: vsop87_body, coverage: ClosedRange<Epoch>, tdbModel: any TDBTimeModel) throws {
+  public init(body: vsop87_body, coverage: ClosedRange<Epoch>, tdbModel: any TDBTimeModel, accuracy: AccuracyLevel = .full) throws {
+    self.accuracy = accuracy
     guard coverage.lowerBound >= tdbModel.coverage.lowerBound,
           coverage.upperBound <= tdbModel.coverage.upperBound else { throw EphemerisError.outsideCoverage }
     let id: BodyIdentifier
@@ -21,12 +26,15 @@ public struct VSOP87Ephemeris: EphemerisProvider {
     case .vsop87_uranus: id = .uranusBarycentre
     case .vsop87_neptune: id = .neptuneBarycentre
     }
-    provider = VSOP87StateProvider(body: body,tdbModel: tdbModel)
+    let selection = try VSOP87CoefficientSelection(body: body,coverage: coverage,tdbModel: tdbModel,accuracy: accuracy)
+    coefficientSelection = selection
+    effectiveAccuracy = selection.retainedTermCount == selection.originalTermCount ? .full : accuracy
+    provider = VSOP87StateProvider(body: selection.selectedBody,tdbModel: tdbModel)
     metadata = try EphemerisMetadata(body: id,origin: .solarSystemBarycentre,frame: body.frame,
       coverage: coverage,coverageBasis: .callerSelected,modelTimeScale: .tdb,
       velocityMethod: .analytic,accelerationMethod: .unavailable,
-      provenance: PhysicalDataProvenance(source: "VSOP87E complete built-in series; \(tdbModel.provenance)",
-        version: "VSOP87",reference: "https://ftp.imcce.fr/pub/ephem/planets/vsop87/"))
+      provenance: PhysicalDataProvenance(source: "VSOP87E \(effectiveAccuracy) evaluation, \(selection.retainedTermCount)/\(selection.originalTermCount) terms; \(tdbModel.provenance)",
+        version: "VSOP87",reference: "https://ftp.imcce.fr/pub/ephem/planets/vsop87/"),accuracy: accuracy,effectiveAccuracy: effectiveAccuracy)
   }
   public func state(at epoch: Epoch) throws -> CartesianState {
     guard metadata.coverage.contains(epoch) else { throw EphemerisError.outsideCoverage }
@@ -65,14 +73,18 @@ extension FrameTree {
 /// Adapters for the existing truncated lunar and Pluto spherical series. TT is the
 /// legacy ephemeris-time argument. Position coverage is caller selected; query
 /// coverage is shortened by ±2*velocityStep for the five-point Cartesian derivative.
-public struct SphericalAnalyticEphemeris: EphemerisProvider {
+public struct SphericalAnalyticEphemeris: AccuracyAwareEphemerisProvider {
   public enum Model: Sendable { case meeusMoon, goffinPluto }
   public let metadata: EphemerisMetadata
+  public let accuracy: AccuracyLevel
+  public let effectiveAccuracy: AccuracyLevel = .full
+  public var availableAccuracyLevels: Set<AccuracyLevel> { [.full] }
   public let model: Model
   public let positionCoverage: ClosedRange<Epoch>
   public let velocityStep: Duration
   public init(model: Model, frames: AnalyticEphemerisFrames, positionCoverage: ClosedRange<Epoch>,
-              velocityStep: Duration) throws {
+              velocityStep: Duration, accuracy: AccuracyLevel = .full) throws {
+    self.accuracy = accuracy
     guard velocityStep > .zero else { throw EphemerisError.invalidDerivativeMethod }
     let margin = try velocityStep.adding(velocityStep)
     let lower = try positionCoverage.lowerBound.advanced(by: margin)
@@ -85,7 +97,7 @@ public struct SphericalAnalyticEphemeris: EphemerisProvider {
       coverageBasis: .callerSelected,modelTimeScale: .tt,
       velocityMethod: .finiteDifference(step: velocityStep),accelerationMethod: .unavailable,
       provenance: PhysicalDataProvenance(source: moon ? "Meeus chapter 47 truncated lunar series, including constant light-time longitude term; legacy elp2000_82b" : "Meeus/Goffin Pluto spherical series; legacy goffin2000",
-        version: "built-in legacy coefficients; TT adapter"))
+        version: "built-in legacy coefficients; TT adapter"),accuracy: accuracy,effectiveAccuracy: effectiveAccuracy)
   }
   private func position(at epoch: Epoch) throws -> SIMD3<Double> {
     guard positionCoverage.contains(epoch) else { throw EphemerisError.outsideCoverage }

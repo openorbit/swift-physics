@@ -239,3 +239,5 @@ Registered origin edges retain providers without retaining their tree; any exist
 FrameConvertedStateProviders still hold their tree weakly. Retain the tree for
 later conversion. Tests check all derivatives, frame round trips, mixed time metadata,
 coverage and identity rejection, missing acceleration, and scale-independent weights.
+
+Analytic adapters accept an explicit shared accuracy level; supported levels and their meaning are documented in [ACCURACY.md](ACCURACY.md).

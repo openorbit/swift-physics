@@ -72,6 +72,9 @@ import Testing
     #expect(throws: EphemerisError.invalidDerivativeMethod) { try adapter(.meeusMoon,epoch: .j2000,frames: frames,step: 0) }
     let tdb = try FairheadTDBModel()
     let vsop = try VSOP87Ephemeris(body: earth,coverage: p.metadata.coverage,tdbModel: tdb)
+    #expect(vsop.accuracy == .full && vsop.metadata.accuracy == .full)
+    #expect(vsop.availableAccuracyLevels == Set(AccuracyLevel.allCases))
+    #expect(p.accuracy == .full && p.metadata.accuracy == .full)
     let direct = try earth.state(at: .j2000,using: tdb)
     #expect(try vsop.state(at: .j2000) == direct)
     let collection = try EphemerisCollection(providers: [vsop,p])
@@ -90,5 +93,48 @@ import Testing
       -0.8696632209485112192e-3,0.9999996218428560614,-0.1643284776111886407e-6,
       -0.3779153474950335077e-3,-0.1643306746147366896e-6,0.9999999285899790119]
     for i in 0..<3 { for j in 0..<3 { #expect(abs(precession[i,j]-expected[3*i+j]) < 2e-14) } }
+  }
+
+
+  @Test(arguments: [AccuracyLevel.low,.balanced,.high])
+  func accuracyHintsMayUseFullEvaluation(_ level: AccuracyLevel) throws {
+    let (_,frames) = try setup()
+    let coverage = try Epoch.j2000.advanced(by: CelMek.Duration(seconds: -1000))...Epoch.j2000.advanced(by: CelMek.Duration(seconds: 1000))
+    for model in [SphericalAnalyticEphemeris.Model.meeusMoon,.goffinPluto] {
+      let p = try SphericalAnalyticEphemeris(model: model,frames: frames,positionCoverage: coverage,
+        velocityStep: CelMek.Duration(seconds: 30),accuracy: level)
+      let full = try adapter(model,epoch: .j2000,frames: frames)
+      let actual = try p.checkedState(at: .j2000), expected = try full.state(at: .j2000)
+      #expect(actual == expected)
+      #expect(p.accuracy == level && p.effectiveAccuracy == .full)
+      #expect(p.metadata.accuracy == level && p.metadata.effectiveAccuracy == .full)
+    }
+  }
+  @Test func preparedVSOPSubsetsBoundPositionErrorAndRetainAnalyticVelocity() throws {
+    let tdb = try FairheadTDBModel()
+    let coverage = try Epoch.j2000.advanced(by: CelMek.Duration(seconds: -86400*365))...Epoch.j2000.advanced(by: CelMek.Duration(seconds: 86400*365))
+    let full = try VSOP87Ephemeris(body: earth,coverage: coverage,tdbModel: tdb)
+    var lastCount = 0
+    for level in AccuracyLevel.allCases {
+      let p = try VSOP87Ephemeris(body: earth,coverage: coverage,tdbModel: tdb,accuracy: level)
+      let selection = p.coefficientSelection
+      #expect(selection.retainedTermCount >= lastCount)
+      lastCount = selection.retainedTermCount
+      #expect(p.metadata.accuracy == level)
+      if level != .full { #expect(selection.retainedTermCount < selection.originalTermCount) }
+      else { #expect(selection.positionErrorBoundMetres == .zero) }
+      for day in stride(from: -365,through: 365,by: 73) {
+        let epoch = try Epoch.j2000.advanced(by: CelMek.Duration(seconds: Double(day)*86400))
+        let reduced = try p.state(at: epoch), reference = try full.state(at: epoch)
+        for i in 0..<3 {
+          #expect(abs(reduced.position[i]-reference.position[i]) <= selection.positionErrorBoundMetres[i]+0.05)
+        }
+      }
+      let centre = try p.state(at: .j2000)
+      let before = try p.state(at: Epoch.j2000.advanced(by: CelMek.Duration(seconds: -60)))
+      let after = try p.state(at: Epoch.j2000.advanced(by: CelMek.Duration(seconds: 60)))
+      let differentiated = (after.position-before.position)/120
+      for i in 0..<3 { #expect(abs(centre.velocity[i]-differentiated[i]) < 0.001) }
+    }
   }
 }

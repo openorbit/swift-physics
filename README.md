@@ -61,3 +61,5 @@ The IAU coefficient review, updated data, and independent SPICE reference tests 
 Body identities, sourced SI properties, and the injectable JPL GM catalogue are documented in [BODIES.md](BODIES.md).
 
 The common ephemeris contract, validating state-provider adapter, and body-query collection are documented in [EPHEMERIDES.md](EPHEMERIDES.md).
+
+Shared accuracy intent and each adapter's supported levels are documented in [ACCURACY.md](ACCURACY.md).

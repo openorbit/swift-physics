@@ -52,11 +52,15 @@ public struct EphemerisMetadata {
   public let velocityMethod: EphemerisDerivativeMethod
   public let accelerationMethod: EphemerisDerivativeMethod
   public let provenance: PhysicalDataProvenance
+  /// Selected intent for this model; nil means unspecified, not full.
+  public let accuracy: AccuracyLevel?
+  /// Effective evaluation mode; may be higher than the requested hint.
+  public let effectiveAccuracy: AccuracyLevel?
   public init(body: BodyIdentifier, origin: BodyIdentifier, frame: Frame,
               coverage: ClosedRange<Epoch>, coverageBasis: EphemerisCoverageBasis,
               modelTimeScale: TimeScale, velocityMethod: EphemerisDerivativeMethod,
               accelerationMethod: EphemerisDerivativeMethod, provenance: PhysicalDataProvenance,
-              modelTimeScales: Set<TimeScale>? = nil) throws {
+              modelTimeScales: Set<TimeScale>? = nil, accuracy: AccuracyLevel? = nil, effectiveAccuracy: AccuracyLevel? = nil) throws {
     try body.validate(); try origin.validate()
     try velocityMethod.validate(); try accelerationMethod.validate()
     // CartesianState always supplies velocity. An unavailable velocity cannot be represented.
@@ -67,7 +71,7 @@ public struct EphemerisMetadata {
     self.body = body; self.origin = origin; self.frame = frame; self.coverage = coverage
     self.coverageBasis = coverageBasis; self.modelTimeScale = modelTimeScale
     self.velocityMethod = velocityMethod; self.accelerationMethod = accelerationMethod
-    self.provenance = provenance
+    self.provenance = provenance; self.accuracy = accuracy; self.effectiveAccuracy = effectiveAccuracy
   }
 }
 
