@@ -126,6 +126,39 @@ against the chosen table, so 86400 is accepted only on positive leap days. Advan
 calendar days. Calendar parsing/presentation and UTC-to-UT1 via DUT1 remain follow-up
 work; UT1 still requires separate Earth-orientation data.
 
+## Gregorian calendar readings
+
+`GregorianDay` validates a proleptic Gregorian date with astronomical year numbering:
+year 0 is 1 BCE. Its range is −1,000,000 through +1,000,000 inclusive, with no historical
+calendar cutover. It converts to/from integer midnight MJD using integer 400-year eras
+([algorithm derivation](https://howardhinnant.github.io/date_algorithms.html)).
+
+`CalendarDateTime` carries a `CalendarTimeScale` (`tai`, `tt`, `tdb`, or `utc`) and
+validated hour, minute and split `Duration` seconds. Seconds of 60 are allowed only
+in UTC at 23:59; the chosen leap-second table validates the actual date on conversion.
+A missing UTC table throws `CalendarConversionError.leapSecondTableRequired`.
+
+```swift
+let reading = try CalendarDateTime(
+  date: GregorianDay(year: 2016, month: 12, day: 31),
+  hour: 23, minute: 59, second: CelMek.Duration(seconds: 60.25), scale: .utc)
+let epoch = try Epoch(calendar: reading, using: .iersBulletinC72)
+let ttClock = try epoch.calendar(in: .tt)
+let utcClock = try epoch.calendar(in: .utc, using: .iersBulletinC72)
+let ttJD = try epoch.julianDate(in: .tt)
+```
+
+There is no timezone interpretation, implicit UTC default, or wall-clock dependency.
+Continuous-scale dates use split Julian dates; UTC retains its civil day and leap label.
+Day conversions are integer-exact within the calendar range; fractional clock/Julian-date
+conversion rounds in `Double` (tests use a 30-picosecond tolerance). The calendar range
+is an API arithmetic range, not a model accuracy guarantee, and UTC table coverage is
+usually much narrower. The characterized TDB limits above still apply.
+
+The legacy `Date`, `Time`, `DateTime`, and astronomical calendar algorithms retain their
+existing conventions. The new types provide an explicit alternative; locale formatting,
+ISO string parsing, timezones and historical-calendar presentation remain separate work.
+
 ## Validation
 
 [EpochTests](Tests/CelMekTests/EpochTests.swift) uses a normal `import CelMek`, exercising public construction and result access. It covers normalization, arithmetic, comparisons/hashing, nonfinite inputs, range errors, J2000 scale offsets, fine steps at distant epochs, split-date precision, conversion round trips, and the millisecond scale of the TDB approximation.
