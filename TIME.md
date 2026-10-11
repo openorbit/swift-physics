@@ -51,7 +51,47 @@ Regression tests demonstrate nanosecond increments on offsets of ±500 billion s
 | TT | Fixed 32.184-second offset from TAI. |
 | TDB | Existing low-order periodic TT/TDB approximation, evaluated from split epoch offsets and inverted iteratively. |
 
-TDB is provisional: its physical error and valid astronomical interval have not been independently characterized. It must not be treated as a precision relativistic conversion merely because the epoch storage is precise. `Epoch` storage and TT/TAI arithmetic are independent of that optional adapter.
+The TDB adapter is the two-term approximation
+`0.001658*sin(g) + 0.000014*sin(2*g)` seconds, with
+`g = (357.53 + 0.9856003*daysSinceJ2000TT)` degrees. It represents a geocentric
+conversion, without observer-dependent topocentric terms.
+
+We compared it with the full Fairhead–Bretagnon model in
+[ERFA 2.0.1 `eraDtdb`](https://github.com/liberfa/erfa/blob/v2.0.1/src/dtdb.c),
+using zero observer coordinates. The reference permits TT as its date argument
+and reports accuracy better than ±3 ns relative to DE405 time ephemerides over
+1950–2050. That reference accuracy does **not** apply to our two-term adapter.
+
+| Sampled TT interval (inclusive January 1 endpoints) | Cadence / samples | Maximum absolute offset error | RMS error |
+| --- | --- | --- | --- |
+| 1950–2050 | 6 hours / 146,101 | 36.483 µs | 16.831 µs |
+| 1900–2100 | 6 hours / 292,197 | 38.763 µs | 17.011 µs |
+
+These are empirical sampled errors, not continuous error bounds or certification
+against a modern DE time ephemeris. The 1950–2050 interval is the characterized
+use interval with the reference's stated accuracy; the wider survey is a numerical
+stress comparison. No accuracy claim is made outside these surveys, even though
+`Epoch` permits a much larger storage range. Existing calls remain available without
+an implicit coverage restriction; callers must choose whether this model suits them.
+
+For scale, a 36.483 µs epoch error corresponds to about 1.1 m of position error for
+motion at 30 km/s, before other model errors. This can suit game ephemerides, but
+metre-level work should select a more accurate time model. A configurable precision
+TDB model remains follow-up work. TT/TAI arithmetic and `Epoch` storage are independent
+of the TDB approximation.
+
+Regression tests use 4,874 independently generated ERFA samples, including all four
+six-hour phases every 30 days, the final endpoint and J2000. The sampled maximum rate
+error is 9.919e-12 s/s and acceleration error is 1.121e-17 1/s. Reference derivatives
+use centred differences with a 300-second step; these derivative figures include
+that numerical approximation and are not analytic error bounds. The analytic
+Swift derivatives remain consistent with the implemented two-term model. TDB round
+trips check numerical inversion, separately from physical accuracy.
+
+[Survey results](TDB_CHARACTERIZATION.json) record sample counts and worst TT Julian
+dates. `Tools/characterize_tdb_adapter.py` regenerates the survey and fixtures using
+an external ERFA shared library. This developer reference adds no C target or runtime
+dependency to the package.
 
 UTC uses `UTCDate` with an integer modified Julian day (midnight) and split
 `secondOfDay`, plus an explicitly supplied `LeapSecondTable`. It is separate from

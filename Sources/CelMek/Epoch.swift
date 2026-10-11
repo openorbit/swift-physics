@@ -11,7 +11,8 @@ public enum TimeArithmeticError: Error, Equatable, Sendable {
 public enum TimeScale: Hashable, Sendable {
   case tai
   case tt
-  /// The library's low-order periodic approximation to TDB.
+  /// Low-order geocentric approximation: sampled error <37 µs over 1950–2050.
+  /// See TIME.md; this is not a precision relativistic conversion.
   case tdb
 }
 
@@ -185,8 +186,9 @@ public struct Epoch: Hashable, Comparable, Sendable {
   private static let ttMinusTAI = try! Duration(wholeSeconds: 32, fractionalSecond: 0.184)
 
   /// Same approximation as the legacy TT/TDB conversion, evaluated from a split
-  /// offset to avoid subtracting large Julian dates. Its physical error is not
-  /// characterized; it is not a precision relativistic time-scale model.
+  /// offset to avoid subtracting large Julian dates. Six-hour comparisons with
+  /// ERFA Fairhead–Bretagnon over 1950–2050 found 36.49 µs maximum error.
+  /// See TIME.md for scope; this is not a precision relativistic model.
   private static func tdbMinusTT(at tt: Duration) -> Double {
     let g = tdbMeanAnomaly(at: tt)
     return 0.001658 * sin(g) + 0.000014 * sin(2 * g)
