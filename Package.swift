@@ -10,6 +10,9 @@ let package = Package(
         .library(
             name: "Physics",
             targets: ["CelMek", "Aerodynamics", "Math"]),
+        .library(name: "CelMek", targets: ["CelMek"]),
+        .library(name: "Math", targets: ["Math"]),
+        .library(name: "Aerodynamics", targets: ["Aerodynamics"]),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.

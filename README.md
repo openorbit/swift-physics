@@ -24,10 +24,20 @@ In addition to the celestial mechanics algorithms,
 various functionality related to Aerodynamics have been added.
 It is probable that we will rename the package `swift-physics` at some point.
 
+## Modules
+
+Use the `CelMek`, `Math`, or `Aerodynamics` library product for the modules your
+application needs. The existing `Physics` product bundles all three. Products select
+dependencies; Swift imports remain `import CelMek`, `import Math`, and
+`import Aerodynamics`. See [MODULES.md](MODULES.md) for responsibilities and dependency rules.
+
 ## Time API
 
-Precise epochs, durations, and explicit TAI/TT/provisional TDB representations are
-documented in [TIME.md](TIME.md).
+Precise epochs, durations, UTC leap seconds, and calendar readings with explicit
+TAI/TT/TDB/UTC scales are documented in [TIME.md](TIME.md).
+
+Coordinate handedness, quaternion and angle conventions, transform direction, and
+error handling are documented in [CONVENTIONS.md](CONVENTIONS.md).
 
 ## Testing
 
