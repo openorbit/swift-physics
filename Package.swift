@@ -31,7 +31,8 @@ let package = Package(
             dependencies: ["Yams"]),
         .testTarget(
             name: "CelMekTests",
-            dependencies: ["CelMek"]),
+            dependencies: ["CelMek"],
+            resources: [.copy("Fixtures")]),
         .testTarget(
             name: "AerodynamicsTests",
             dependencies: ["Aerodynamics"]),
