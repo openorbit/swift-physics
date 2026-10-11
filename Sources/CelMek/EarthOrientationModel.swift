@@ -87,8 +87,27 @@ internal enum EarthOrientationModel {
     let a = (turn*(f+0.7790572732640+0.00273781191135448*t)).truncatingRemainder(dividingBy: turn)
     return a < 0 ? a+turn : a
   }
+  /// IAU 2000A bias/precession/nutation (ERFA bp00, obl80, pr00, numat).
+  private static func precessionNutation2000(_ t: Double, n: (longitude: Double, obliquity: Double)) -> Matrix3x3 {
+    let eps0 = 84381.448*arcsecond
+    let dp = -0.29965*t*arcsecond, de = -0.02524*t*arcsecond
+    let psi = polynomial(t,[0,5038.7784,-1.07259,-0.001147])*arcsecond+dp
+    let omega = eps0+polynomial(t,[0,0,0.05127,-0.007726])*arcsecond+de
+    let chi = polynomial(t,[0,10.5526,-2.38064,-0.001125])*arcsecond
+    let bias = rotation(0.0068192*arcsecond,axis: 0)
+      * rotation(-0.041775*arcsecond*sin(eps0),axis: 1) * rotation(-0.0146*arcsecond,axis: 2)
+    let precession = rotation(chi,axis: 2) * rotation(-omega,axis: 0)
+      * rotation(-psi,axis: 2) * rotation(eps0,axis: 0)
+    let eps = polynomial(t,[84381.448,-46.8150,-0.00059,0.001813])*arcsecond+de
+    let j2 = -2.7774e-6*t
+    let nut = rotation(-(eps+n.obliquity/(1+j2)),axis: 0)
+      * rotation(-n.longitude/(1+0.4697e-6+j2),axis: 2) * rotation(eps,axis: 0)
+    return nut * precession * bias
+  }
   static func matrix(edge: EarthFrameTransformProvider.Edge, tt1: Double, tt2: Double,
-                     ut11: Double, ut12: Double, xp: Double, yp: Double) -> [Double] {
+                     ut11: Double, ut12: Double, xp: Double, yp: Double,
+                     dx: Double = 0, dy: Double = 0,
+                     poleReference: CelestialPoleReference = .iau2006A) throws -> [Double] {
     let t = ((tt1-2451545)+tt2)/36525
     let r: Matrix3x3
     if edge == .polarMotion {
@@ -101,9 +120,36 @@ internal enum EarthOrientationModel {
       let phi = polynomial(t,[84381.412819,-46.811016,0.0511268,0.00053289,-0.000000440,-0.0000000176])*arcsecond
       let psi = polynomial(t,[-0.041775,5038.481484,1.5584175,-0.00018522,-0.000026452,-0.0000000148])*arcsecond+n.longitude
       let eps = polynomial(t,[84381.406,-46.836769,-0.0001831,0.00200340,-0.000000576,-0.0000000434])*arcsecond+n.obliquity
-      let b = rotation(-eps,axis: 0) * rotation(-psi,axis: 2) * rotation(phi,axis: 0) * rotation(gamma,axis: 2)
-      let x = b[2,0], y = b[2,1]
-      let s = cioLocator(t,x: x,y: y)
+      func bpn(_ p: Double, _ e: Double) -> Matrix3x3 {
+        rotation(-e,axis: 0) * rotation(-p,axis: 2) * rotation(phi,axis: 0) * rotation(gamma,axis: 2)
+      }
+      var b = bpn(psi, eps)
+      // SOFA procedure: retain the theoretical locator s when applying observed CIP offsets.
+      let s = cioLocator(t,x: b[2,0],y: b[2,1])
+      var x = b[2,0] + dx, y = b[2,1] + dy
+      if poleReference == .iau2000A {
+        let old = precessionNutation2000(t, n: n)
+        x = old[2,0] + dx; y = old[2,1] + dy
+      }
+      guard x.isFinite, y.isFinite, x*x+y*y < 1 else { throw EarthOrientationError.invalidParameters }
+      if dx != 0 || dy != 0 || poleReference == .iau2000A {
+        // Recover nutation angles for the observed pole, preserving the P03 equinox convention.
+        var p = psi, e = eps
+        var converged = false
+        for _ in 0..<10 {
+          b = bpn(p,e)
+          let rx = x-b[2,0], ry = y-b[2,1]
+          if max(abs(rx),abs(ry)) < 2e-16 { converged = true; break }
+          let h = 1e-6
+          let pp = bpn(p+h,e), pm = bpn(p-h,e), ep = bpn(p,e+h), em = bpn(p,e-h)
+          let a = (pp[2,0]-pm[2,0])/(2*h), c = (pp[2,1]-pm[2,1])/(2*h)
+          let bb = (ep[2,0]-em[2,0])/(2*h), d = (ep[2,1]-em[2,1])/(2*h)
+          let determinant = a*d-bb*c
+          guard abs(determinant) > 1e-12 else { throw EarthOrientationError.correctionDidNotConverge }
+          p += (rx*d-bb*ry)/determinant; e += (a*ry-rx*c)/determinant
+        }
+        guard converged else { throw EarthOrientationError.correctionDidNotConverge }
+      }
       if edge == .trueOfDate { r = b }
       else if edge == .celestialIntermediate {
         let radius = x*x+y*y

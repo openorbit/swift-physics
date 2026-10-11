@@ -174,8 +174,14 @@ bundled history. Invalid leap labels and out-of-coverage dates throw `UTCError`.
 UTC days contain 86399, 86400 or 86401 labelled seconds. `secondOfDay` is validated
 against the chosen table, so 86400 is accepted only on positive leap days. Advance
 `Epoch` by SI durations for simulation arithmetic, rather than adding nominal UTC
-calendar days. Calendar parsing/presentation and UTC-to-UT1 via DUT1 remain follow-up
-work; UT1 still requires separate Earth-orientation data.
+calendar days. UT1 requires separate Earth-orientation data.
+
+`EarthOrientationRecord.sample(using:)` converts UTC/DUT1 to an atomic EOP sample:
+UT1−TT = DUT1 − (TAI−UTC) − 32.184 seconds. `sample.dut1(using:)` reverses that
+conversion, including inside a labelled leap second. The tabulated EOP provider
+interpolates UT1−TT rather than the discontinuous DUT1. `epoch.ut1JulianDate(using:)`
+returns distinct two-part UT1 components; UT1 is not a model-free `TimeScale` value.
+See [FRAMES.md](FRAMES.md) for measured file ingestion and interpolation policies.
 
 ## Gregorian calendar readings
 

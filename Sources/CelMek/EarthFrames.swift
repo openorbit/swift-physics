@@ -4,20 +4,30 @@ import Math
 
 public enum EarthOrientationError: Error, Equatable {
   case outsideCoverage, invalidParameters, invalidDerivativeStep, missingRealization
+  case invalidTable, excessiveGap, invalidFile(line: Int), correctionDidNotConverge
 }
 
+/// Model to which measured celestial pole offsets refer.
+public enum CelestialPoleReference: Sendable { case iau2000A, iau2006A }
+
 /// Earth orientation at an atomic epoch. Angles are radians. UT1−TT is supplied
-/// directly, avoiding implicit UTC/leap-second assumptions. Observed celestial
-/// pole offsets dX/dY are not supported by this initial theoretical CIP model.
+/// directly, avoiding implicit UTC/leap-second assumptions.
 public struct EarthOrientationSample {
   public let epoch: Epoch
   public let ut1MinusTT: Duration
   public let polarMotionX: Double
   public let polarMotionY: Double
-  public init(epoch: Epoch, ut1MinusTT: Duration, polarMotionX: Double, polarMotionY: Double) throws {
-    guard polarMotionX.isFinite, polarMotionY.isFinite else { throw EarthOrientationError.invalidParameters }
+  public let celestialPoleX: Double
+  public let celestialPoleY: Double
+  public let poleReference: CelestialPoleReference
+  public init(epoch: Epoch, ut1MinusTT: Duration, polarMotionX: Double, polarMotionY: Double,
+              celestialPoleX: Double = 0, celestialPoleY: Double = 0,
+              poleReference: CelestialPoleReference = .iau2006A) throws {
+    guard [polarMotionX, polarMotionY, celestialPoleX, celestialPoleY].allSatisfy(\.isFinite) else { throw EarthOrientationError.invalidParameters }
     self.epoch = epoch; self.ut1MinusTT = ut1MinusTT
     self.polarMotionX = polarMotionX; self.polarMotionY = polarMotionY
+    self.celestialPoleX = celestialPoleX; self.celestialPoleY = celestialPoleY
+    self.poleReference = poleReference
   }
 }
 
@@ -36,16 +46,24 @@ public struct ConstantEarthOrientationProvider: EarthOrientationProvider {
   private let offset: Duration
   private let x: Double
   private let y: Double
+  private let dx: Double
+  private let dy: Double
+  private let reference: CelestialPoleReference
   public init(ut1MinusTT: Duration, polarMotionX: Double, polarMotionY: Double,
-              coverage: ClosedRange<Epoch>, provenance: String) throws {
+              coverage: ClosedRange<Epoch>, provenance: String,
+              celestialPoleX: Double = 0, celestialPoleY: Double = 0,
+              poleReference: CelestialPoleReference = .iau2006A) throws {
     _ = try EarthOrientationSample(epoch: coverage.lowerBound, ut1MinusTT: ut1MinusTT,
-                                  polarMotionX: polarMotionX, polarMotionY: polarMotionY)
+                                  polarMotionX: polarMotionX, polarMotionY: polarMotionY,
+                                  celestialPoleX: celestialPoleX, celestialPoleY: celestialPoleY, poleReference: poleReference)
+    dx = celestialPoleX; dy = celestialPoleY; reference = poleReference
     self.offset = ut1MinusTT; x = polarMotionX; y = polarMotionY
     self.coverage = coverage; self.provenance = provenance
   }
   public func sample(at epoch: Epoch) throws -> EarthOrientationSample {
     guard coverage.contains(epoch) else { throw EarthOrientationError.outsideCoverage }
-    return try EarthOrientationSample(epoch: epoch, ut1MinusTT: offset, polarMotionX: x, polarMotionY: y)
+    return try EarthOrientationSample(epoch: epoch, ut1MinusTT: offset, polarMotionX: x, polarMotionY: y,
+      celestialPoleX: dx, celestialPoleY: dy, poleReference: reference)
   }
 }
 
@@ -70,9 +88,10 @@ public struct EarthFrameTransformProvider: TransformProvider {
     let eop = try earthOrientation.sample(at: epoch)
     guard eop.epoch == epoch else { throw FrameTransformError.epochMismatch }
     // Preserve the split date; ERFA accepts arbitrary two-part Julian dates.
-    return EarthOrientationModel.matrix(edge: edge, tt1: Double(tt.wholeDay), tt2: tt.fractionalDay,
+    return try EarthOrientationModel.matrix(edge: edge, tt1: Double(tt.wholeDay), tt2: tt.fractionalDay,
       ut11: Double(tt.wholeDay), ut12: tt.fractionalDay + eop.ut1MinusTT.seconds / 86400,
-      xp: eop.polarMotionX, yp: eop.polarMotionY)
+      xp: eop.polarMotionX, yp: eop.polarMotionY,
+      dx: eop.celestialPoleX, dy: eop.celestialPoleY, poleReference: eop.poleReference)
   }
   public func transform(at epoch: Epoch) throws -> FrameTransform {
     let h = derivativeStep.seconds

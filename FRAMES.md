@@ -151,9 +151,8 @@ let terrestrial = try earth.state(at: .j2000, in: frames.itrf, using: tree)
 ```
 
 The example offset is illustrative, not a current Earth-orientation measurement.
-Implement `EarthOrientationProvider` for measured EOP with your selected interpolation,
-coverage and provenance. Samples supply UT1−TT in seconds and polar motion in radians;
-this avoids an implicit leap-second table. No UTC/DUT1 file ingestion is included yet.
+Samples supply UT1−TT in seconds and polar motion and celestial pole offsets in radians.
+Measured records accept UTC/DUT1 through an explicit leap-second table; see below.
 The constant provider is an explicit approximation and rejects extrapolation.
 
 Angular velocity and acceleration use a five-point matrix stencil in atomic SI
@@ -163,9 +162,54 @@ that stencil. EOP interpolation discontinuities affect derivatives; choose a smo
 provider when acceleration matters. No derivative accuracy guarantee is implied
 for arbitrary step sizes or interpolators.
 
-The initial implementation uses the theoretical celestial intermediate pole;
-observed dX/dY corrections remain future work. ITRF naming records the caller's
+The default uses the theoretical celestial intermediate pole; measured dX/dY can
+correct it. ITRF naming records the caller's
 realization: these rotations do not implement station coordinates, tectonic motion,
 or Helmert ties between realizations. GCRF retains the Newtonian translation limitation
 above. Tests check published ERFA matrices, CIO/equinox route consistency, rotating
 state derivatives and explicit coverage failures.
+
+## Measured Earth orientation
+
+Load a caller-selected snapshot of [USNO finals2000A](https://maia.usno.navy.mil/ser7/readme.finals2000A):
+
+```swift
+let records = try Finals2000A.records(
+  from: fileContents, predictions: .observedOnly,
+  modifiedJulianDays: 60000...60300)
+let eop = try TabulatedEarthOrientationProvider(
+  records: records, leapSeconds: .iersBulletinC72,
+  interpolation: .naturalCubic,
+  maximumGap: CelMek.Duration(seconds: 86401),
+  provenance: "USNO finals2000A, caller snapshot/version")
+// Supply eop to makeEarthFrames and retain its terrestrial realization label.
+```
+
+The parser reads Bulletin A, converts polar arcseconds and pole milliarcseconds to
+radians, validates date/MJD agreement, and records the IAU 2000A pole convention.
+Select predictions explicitly. Empty forecast-tail rows are skipped; incomplete
+selected rows fail with a one-based line number. Errors, LOD and Bulletin B columns
+are not consumed. No network downloads or automatic dataset updates occur.
+
+Tables require at least two strictly increasing records, one pole convention,
+an explicit maximum gap, and leap-second coverage for every record. Coverage is
+exactly the first through last record, with no extrapolation. Interpolation runs
+on atomic seconds after converting DUT1 to UT1−TT, removing leap-second jumps.
+Choose linear or natural cubic interpolation explicitly. Linear rates jump at
+knots; natural cubic has continuous second derivatives inside coverage but may
+overshoot and imposes zero endpoint curvature. Neither policy certifies physical
+accuracy. Frame derivative stencils still need neighbouring covered samples.
+
+`celestialPoleX/Y` mean dX/dY relative to `poleReference` (`iau2006A` by default).
+IAU 2000A offsets are aligned by evaluating that theoretical pole and applying the
+measured offsets before building the IAU 2006 frame. Zero offsets in that convention
+therefore select the IAU 2000A pole. Following the [SOFA cookbook](https://www.iausofa.org/s/sofa_pn_c.pdf),
+the theoretical IAU 2006 CIO locator s is retained. TOD solves for the corresponding
+nutation angles within the P03 equinox convention, and GTOD uses their equation of
+origins, so both routes share the same observed pole and terrestrial axes.
+Invalid poles and failed angle recovery throw rather than silently using theory.
+
+Independent ERFA 2.0.1 fixtures cover both conventions and six epochs; regenerate
+with `Tools/generate_observed_pole_fixtures.py` against an external ERFA library.
+Additional tests check milliarcsecond parsing, prediction policy, cubic interpolation,
+coverage/gap rejection and UT1 continuity during the 2016 leap second.
