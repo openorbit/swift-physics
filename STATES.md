@@ -1,5 +1,7 @@
 # Cartesian states and providers
 
+The shared coordinate, rotation and error contract is in [CONVENTIONS.md](CONVENTIONS.md).
+
 `CartesianState` carries an `Epoch`, a `Math.Frame` identity, Cartesian position in metres, velocity in metres per elapsed atomic second, and optional acceleration in metres per second squared. Missing acceleration means unavailable; it does not mean zero.
 
 ```swift
@@ -34,7 +36,7 @@ Frame equality uses object identity, so two frames with the same name are distin
 
 The native convention is barycentric Cartesian coordinates with dynamical ecliptic and equinox J2000 axes. The original [VSOP87 evaluator](https://github.com/ctdk/vsop87/blob/master/vsop87.f) documents the E variant and its TDB input, AU positions, and AU/day velocities. This frame is distinct from an equatorial ICRF frame.
 
-The adapter evaluates the complete implemented series using split TDB date components, converts output to SI, and applies the TDB-to-atomic time rate so velocity follows `Epoch` intervals. It returns no acceleration. The provisional TDB approximation and its limits are described in [TIME.md](TIME.md); independent characterization and scientific coverage bounds remain outstanding. Precise epoch storage does not establish model accuracy or preserve arbitrarily small changes through every floating-point evaluation.
+The adapter evaluates the complete implemented series using split TDB date components, converts output to SI, and applies the TDB-to-atomic time rate so velocity follows `Epoch` intervals. It returns no acceleration. The provisional TDB approximation and its limits are described in [TIME.md](TIME.md); its sampled time-conversion errors are characterized over 1950–2050; VSOP87 scientific coverage bounds remain separate work. Precise epoch storage does not establish model accuracy or preserve arbitrarily small changes through every floating-point evaluation.
 
 Legacy `position(jd:)` retains its TDB Julian-date input and AU/AU-day outputs for compatibility. Other legacy ephemerides retain their documented units: the lunar model and spherical outputs require their own coordinate and derivative adapters, and DE441 integration remains separate work. SI normalization currently applies to the new shared state boundary, not every legacy API.
 

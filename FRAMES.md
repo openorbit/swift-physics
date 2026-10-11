@@ -1,5 +1,7 @@
 # Frame transforms
 
+The shared coordinate, rotation and error contract is in [CONVENTIONS.md](CONVENTIONS.md).
+
 `FrameTree` connects `Math.Frame` identities with time-dependent `TransformProvider` edges. Each edge maps parent coordinates into child coordinates. A tree can adopt a frame such as `CelestialFrames.vsop87E` as its local root, excluding its external ancestors. `CelestialFrames.makeTree()` registers the connected astronomical frames under ICRF. Queries to frames outside the registered tree throw `disconnectedFrames`.
 
 ```swift
@@ -15,7 +17,7 @@ let state = try earth.state(at: .j2000)
 let rotated = try tree.convert(state, to: rotating)
 ```
 
-This example rotates barycentric axes about a common origin. Body-fixed frames combine an origin state with an orientation provider as described below; validated planetary orientation models remain follow-up work.
+This example rotates barycentric axes about a common origin. Body-fixed frames combine an origin state with an orientation provider as described below; validated IAU orientation models and Earth frame chains are available.
 
 ## Convention and derivatives
 
@@ -42,7 +44,7 @@ Custom providers implement `transform(at:)`, returning a parent-to-child mapping
 
 Frame parents are immutable strong references: a surviving child retains its ancestry. Parents do not retain children, so the parent chain does not form a reference cycle. `FrameTree` owns its registered frames and providers, which keeps frame identities stable. Frames do not retain the tree, and a child can outlive it, though provider queries require a retained tree.
 
-A custom provider must not strongly capture its owning tree: that would create a tree → provider → tree cycle. Use a weak reference when such access is necessary. The built-in providers hold no tree references. These types do not promise concurrent mutation or Sendable conformance.
+A custom provider must not strongly capture its owning tree: that would create a tree → provider → tree cycle. Use a weak reference when such access is necessary. The built-in converted-state adapter holds its tree weakly; other built-in providers do not retain a tree. These types do not promise concurrent mutation or Sendable conformance.
 
 The legacy `Math.Transformation` remains separate from the epoch-aware `FrameTransform`; its Julian-date field and misspelled properties are not used by this API.
 
