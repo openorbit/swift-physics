@@ -92,11 +92,7 @@ public struct Matrix3x3 {
     return result
   }
   public static func *(lhs: borrowing Matrix3x3, rhs: Double) -> Matrix3x3{
-    var result = Matrix3x3(rows: [lhs[0] * rhs, lhs[1], lhs[2]])
-    result[0] *= rhs
-    result[1] *= rhs
-    result[2] *= rhs
-    return result
+    return Matrix3x3(rows: [lhs[0] * rhs, lhs[1] * rhs, lhs[2] * rhs])
   }
 
   public static func *(lhs: borrowing Matrix3x3, rhs: SIMD3<Double>) -> SIMD3<Double>{
