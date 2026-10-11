@@ -122,6 +122,7 @@ application boundary; select an alternate provider or approximation explicitly.
 | `BodyFixedFrameError` | Origin/orientation frames differ, origin acceleration is missing, or an estimation step is invalid; align frames and choose an explicit acceleration policy. |
 | `IAUOrientationError` | Unknown body, legacy model requires opt-in, or query outside selected coverage; choose a supported model and coverage. |
 | `EphemerisOriginError` | Incompatible origin/frame, disjoint coverage, duplicate or insufficient barycentre components, or invalid mass ratios; provide compatible covered states and explicit positive ratios. |
+| `KeplerSolverError` | Invalid inputs/options, arithmetic range limits, or iteration exhaustion with a final root bracket; use the appropriate conic and supported finite inputs, or adjust solver options. |
 | `EphemerisCacheError` | Memory-cache capacity is not positive; choose an explicit positive entry limit. |
 | `EphemerisError` | Invalid metadata/derivative methods, mismatched frame or acceleration claims, coverage failure, duplicate or unsupported body; align provider metadata and use covered queries. |
 | `BodyModelError` | Mismatched model identities, invalid surface directions/positions, singular point-mass gravity or nonfinite results; select compatible models and valid local coordinates. |
