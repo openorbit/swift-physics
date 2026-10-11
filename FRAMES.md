@@ -15,7 +15,7 @@ let state = try earth.state(at: .j2000)
 let rotated = try tree.convert(state, to: rotating)
 ```
 
-This example rotates barycentric axes about a common origin. A body-fixed frame also needs an origin translation and a physical orientation provider; those astronomical models remain follow-up work.
+This example rotates barycentric axes about a common origin. Body-fixed frames combine an origin state with an orientation provider as described below; validated planetary orientation models remain follow-up work.
 
 ## Convention and derivatives
 
@@ -45,3 +45,26 @@ Frame parents are immutable strong references: a surviving child retains its anc
 A custom provider must not strongly capture its owning tree: that would create a tree → provider → tree cycle. Use a weak reference when such access is necessary. The built-in providers hold no tree references. These types do not promise concurrent mutation or Sendable conformance.
 
 The legacy `Math.Transformation` remains separate from the epoch-aware `FrameTransform`; its Julian-date field and misspelled properties are not used by this API.
+
+## Body-fixed frames
+
+`OrientationProvider` returns a `BodyOrientation`: the mapping from a specified reference frame's axes into body axes, plus angular velocity and angular acceleration in body axes. It contains no translation. `FixedAxisOrientationProvider` supplies prescribed constant-axis spin; its initial rotation and rate follow `UniformRotationProvider` conventions. This is useful for custom game bodies, without claiming a planetary model.
+
+`BodyFixedTransformProvider` combines a centre `StateProvider` with an orientation provider. Their reference frame identities must match. It constructs `p_body = R * (p_parent - centre)`, including origin velocity/acceleration and all rotational cross terms. `FrameTree.makeBodyFixedFrame` registers this mapping under that common reference frame. The returned frame is not marked pseudo-inertial.
+
+```swift
+let tree = try FrameTree(root: CelestialFrames.vsop87E)
+let spin = try FixedAxisOrientationProvider(
+  referenceFrame: tree.root, axis: SIMD3<Double>(0, 0, 1), rate: 0.001)
+let body = try tree.makeBodyFixedFrame(
+  name: "Earth-centred prescribed spin", centre: earth, orientation: spin,
+  accelerationPolicy: .estimate(step: CelMek.Duration(seconds: 60)))
+let relative = try tree.convert(earth.state(at: .j2000), to: body)
+// Position and velocity are zero, since the queried object is the origin.
+```
+
+The example's axes are prescribed in the VSOP87 ecliptic frame; they do not represent Earth's geographic orientation or ITRF. Real planetary orientations must declare their reference axes and be transformed into the origin provider's frame before combination. The legacy IAU evaluator remains internal pending table, indexing, unit, and derivative validation.
+
+Origin acceleration defaults to `requireProvided`. When it is absent, the query throws `accelerationUnavailable`. Callers may explicitly choose `assumeZero` or `estimate(step:)`; the latter centrally differences velocities at neighbouring epochs using a positive elapsed-second interval. Supplied acceleration always takes precedence. Estimation introduces numerical error and requires coverage at both neighbouring epochs; its interval is caller-selected rather than an accuracy guarantee. Provider errors propagate, and returned epochs and frame identities are validated at every sample. Unknown acceleration in the input state remains unknown after conversion, even if origin acceleration was estimated.
+
+Choose a local body-centred parent where practical when operating on small distances: subtracting large barycentric coordinates still incurs ordinary Double cancellation.
