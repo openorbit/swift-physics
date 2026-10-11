@@ -77,7 +77,7 @@ public struct OsculatingOrbitalElements {
               longitudeOfAscendingNode.isFinite, argumentOfPeriapsis.isFinite,
               trueAnomaly.isFinite else { throw OrbitalElementsError.invalidElements }
         let anomaly = trueAnomaly.remainder(dividingBy: 2 * .pi)
-        guard 1 + eccentricity * cos(anomaly) > 0 else { throw OrbitalElementsError.anomalyOutsideConic }
+        _ = try Self.radialDenominator(eccentricity: eccentricity, trueAnomaly: anomaly)
         // Canonicalize exact singularities, preserving the combined phase.
         let equatorial = inclination == 0 || inclination == .pi
         let circular = eccentricity == 0
@@ -140,8 +140,7 @@ public struct OsculatingOrbitalElements {
     /// unavailable: extracting elements does not assert a two-body force model.
     public func cartesianState() throws -> CartesianState {
         let p = semiLatusRectumMetres, e = eccentricity, nu = trueAnomaly
-        let denominator = 1 + e * cos(nu)
-        guard denominator > 0 else { throw OrbitalElementsError.anomalyOutsideConic }
+        let denominator = try Self.radialDenominator(eccentricity: e, trueAnomaly: nu)
         let radius = p / denominator
         let velocityScale = sqrt(gravitationalParameter.cubicMetresPerSecondSquared) / sqrt(p)
         let cO = cos(longitudeOfAscendingNode), sO = sin(longitudeOfAscendingNode)
@@ -150,11 +149,29 @@ public struct OsculatingOrbitalElements {
         let x = SIMD3<Double>(cO * co - sO * so * ci, sO * co + cO * so * ci, so * si)
         let y = SIMD3<Double>(-cO * so - sO * co * ci, -sO * so + cO * co * ci, co * si)
         let position = radius * (cos(nu) * x + sin(nu) * y)
-        let velocity = velocityScale * (-sin(nu) * x + (e + cos(nu)) * y)
+        let transverse = abs(nu) > .pi / 2 ? (e - 1) + 2 * pow(cos(nu / 2), 2) : e + cos(nu)
+        let velocity = velocityScale * (-sin(nu) * x + transverse * y)
         guard [position.x, position.y, position.z, velocity.x, velocity.y, velocity.z].allSatisfy(\.isFinite) else {
             throw OrbitalElementsError.numericalRangeExceeded
         }
         return try CartesianState(epoch: epoch, frame: frame, position: position, velocity: velocity)
+    }
+
+    /// Dynamical anomaly corresponding to this element set's principal phase.
+    public func conicAnomaly() throws -> ConicAnomaly {
+        try ConicAnomaly.from(trueAnomaly: trueAnomaly, eccentricity: eccentricity)
+    }
+
+    static func radialDenominator(eccentricity e: Double, trueAnomaly nu: Double) throws -> Double {
+        if e == 1 && abs(nu) >= .pi { throw OrbitalElementsError.anomalyOutsideConic }
+        if e > 1 && abs(nu) >= acos(-1 / e) { throw OrbitalElementsError.anomalyOutsideConic }
+        // 1 + e cos(nu), written to retain the small positive apoapsis
+        // denominator when e approaches one. FMA reduces cancellation for e>1.
+        let c = cos(nu / 2)
+        let value = abs(nu) > .pi / 2 ? fma(e, 2 * c * c, 1 - e) : fma(e, cos(nu), 1)
+        guard value.isFinite else { throw OrbitalElementsError.numericalRangeExceeded }
+        guard value > 0 else { throw OrbitalElementsError.anomalyOutsideConic }
+        return value
     }
 
     private static func norm(_ x: SIMD3<Double>) -> Double { hypot(hypot(x.x, x.y), x.z) }

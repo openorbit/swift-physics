@@ -109,7 +109,7 @@ public enum KeplerSolver {
                                                    lowerBound: low, upperBound: high)
     }
 
-    private static func sineDifference(_ x: Double) -> Double {
+    static func sineDifference(_ x: Double) -> Double {
         if abs(x) >= 0.5 { return x - sin(x) }
         var term = x * x * x / 6
         var sum = term
@@ -120,7 +120,7 @@ public enum KeplerSolver {
         return sum
     }
 
-    private static func sinhDifference(_ x: Double) -> Double {
+    static func sinhDifference(_ x: Double) -> Double {
         if abs(x) >= 0.5 { return sinh(x) - x }
         var term = x * x * x / 6
         var sum = term
