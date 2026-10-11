@@ -63,3 +63,5 @@ Body identities, sourced SI properties, and the injectable JPL GM catalogue are 
 The common ephemeris contract, validating state-provider adapter, and body-query collection are documented in [EPHEMERIDES.md](EPHEMERIDES.md).
 
 Shared accuracy intent and each adapter's supported levels are documented in [ACCURACY.md](ACCURACY.md).
+
+Reduced VSOP87 error and query-cost measurements, with a reproducible release tool, are in [VSOP87_ACCURACY_CHARACTERIZATION.md](VSOP87_ACCURACY_CHARACTERIZATION.md).

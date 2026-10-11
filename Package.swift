@@ -32,6 +32,10 @@ let package = Package(
         .target(
             name: "Aerodynamics",
             dependencies: ["Yams"]),
+        .executableTarget(
+            name: "VSOP87Characterization",
+            dependencies: ["CelMek", "Math"],
+            path: "Tools/VSOP87Characterization"),
         .testTarget(
             name: "CelMekTests",
             dependencies: ["CelMek"],
