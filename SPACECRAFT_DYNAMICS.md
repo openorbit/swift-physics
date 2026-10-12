@@ -33,9 +33,8 @@ to be represented as a spacecraft-mass-dependent force in newtons.
 Negative mass rates represent propellant consumption; positive rates represent
 explicitly modelled inflow. The derivative contract supports both. Evaluation
 does not mutate mass, clip consumption, or silently disable thrust. Models must
-handle their operating constraints explicitly; the future integrator must enforce
-nonnegative propellant and handle depletion as an event rather than integrating
-through a negative reservoir. This single-reservoir interface does not yet model
+handle their operating constraints explicitly. The integrator rejects negative
+propellant stages; exact depletion localization remains future event work. This single-reservoir interface does not yet model
 multiple tanks, staging or changing dry mass.
 
 ```swift
@@ -290,3 +289,199 @@ central-plus-J2 integration. A ten-orbit weak-J2 case agrees within 1% with the
 [first-order secular nodal regression](https://ai-solutions.com/_freeflyeruniversityguide/j2_perturbation.htm)
 and checks conservation of angular momentum about the pole. This validates the
 force and integrator; it does not validate a particular body's chosen constants.
+
+## Finite thrust and scheduled burns
+
+`FiniteThrust` prescribes constant thrust in newtons, positive effective exhaust
+velocity in m/s, and a normalized direction in an explicit pseudo-inertial frame.
+The effective exhaust velocity incorporates pressure effects in the selected
+engine operating condition. Acceleration is `direction * thrust / totalMass`,
+and propellant rate is `-thrust / effectiveExhaustVelocity`. These follow the
+[NASA thrust and specific impulse convention](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/specific-impulse/).
+As fuel burns, constant force produces increasing acceleration. This model has
+no implicit gravity, attitude steering, atmosphere correction, throttle history,
+staging, or multiple reservoirs. A zero-thrust engine consumes no fuel; an active
+engine with an empty reservoir throws `propellantDepleted`.
+
+`FiniteBurn` specifies a positive-duration interval. `ScheduledThrust` activates
+burns on `[start, end)`. Adjacent burns switch at their shared epoch; overlapping
+burns represent independent engines and add both thrust acceleration and fuel
+consumption. Each burn can supply different engine parameters and direction.
+The schedule is immutable and evaluates arbitrary epochs without consuming fuel
+or changing hidden state. All engines must share the exact propagation frame.
+
+Use `ScheduledThrustPropagator` for numerical schedule execution. It divides
+forward or backward propagation at every ignition/cutoff boundary and integrates
+with the segment's active engines held through its RK endpoint evaluations.
+It then reports acceleration according to the right-continuous schedule at the
+requested epoch. Position, velocity, dry mass and propellant carry continuously
+between segments. Short burns cannot disappear between adaptive steps, even if
+both their endpoints lie between requested samples. Every query restarts from
+the immutable seed; backward replay adds back the prescribed consumed fuel and
+reconstructs earlier motion, rather than reversing engine direction.
+
+```swift
+let engine = try FiniteThrust(
+    frame: initialState.frame,
+    thrustNewtons: 20,
+    effectiveExhaustVelocityMetresPerSecond: 100,
+    direction: SIMD3(1, 0, 0))
+let ignition = try initialState.epoch.advanced(by: Duration(seconds: 10))
+let cutoff = try ignition.advanced(by: Duration(seconds: 20))
+let schedule = try ScheduledThrust(frame: initialState.frame, burns: [
+    FiniteBurn(start: ignition, end: cutoff, thrust: engine)
+])
+let trajectory = try ScheduledThrustPropagator(
+    initialState: initialState, schedule: schedule,
+    backgroundModels: [centralGravity], context: context,
+    options: .preset(for: .high))
+let result = try trajectory.spacecraftState(at: cutoff)
+```
+
+The schedule accepts at most 10,000 burns. Numerical options and work budgets
+apply separately to each segment; there is no aggregate diagnostics API yet.
+Background models must be continuous between scheduled boundaries. Other force
+events still require explicit handling. Passing `ScheduledThrust` directly to
+the generic numerical propagator does **not** provide boundary splitting.
+
+Fuel exhaustion fails explicitly; no automatic engine cutoff, clipping, or
+post-depletion trajectory is produced. Exact exhaustion at a cutoff is also not
+guaranteed to succeed, because RK stages and endpoint force evaluation require
+valid fuel. Plan a reserve until depletion localization is implemented. Backward
+replay likewise needs an evaluable seed/segment and does not support starting an
+active engine from an empty reservoir.
+
+Swift Testing checks an independently integrated constant-thrust rocket solution
+for velocity, position and fuel, short burns followed by coast, exact boundary
+acceleration, overlapping/adjacent engines, reverse recovery, query determinism,
+invalid inputs, frame mismatches and depletion failures.
+
+## Drag and solar radiation pressure
+
+`AtmosphericDrag` uses the isotropic [drag equation](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-equation/):
+`a = -rho * Cd * A * |vRelative| * vRelative / (2 * mass)`.
+Area is in m²; Cd is dimensionless. Both are finite and nonnegative; zero disables
+the force. `AtmosphereProvider` supplies a local `AtmosphereSample` containing
+nonnegative density in kg/m³ and medium velocity in m/s at the requested epoch.
+The sample must have the exact spacecraft frame and context origin. Winds and
+atmospheric rotation belong in that velocity, expressed in propagation axes;
+zero medium velocity explicitly describes a stationary atmosphere. Provider
+coverage/errors propagate. `UniformAtmosphere` supports controlled scenarios;
+it is not an Earth atmosphere or altitude/density approximation. No empirical
+planetary density model is selected automatically.
+
+`SolarRadiationPressure` uses a point source and an isotropic constant area with
+a dimensionless radiation coefficient, following the single-coefficient approach
+used by [Orekit](https://www.orekit.org/site-orekit-12.2.1/apidocs/org/orekit/forces/radiation/IsotropicRadiationSingleCoefficient.html).
+Supply a sourced reference pressure in pascals, sourced reference distance in
+metres, area in m², and coefficient. Acceleration points away from the source,
+with magnitude `pressure * (referenceDistance/distance)² * coefficient * area /
+mass * illuminatedFraction`. If the source is the context origin its position
+is zero; otherwise its checked ephemeris must have the same physical origin and
+exact frame. No automatic origin conversion or fallback is selected. The source
+position is evaluated at the spacecraft epoch without light-time correction.
+Coincidence with the source is singular, even for zero illumination.
+
+An explicit `RadiationIlluminationProvider` supplies a finite fraction in 0...1
+at each state. `ConstantRadiationIllumination(illuminatedFraction: 1)` means full
+illumination; zero means shadow and intermediate values attenuate incident flux.
+Injected providers can use ephemerides and geometry for eclipses. No built-in
+umbra/penumbra geometry or occultation detection is included, and discontinuous
+shadow transitions require event handling or known-boundary segmentation. A
+constant fraction alone makes no claim that a path is free from eclipses.
+
+Both forces use instantaneous total mass, consume no propellant, and require
+pseudo-inertial propagation. They do not model attitude-dependent projected
+area, lift, aerodynamic heating, optical panels, albedo, infrared radiation,
+or relativistic effects. The caller selects coefficients and valid domains.
+
+```swift
+let medium = try UniformAtmosphere(
+    frame: initialState.frame, origin: context.origin,
+    densityKilogramsPerCubicMetre: 1e-12,
+    velocityMetresPerSecond: SIMD3(0, 0, 0))
+let drag = try AtmosphericDrag(
+    referenceAreaSquareMetres: 10, dragCoefficient: 2.2, atmosphere: medium)
+let radiation = try SolarRadiationPressure(
+    referencePressurePascals: pressureAtReferenceDistance,
+    referenceDistanceMetres: referenceDistance,
+    referenceAreaSquareMetres: 10, radiationCoefficient: 1.3,
+    illumination: ConstantRadiationIllumination(illuminatedFraction: 1))
+let dynamics = try SpacecraftDynamics(
+    models: [centralGravity, drag, radiation], context: context)
+```
+
+Swift Testing checks relative-flow drag vectors and an independent analytic
+quadratic-drag trajectory, radiation distance/mass/illumination scaling and
+source direction, explicit ephemeris origins, invalid environments and provider
+contracts. Synthetic parameters test the equations without asserting planetary
+environment fidelity.
+
+## Event detection
+
+`SpacecraftStateProvider` extends `StateProvider` with mass-aware queries; both
+numerical propagators conform. `EventDetectedPropagation` searches any such
+trajectory from an explicit start epoch to a target, forwarding provider errors
+and checking returned epoch/frame contracts. It reports occurrences and a final
+state, whether the target was reached, and the number of state evaluations.
+It is deliberately not a `StateProvider`: a terminal event can end before the
+requested epoch, and that result must not masquerade as a target-epoch state.
+
+A `PropagationEventDetector` supplies a unique nonblank identifier, a continuous
+finite scalar value, crossing direction, and `.record` or `.stop` action.
+Directions describe increasing physical time, even during backward searches.
+`EpochEvent` localizes an explicit epoch exactly, useful for maneuver checkpoints.
+`SphericalImpactEvent` uses distance from an explicit fixed centre minus radius,
+with decreasing crossings selected by default. Its frame must match exactly;
+the caller assigns the physical origin and radius. Moving bodies, planes,
+clearance margins and illumination thresholds can use custom detectors.
+
+```swift
+let impact = try SphericalImpactEvent(
+    identifier: "surface", frame: trajectory.frame, radiusMetres: bodyRadius)
+let search = try EventDetectedPropagation(
+    trajectory: trajectory, detectors: [impact],
+    options: PropagationEventOptions(
+        maximumCheckIntervalSeconds: 1, timeToleranceSeconds: 1e-6))
+let result = try search.propagation(from: initialState.epoch, to: requestedEpoch)
+// result.state may be at an impact, before requestedEpoch.
+```
+
+Search samples at bounded time intervals and bisects detected sign changes,
+querying the actual trajectory at every trial epoch. There is no linear state
+interpolation or dense-output assumption. Occurrences are sorted in traversal
+order; the first terminal occurrence stops the result. Equal localized epochs
+use detector input order. Initial exact zeros are reported by default regardless
+of crossing direction; `includeInitialEvents: false` suppresses these. Left-end
+zeros are not emitted again on the next interval. Only events at or before a
+terminal occurrence in traversal order are returned.
+
+`PropagationEventOptions` bounds check interval, time bracket tolerance,
+localization iterations, state queries and occurrence count. Localization reports
+the final bracket width, not a physical state-error guarantee. Provider numerical
+tolerances remain independent. Nonfinite values, exhausted budgets, insufficient
+epoch resolution and failed localization throw explicit errors; no partial result
+is returned. All detector evaluations must be pure and may occur out of order.
+
+This is sign-crossing detection: an even number of crossings within one check
+interval, a tangency, an initially interior state, or a function identically zero
+requires a caller-specific policy. Choose check spacing to separate crossings;
+this is not a certified continuous collision-clearance algorithm. The provider
+and every detector must remain valid throughout sampled/localized brackets.
+A terminal search may evaluate past the root while forming its bracket, so it
+cannot prevent a singular force or depleted-fuel provider error there. A positive
+fuel-reserve detector can be used where the trajectory is still valid, but exact
+zero-fuel localization and automatic engine cutoff require integration-level
+handling and remain pending.
+
+Event actions report or terminate; they do not mutate forces or automatically
+apply maneuvers. Restart from the reported state with explicit changed inputs to
+model a discontinuity. Scheduled ignition/cutoff splitting remains handled by
+`ScheduledThrustPropagator`. Underlying queries restart from their immutable seed,
+so this general search is intended as a correctness-first reference implementation,
+not an optimized accepted-step observer. Numerical work limits apply per provider
+query in addition to the search's state-query budget.
+
+Swift Testing validates analytic straight-line sphere crossings, backward crossing
+direction, record/terminal ordering, initial-root suppression, exact epoch events,
+scheduled-burn mass state, invalid detector contracts and bounded search failure.
