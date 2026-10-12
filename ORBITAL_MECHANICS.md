@@ -747,7 +747,8 @@ The Cartesian product is enumerated lazily by the existing search, subject to
 its own evaluation budget.
 
 This supplies an automatic grid and phase-boundary policy. Adaptive refinement
-is available through the API below; continuous optimization remains open.
+and local timing improvement are available through the APIs below; global
+optimization remains open.
 Smaller spacing can find additional candidates at
 greater cost, and candidate-set exhaustion does not establish global infeasibility.
 
@@ -795,3 +796,55 @@ the first feasible result does not minimize arrival time. Reference-clearance
 and sampled-engine limitations also remain. Tests include a route whose coarse
 arrival endpoints both fail engine limits but whose midpoint succeeds, verifying
 that refinement finds it without evaluating the failed endpoints again.
+
+### Local timing improvement from a feasible seed
+
+`WaypointRouteTimingPlanner.optimizeTiming` starts with `seedArrivalEpochs`
+and finite `arrivalWindows`, then tries to reduce final arrival time. A route
+returned by discrete/adaptive search can supply its arrival epochs after dropping
+the departure entry. `WaypointTimingOptimizationOptions` supplies positive initial
+and minimum steps in SI seconds, an iteration limit and a total candidate
+evaluation limit. Waypoint windows intersect the supplied search windows; seed
+epochs must lie inside those intersections. The seed itself is fully executed
+and counts against the evaluation budget.
+
+At each iteration the optimizer tries an earlier final arrival with unchanged
+intermediate epochs, proportional compression of all passage times, and positive
+or negative changes to each individual intermediate passage paired with that
+earlier arrival. Proposals are clipped to their arrival windows and generated
+lazily. Already tested exact combinations are skipped. Only feasible proposals
+with strictly earlier final arrival are accepted, and every candidate uses the
+same geometry, obstacle checks, physical forces, fuel model and numerical options
+as the existing search. If no pattern improves the incumbent, the step is halved
+until the requested minimum. Temporal phase epochs stay fixed.
+
+Results retain the best feasible route and full spacecraft execution even when
+an evaluation or iteration limit interrupts improvement. `seedRejected` returns
+no route and the seed's explicit failure. `stepLimitReached` means the tested
+patterns found no improvement at the requested minimum step; it is not a proof
+of stationarity or global optimality. `evaluationLimitReached` and
+`iterationLimitReached` identify the other termination conditions. Diagnostics
+include aggregate evaluations, candidate failures and each iteration's step,
+new evaluations, improvement flag and best arrival epoch.
+
+Defaults permit 256 iterations and 1,000 candidate evaluations; explicit limits
+accept 1...1,000 iterations and 1...10,000 evaluations. Numerical limits remain
+per propagation segment. Exact intermediate arrival constraints remain exact;
+intermediate waypoints continue to be fly-through passages. If final arrival is
+fixed by its window, this objective cannot improve it. No fuel-only objective,
+equal-duration rearrangement or temporary acceptance of worse schedules is used.
+
+This is a local direct-search heuristic in continuous epoch variables. Its
+limited directions and strict feasible-improvement policy can miss routes that
+require coordinated changes to several passages, a temporary worse arrival or
+crossing an infeasible region. Multi-start/global optimization, commanded burns
+and continuous constraint certification remain open. It inherits the sampled
+engine and reference-clearance limitations of route execution.
+
+Swift Testing checks an independent rest-to-rest cubic threshold:
+`max |a| = 6*d/T²`, so a four-metre cubic at 1 m/s² requires at least
+`sqrt(24)` seconds. The optimized result approaches this threshold within its
+timing step; this does not make it the faster ideal bang-bang brachistochrone.
+Tests also cover monotonic improvement, determinism, budget-retained feasible
+results, rejected seeds and exact fly-through passage through a timed engine
+schedule with mass continuity.
