@@ -3,6 +3,7 @@ import Foundation
 import Math
 
 public enum BrachistochroneRouteError: Error, Equatable {
+    case invalidLegDuration, arrivalWindowNotSatisfied(index: Int)
     case departureOutsideArrivalWindow, uniformRetimingUnavailable
     case timingAccelerationLimitExceeded(leg: Int)
     case invalidWaypointCount, legCountMismatch, invalidDwell, invalidObstacle
@@ -112,7 +113,7 @@ public struct WaypointBrachistochroneRoute: StateProvider {
 
     public init(departureEpoch: Epoch, frame: Frame, origin: BodyIdentifier,
                 waypoints: [BrachistochroneWaypoint], legAccelerationsMetresPerSecondSquared: [Double],
-                obstacles: [SphericalExclusionRegion] = []) throws {
+                obstacles: [SphericalExclusionRegion] = [], legDurations: [Duration]? = nil) throws {
         try origin.validate()
         guard frame.pseudoInertial else { throw BrachistochroneError.nonInertialFrame }
         guard (2...10_001).contains(waypoints.count), obstacles.count <= 10_000 else {
@@ -164,7 +165,23 @@ public struct WaypointBrachistochroneRoute: StateProvider {
             throw BrachistochroneRouteError.departureOutsideArrivalWindow
         }
         var plannedArrivals: [Epoch]?
-        if waypoints.dropFirst().contains(where: { $0.arrivalWindow != nil }) {
+        if let legDurations {
+            guard legDurations.count == times.count else { throw BrachistochroneRouteError.legCountMismatch }
+            var epochs = [departureEpoch]
+            var previous = try departureEpoch.advanced(by: waypoints[0].dwellDuration)
+            for (index, interval) in legDurations.enumerated() {
+                guard interval > .zero, interval.seconds.isFinite, interval.seconds > 0 else {
+                    throw BrachistochroneRouteError.invalidLegDuration
+                }
+                let end = try previous.advanced(by: interval)
+                guard end > previous else { throw BrachistochroneRouteError.invalidLegDuration }
+                if let window = waypoints[index+1].arrivalWindow, !window.contains(end) {
+                    throw BrachistochroneRouteError.arrivalWindowNotSatisfied(index: index+1)
+                }
+                epochs.append(end); previous = end; times[index] = interval.seconds
+            }
+            plannedArrivals = epochs
+        } else if waypoints.dropFirst().contains(where: { $0.arrivalWindow != nil }) {
             let start = try departureEpoch.advanced(by: waypoints[0].dwellDuration)
             var cumulative: [Double] = [], elapsed = 0.0
             var lowerScale = 1.0, upperScale = Double.infinity

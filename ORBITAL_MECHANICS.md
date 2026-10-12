@@ -661,3 +661,91 @@ An acceleration failure after reconstructing precise epochs is reported as
 `timingAccelerationLimitExceeded(leg:)`; geometry and clearance errors retain
 their existing explicit diagnostics. Local acceleration bounds on the reference
 curve and numerical endpoint tolerances retain their distinct meanings.
+
+### Searching independent leg timings
+
+`WaypointBrachistochroneRoute` optionally accepts `legDurations: [Duration]`.
+These positive durations replace automatic timing; acceleration bounds, arrival
+windows, nonzero passage velocities and whole-curve geometric clearance are
+still checked on the resulting route. The planner never stretches an explicit
+duration to repair a failed constraint. This allows schedules that uniform
+retiming cannot satisfy.
+
+`WaypointRouteTimingPlanner.search` accepts one array of candidate arrival
+epochs for every waypoint after departure. It sorts and deduplicates each
+array, then considers their Cartesian product in lexicographic order, prioritizing
+earlier intermediate passage times. Spatial waypoints retain their input order;
+candidate epochs determine their relative order with temporal phase boundaries.
+Each ordered candidate builds the route with exact epoch-difference durations
+and executes it using the supplied background dynamics, mass, engine limits,
+timed phases and numerical options. This includes carried fuel, sampled thrust
+feasibility, endpoint residuals and reference-curve obstacle checks.
+
+The result reports `feasible` for the first candidate that passes all checks,
+`candidateSetExhausted` when every combination fails, or
+`evaluationLimitReached` when the budget ends with candidates remaining. A
+feasible result includes the route and full propagation result. `failedAttempts`
+retain arrival epochs and distinguish ordering, geometric, engine and numerical
+integration failures. Integrator budget/tolerance failures are not proof of
+physical infeasibility. Unexpected force/provider errors propagate to the caller;
+they are not hidden as rejected timings.
+
+The default budget is 1,000 considered combinations; callers may specify
+1...10,000. Invalid ordering and rejected constraints count against that budget.
+Input candidates are limited to 100,000 entries in total. Existing numerical
+work limits apply separately to each propagation segment; there is no aggregate
+derivative budget across candidates. Endpoint dwells are rejected by numerical
+execution. Temporal phases must start at or after departure; a candidate ending
+before a phase finishes is rejected and a later candidate may succeed.
+
+For example, a physical passage constrained to 10...20 seconds followed by an
+exact arrival at 50 seconds cannot fit equal nominal leg durations by uniform
+scaling. Candidate passage epochs of 10 and 20 seconds produce independently
+timed legs of 10/40 and 20/30 seconds. If a low-acceleration phase occupies the
+first 15 seconds, the former candidate can fail while the latter passes,
+moving the physical passage across the temporal boundary without stopping.
+Swift Testing verifies this case, mass continuity, candidate normalization and
+the distinction between candidate exhaustion and budget exhaustion.
+
+This is a finite feasibility search, not continuous timing optimization. The
+first feasible candidate need not have the earliest final arrival, and exhaustion
+only describes the supplied set. Commanded-burn planning and continuous
+optimization remain separate extensions. Numerical
+execution does not certify whole-path clearance or continuous engine feasibility.
+
+### Generating timing candidates from windows
+
+`WaypointRouteTimingPlanner.arrivalCandidates(in:spacing:including:maximumTotalCandidates:)`
+generates the per-waypoint arrays used by `search`. Supply a finite arrival
+window for each spatial waypoint after departure and a positive `Duration`
+spacing. Each array includes both inclusive window endpoints, a regular grid
+anchored at the lower endpoint, and all supplied engine-phase starts/ends within
+that window. Arrays are sorted and deduplicated; exact windows yield one epoch.
+Off-grid phase boundaries are included exactly, preserving fractional epochs.
+
+```swift
+let candidates = try WaypointRouteTimingPlanner.arrivalCandidates(
+    in: arrivalWindows,
+    spacing: Duration(seconds: 3600),
+    including: enginePhases,
+    maximumTotalCandidates: 10_000)
+// Pass candidates as candidateArrivalEpochs: to search with the same phases.
+```
+
+Windows are independent of phase order. A physical waypoint can have candidate
+passages before, exactly at, or after a burn-phase boundary. Spatial passage
+order is checked by the search. For an untimed waypoint, the caller supplies a
+finite search window; no horizon or arrival deadline is inferred. A window
+that admits one candidate need not admit any physically feasible transfer.
+
+Candidate generation and candidate evaluation have separate budgets. The
+generation limit defaults to 100,000 total entries across all arrays and accepts
+1...100,000. More than 10,000 windows or phases is rejected. Generation stops
+with `candidateGenerationLimitExceeded` instead of truncating a window; zero or
+negative spacing is rejected. Precise epoch advancement must increase time.
+The Cartesian product is enumerated lazily by the existing search, subject to
+its own evaluation budget.
+
+This adds an automatic grid and phase-boundary policy, not adaptive refinement
+or continuous optimization. Smaller spacing can find additional candidates at
+greater cost, and candidate-set exhaustion does not establish global infeasibility.
