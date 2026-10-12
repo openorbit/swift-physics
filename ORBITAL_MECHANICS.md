@@ -451,7 +451,7 @@ ordered list of fixed inertial waypoints. It passes through intermediate points
 with continuous **nonzero velocity**; waypoints are neither stops nor impulses.
 Each leg has its own positive acceleration limit, allowing prescribed lighter
 burns for cooldown or other operational constraints. No engine temperature model
-is inferred. Route endpoints are at rest in this first version. Optional dwell
+is inferred. Route endpoints default to rest and support explicit velocities. Optional dwell
 is accepted only at the initial/final endpoint; intermediate dwell is rejected.
 
 ```swift
@@ -518,7 +518,9 @@ optimal travel-time claim.
 Arrival is the final waypoint crossing; completion additionally includes any final
 endpoint dwell. Coverage is departure through completion. Querying a shared leg
 boundary selects the outgoing leg, with unchanged position/velocity and its new
-acceleration. Completion returns zero velocity/acceleration. The route and each
+acceleration. Completion preserves the specified final velocity (zero by default)
+and returns zero geometric acceleration. This endpoint value does not prescribe
+motion beyond coverage. The route and each
 leg implement `StateProvider`, so existing sampling and explicit frame conversion
 remain available without hidden clocks or mutable query history.
 
@@ -848,3 +850,52 @@ timing step; this does not make it the faster ideal bang-bang brachistochrone.
 Tests also cover monotonic improvement, determinism, budget-retained feasible
 results, rejected seeds and exact fly-through passage through a timed engine
 schedule with mass continuity.
+
+### Nonzero endpoint and prescribed passage velocities
+
+`BrachistochroneWaypoint` accepts optional `velocityMetresPerSecond`, expressed
+in the route's inertial axes relative to its physical origin. The value is a
+constraint, not a timing-dependent hint. Unspecified endpoints remain at rest;
+unspecified intermediate velocities use the existing neighboring-chord rule.
+Explicit intermediate velocities must be nonzero, preserving fly-through
+behavior. An explicit velocity can also specify a turn that the neighboring
+chord rule would otherwise classify as degenerate; acceleration and clearance
+checks still apply to the full resulting curve.
+
+```swift
+let departure = try BrachistochroneWaypoint(positionMetres: departurePosition,
+    velocityMetresPerSecond: currentVelocity)
+let arrival = try BrachistochroneWaypoint(positionMetres: arrivalPosition,
+    arrivalEpoch: requiredArrival, velocityMetresPerSecond: requiredVelocity)
+```
+
+All route timing search, refinement and local optimization APIs carry these
+constraints through the supplied waypoint values. Numerical execution starts
+with the specified departure velocity, carries actual velocity/mass across
+legs, and checks the prescribed arrival velocity with its endpoint tolerance.
+The final geometric state preserves the specified velocity. Numerical execution
+retains its existing final incoming acceleration convention. Neither provider
+prescribes continuation after its final epoch.
+
+Fixed velocities do not decrease when durations increase. Automatic geometric
+timing therefore re-evaluates each cubic's actual acceleration bound, doubling
+all durations as necessary, with a 64-check limit and a one-percent acceleration
+margin. Failure reports `velocityTimingLimitReached` or an explicit numerical
+range error. This is conservative feasible timing, not minimum time. Arrival
+window retiming rebuilds and rechecks the resulting acceleration bounds; with
+fixed velocities, slowing a curve is not assumed to reduce its acceleration
+monotonically. A failed automatic schedule may still admit an explicit-duration
+schedule or a different timing candidate.
+
+Explicit leg durations are never extended to accommodate velocity constraints.
+They must satisfy the acceleration and arrival-window checks as given. Nonzero
+velocity with endpoint dwell is rejected as `velocityDwellConflict(index:)`,
+since a stationary dwell would require an unmodelled impulse. Nonfinite velocity
+components are rejected. Large velocities and long flight times can bend a
+cubic beyond its waypoint chords, so whole-curve clearance is checked on the
+actual controls. There is no implicit turn smoothing, jerk/attitude constraint,
+moving-target lookup or orbital rendezvous solver.
+
+Swift Testing uses independent constant-velocity and constant-deceleration
+references, analytic exhaust-velocity fuel consumption, constrained timing
+optimization, intermediate velocity continuity and invalid velocity/dwell cases.

@@ -4,6 +4,7 @@ import Math
 
 public enum BrachistochroneRouteError: Error, Equatable {
     case invalidLegDuration, arrivalWindowNotSatisfied(index: Int)
+    case velocityDwellConflict(index: Int), velocityTimingLimitReached
     case departureOutsideArrivalWindow, uniformRetimingUnavailable
     case timingAccelerationLimitExceeded(leg: Int)
     case invalidWaypointCount, legCountMismatch, invalidDwell, invalidObstacle
@@ -15,20 +16,29 @@ public enum BrachistochroneRouteError: Error, Equatable {
 public struct BrachistochroneWaypoint {
     public let positionMetres: SIMD3<Double>
     public let dwellDuration: Duration
+    /// Optional fixed inertial velocity at passage. Defaults to rest at endpoints
+    /// and the generated fly-through velocity at intermediate waypoints.
+    public let velocityMetresPerSecond: SIMD3<Double>?
     /// Inclusive passage-time constraint; an equal pair specifies an exact epoch.
     public let arrivalWindow: ClosedRange<Epoch>?
     public init(positionMetres: SIMD3<Double>, dwellDuration: Duration = .zero,
-                arrivalWindow: ClosedRange<Epoch>? = nil) throws {
+                arrivalWindow: ClosedRange<Epoch>? = nil, velocityMetresPerSecond: SIMD3<Double>? = nil) throws {
         guard [positionMetres.x,positionMetres.y,positionMetres.z].allSatisfy(\.isFinite) else {
             throw BrachistochroneError.nonFiniteEndpoint
         }
         guard dwellDuration >= .zero else { throw BrachistochroneRouteError.invalidDwell }
+        if let velocity = velocityMetresPerSecond,
+           ![velocity.x,velocity.y,velocity.z].allSatisfy(\.isFinite) {
+            throw BrachistochroneError.nonFiniteEndpoint
+        }
         self.positionMetres = positionMetres; self.dwellDuration = dwellDuration
         self.arrivalWindow = arrivalWindow
+        self.velocityMetresPerSecond = velocityMetresPerSecond
     }
-    public init(positionMetres: SIMD3<Double>, arrivalEpoch: Epoch, dwellDuration: Duration = .zero) throws {
+    public init(positionMetres: SIMD3<Double>, arrivalEpoch: Epoch, dwellDuration: Duration = .zero,
+                velocityMetresPerSecond: SIMD3<Double>? = nil) throws {
         try self.init(positionMetres: positionMetres, dwellDuration: dwellDuration,
-            arrivalWindow: arrivalEpoch...arrivalEpoch)
+            arrivalWindow: arrivalEpoch...arrivalEpoch, velocityMetresPerSecond: velocityMetresPerSecond)
     }
 }
 
@@ -93,7 +103,8 @@ public struct WaypointBrachistochroneLeg: StateProvider {
 }
 
 /// Feasible gravity-free fly-through route with independently supplied leg limits.
-/// Cubic curves carry continuous velocity through waypoints; endpoints are at rest.
+/// Cubic curves carry continuous velocity through waypoints; endpoint velocities
+/// default to rest and can be constrained explicitly.
 /// Durations are conservatively scaled to satisfy acceleration bounds. This is a
 /// smooth approximation, not a minimum-time/global brachistochrone optimizer.
 public struct WaypointBrachistochroneRoute: StateProvider {
@@ -123,6 +134,11 @@ public struct WaypointBrachistochroneRoute: StateProvider {
         guard waypoints.dropFirst().dropLast().allSatisfy({ $0.dwellDuration == .zero }) else {
             throw BrachistochroneRouteError.unsupportedWaypointDwell
         }
+        for (index, waypoint) in waypoints.enumerated() {
+            if waypoint.dwellDuration > .zero, let velocity = waypoint.velocityMetresPerSecond, velocity != .zero {
+                throw BrachistochroneRouteError.velocityDwellConflict(index: index)
+            }
+        }
         guard obstacles.isEmpty || waypoints.count-1 <= 1_000_000/obstacles.count else { throw BrachistochroneRouteError.clearanceLimitExceeded }
         guard obstacles.allSatisfy({ $0.frame === frame }) else { throw SpacecraftDynamicsError.frameMismatch }
         guard obstacles.allSatisfy({ $0.origin == origin }) else { throw BrachistochroneRouteError.originMismatch }
@@ -137,14 +153,14 @@ public struct WaypointBrachistochroneRoute: StateProvider {
             times.append(leg.duration.seconds)
         }
         func velocities(_ durations: [Double]) throws -> [SIMD3<Double>] {
-            var result = [SIMD3<Double>.zero]
+            var result = [waypoints[0].velocityMetresPerSecond ?? .zero]
             for i in 1..<points.count-1 {
-                let value = (points[i+1]-points[i-1])/(durations[i-1]+durations[i])
+                let value = waypoints[i].velocityMetresPerSecond ?? (points[i+1]-points[i-1])/(durations[i-1]+durations[i])
                 guard routeNorm(value).isFinite else { throw BrachistochroneError.numericalRangeExceeded }
                 guard routeNorm(value) > 0 else { throw BrachistochroneRouteError.degeneratePassage(index: i) }
                 result.append(value)
             }
-            result.append(.zero); return result
+            result.append(waypoints.last!.velocityMetresPerSecond ?? .zero); return result
         }
         let nominalVelocities = try velocities(times)
         var scale = 1.0
@@ -161,6 +177,28 @@ public struct WaypointBrachistochroneRoute: StateProvider {
         guard scale.isFinite else { throw BrachistochroneError.numericalRangeExceeded }
         // Margin protects the analytic bound from final floating-point rounding.
         times = times.map { $0*scale*1.01 }
+        if legDurations == nil, waypoints.contains(where: { $0.velocityMetresPerSecond != nil }) {
+            // Fixed velocities do not scale with duration. Recompute the actual
+            // affine-acceleration bound instead of assuming a 1/T² reduction.
+            var feasible = false
+            for _ in 0..<64 {
+                let values = try velocities(times)
+                var fits = true
+                for index in times.indices {
+                    let c = routeControls(points[index], points[index+1], values[index], values[index+1], times[index])
+                    let bound = max(routeNorm((c[2]-2*c[1]+c[0])*(6/times[index]/times[index])),
+                        routeNorm((c[3]-2*c[2]+c[1])*(6/times[index]/times[index])))
+                    guard bound.isFinite, c.allSatisfy({ $0.x.isFinite && $0.y.isFinite && $0.z.isFinite }) else {
+                        throw BrachistochroneError.numericalRangeExceeded
+                    }
+                    if bound > legAccelerationsMetresPerSecondSquared[index]*0.99 { fits = false }
+                }
+                if fits { feasible = true; break }
+                times = times.map { $0*2 }
+                guard times.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw BrachistochroneError.numericalRangeExceeded }
+            }
+            guard feasible else { throw BrachistochroneRouteError.velocityTimingLimitReached }
+        }
         if let window = waypoints[0].arrivalWindow, !window.contains(departureEpoch) {
             throw BrachistochroneRouteError.departureOutsideArrivalWindow
         }
@@ -287,7 +325,8 @@ public struct WaypointBrachistochroneRoute: StateProvider {
         switch try phase(at: epoch) {
         case .leg(let index): return try legs[index].state(at: epoch)
         case .dwelling(let index): return try CartesianState(epoch: epoch, frame: frame, position: waypoints[index].positionMetres, velocity: .zero, acceleration: .zero)
-        case .arrived: return try CartesianState(epoch: epoch, frame: frame, position: waypoints.last!.positionMetres, velocity: .zero, acceleration: .zero)
+        case .arrived: return try CartesianState(epoch: epoch, frame: frame, position: waypoints.last!.positionMetres,
+            velocity: waypointVelocitiesMetresPerSecond.last!, acceleration: .zero)
         }
     }
 }
