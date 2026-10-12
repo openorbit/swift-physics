@@ -33,6 +33,10 @@ let package = Package(
             name: "Aerodynamics",
             dependencies: ["Yams"]),
         .executableTarget(
+            name: "TwoBodyGameDemo",
+            dependencies: ["CelMek"],
+            path: "Examples/TwoBodyGameDemo"),
+        .executableTarget(
             name: "VSOP87Characterization",
             dependencies: ["CelMek", "Math"],
             path: "Tools/VSOP87Characterization"),

@@ -122,6 +122,9 @@ application boundary; select an alternate provider or approximation explicitly.
 | `BodyFixedFrameError` | Origin/orientation frames differ, origin acceleration is missing, or an estimation step is invalid; align frames and choose an explicit acceleration policy. |
 | `IAUOrientationError` | Unknown body, legacy model requires opt-in, or query outside selected coverage; choose a supported model and coverage. |
 | `EphemerisOriginError` | Incompatible origin/frame, disjoint coverage, duplicate or insufficient barycentre components, or invalid mass ratios; provide compatible covered states and explicit positive ratios. |
+| `PropagationError` | Invalid dynamics inputs/options, incompatible GM time convention, radial motion, numerical range limits or bounded-solver failure; use a supported two-body model and suitable solver controls. |
+| `ManeuverError` | Nonfinite delta-v, burn before reference epoch, duplicate burn epoch or missing frame tree; provide an explicit, resolvable burn schedule. |
+| `TrajectorySamplingError` | Invalid/exceeded sample bound, nonadvancing step or absent conversion tree; use a bounded schedule and connected frames. |
 | `OrbitalElementsError` | Invalid elements/options, noninertial frame, zero/radial state, numerical range limits or unreachable conic anomaly; supply a central-body-relative state in nonrotating axes and a valid conic. |
 | `KeplerSolverError` | Invalid inputs/options, arithmetic range limits, or iteration exhaustion with a final root bracket; use the appropriate conic and supported finite inputs, or adjust solver options. |
 | `EphemerisCacheError` | Memory-cache capacity is not positive; choose an explicit positive entry limit. |
