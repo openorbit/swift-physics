@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import CelMek
 
-private enum LocalDE441Assets {
+enum LocalDE441Assets {
     static let directory: URL = {
         if let override = ProcessInfo.processInfo.environment["CELMEK_DE441_DATA_DIRECTORY"] {
             return URL(fileURLWithPath: override, isDirectory: true)
