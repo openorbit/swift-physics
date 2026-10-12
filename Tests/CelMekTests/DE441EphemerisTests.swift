@@ -16,6 +16,40 @@ struct DE441EphemerisTests {
                    (387,6,1,3), (405,6,1,3), (423,6,1,3),
                    (441,13,8,3), (753,11,2,3), (819,10,4,2)]
     var data = Data(repeating: 0, count: 2 * 8_144)
+    func putInt(_ value: Int32, at offset: Int) {
+      var bits = value.littleEndian
+      withUnsafeBytes(of: &bits) { data.replaceSubrange(offset..<offset+4, with: $0) }
+    }
+    func putDouble(_ value: Double, at offset: Int) {
+      var bits = value.bitPattern.littleEndian
+      withUnsafeBytes(of: &bits) { data.replaceSubrange(offset..<offset+8, with: $0) }
+    }
+    for row in 0..<3 {
+      data.replaceSubrange(row*84..<(row+1)*84, with: [UInt8](repeating: 32, count: 84))
+    }
+    putDouble(spans.first?.0 ?? epoch, at: 2652)
+    putDouble(spans.last?.1 ?? epoch, at: 2660)
+    putDouble(32, at: 2668); putInt(645, at: 2676)
+    putDouble(DE441Ephemeris.astronomicalUnit, at: 2680)
+    putDouble(DE441Ephemeris.earthMoonMassRatio, at: 2688)
+    putInt(441, at: 2840)
+    for (index, layout) in layouts.enumerated() {
+      for (column, value) in [layout.0,layout.1,layout.2].enumerated() {
+        putInt(Int32(value), at: 2696+index*12+column*4)
+      }
+    }
+    for (column,value) in [899,10,4].enumerated() { putInt(Int32(value), at: 2844+column*4) }
+    for (column,value) in [1019,0,0,1019,0,0].enumerated() { putInt(Int32(value), at: 4326+column*4) }
+    for index in 0..<645 {
+      let name: String
+      switch index { case 0: name = "DENUM "; case 1: name = "AU    "; case 2: name = "EMRAT "
+      default: name = String(format: "C%05d", index) }
+      let offset = index < 400 ? 252+index*6 : 2856+(index-400)*6
+      data.replaceSubrange(offset..<offset+6, with: name.utf8)
+    }
+    putDouble(441, at: 8144)
+    putDouble(DE441Ephemeris.astronomicalUnit, at: 8152)
+    putDouble(DE441Ephemeris.earthMoonMassRatio, at: 8160)
     for (recordIndex, span) in spans.enumerated() {
       var record = [Double](repeating: 0, count: 1_018)
       record[0] = span.0
@@ -121,6 +155,33 @@ struct DE441EphemerisTests {
       #expect(throws: (any Error).self) { try reader.vector(target: body, center: 12, at: epoch) }
       #expect(throws: (any Error).self) { try reader.vector(target: 12, center: body, at: epoch) }
     }
+  }
+
+  @Test func validatesHeaderAndExposesMetadata() throws {
+    let url = try fixture()
+    defer { try? FileManager.default.removeItem(at: url) }
+    let reader = try DE441Ephemeris(url: url)
+    #expect(reader.metadata.ephemerisNumber == 441)
+    #expect(reader.metadata.constants.count == 645)
+    #expect(reader.metadata.coefficientRecordCount == 2)
+    #expect(reader.metadata.startJulianDateTDB == epoch)
+    #expect(reader.metadata.availableBodies.count == 13)
+    #expect(try reader.vector(target: .earth, center: .earth, at: epoch).position == .zero)
+    let original = try Data(contentsOf: url)
+    // DE number, constant count, coverage, layout and constant-name corruption.
+    for offset in [2840,2676,2652,2696,252,4326] {
+      var corrupt = original
+      corrupt.replaceSubrange(offset..<offset+4, with: [UInt8](repeating: 255, count: 4))
+      try corrupt.write(to: url)
+      #expect(throws: DE441Error.self) { try DE441Ephemeris(url: url) }
+    }
+  }
+
+  @Test func corruptInteriorDatesAreRejectedBeforeIndexArithmetic() throws {
+    let url = try fixture(spans: [(epoch,epoch+32),(-1e300,1e300),(epoch+64,epoch+96)])
+    defer { try? FileManager.default.removeItem(at: url) }
+    let reader = try DE441Ephemeris(url: url)
+    #expect(throws: DE441Error.self) { try reader.vector(target: .mercury, center: .sun, at: epoch+40) }
   }
 
   @Test
