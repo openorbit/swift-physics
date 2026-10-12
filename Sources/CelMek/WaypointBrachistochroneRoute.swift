@@ -3,6 +3,8 @@ import Foundation
 import Math
 
 public enum BrachistochroneRouteError: Error, Equatable {
+    case departureOutsideArrivalWindow, uniformRetimingUnavailable
+    case timingAccelerationLimitExceeded(leg: Int)
     case invalidWaypointCount, legCountMismatch, invalidDwell, invalidObstacle
     case originMismatch, clearanceLimitExceeded, unsupportedWaypointDwell, degeneratePassage(index: Int)
     case unresolvedClearance(index: Int, obstacle: String), obstructedLeg(index: Int, obstacle: String)
@@ -12,12 +14,20 @@ public enum BrachistochroneRouteError: Error, Equatable {
 public struct BrachistochroneWaypoint {
     public let positionMetres: SIMD3<Double>
     public let dwellDuration: Duration
-    public init(positionMetres: SIMD3<Double>, dwellDuration: Duration = .zero) throws {
+    /// Inclusive passage-time constraint; an equal pair specifies an exact epoch.
+    public let arrivalWindow: ClosedRange<Epoch>?
+    public init(positionMetres: SIMD3<Double>, dwellDuration: Duration = .zero,
+                arrivalWindow: ClosedRange<Epoch>? = nil) throws {
         guard [positionMetres.x,positionMetres.y,positionMetres.z].allSatisfy(\.isFinite) else {
             throw BrachistochroneError.nonFiniteEndpoint
         }
         guard dwellDuration >= .zero else { throw BrachistochroneRouteError.invalidDwell }
         self.positionMetres = positionMetres; self.dwellDuration = dwellDuration
+        self.arrivalWindow = arrivalWindow
+    }
+    public init(positionMetres: SIMD3<Double>, arrivalEpoch: Epoch, dwellDuration: Duration = .zero) throws {
+        try self.init(positionMetres: positionMetres, dwellDuration: dwellDuration,
+            arrivalWindow: arrivalEpoch...arrivalEpoch)
     }
 }
 
@@ -150,6 +160,39 @@ public struct WaypointBrachistochroneRoute: StateProvider {
         guard scale.isFinite else { throw BrachistochroneError.numericalRangeExceeded }
         // Margin protects the analytic bound from final floating-point rounding.
         times = times.map { $0*scale*1.01 }
+        if let window = waypoints[0].arrivalWindow, !window.contains(departureEpoch) {
+            throw BrachistochroneRouteError.departureOutsideArrivalWindow
+        }
+        var plannedArrivals: [Epoch]?
+        if waypoints.dropFirst().contains(where: { $0.arrivalWindow != nil }) {
+            let start = try departureEpoch.advanced(by: waypoints[0].dwellDuration)
+            var cumulative: [Double] = [], elapsed = 0.0
+            var lowerScale = 1.0, upperScale = Double.infinity
+            for i in times.indices {
+                elapsed += times[i]
+                guard elapsed.isFinite, elapsed > 0 else { throw BrachistochroneError.numericalRangeExceeded }
+                cumulative.append(elapsed)
+                if let window = waypoints[i+1].arrivalWindow {
+                    let earliest = try window.lowerBound.duration(since: start).seconds/elapsed
+                    let latest = try window.upperBound.duration(since: start).seconds/elapsed
+                    guard earliest.isFinite, latest.isFinite else { throw BrachistochroneError.numericalRangeExceeded }
+                    lowerScale = max(lowerScale, earliest); upperScale = min(upperScale, latest)
+                }
+            }
+            guard lowerScale <= upperScale else { throw BrachistochroneRouteError.uniformRetimingUnavailable }
+            var epochs = [departureEpoch], previous = start
+            for i in times.indices {
+                var end = try start.advanced(by: Duration(seconds: cumulative[i]*lowerScale))
+                if let window = waypoints[i+1].arrivalWindow {
+                    // Resolve fractional-second rounding at inclusive/exact endpoints.
+                    end = max(window.lowerBound, min(end, window.upperBound))
+                }
+                guard end > previous else { throw BrachistochroneRouteError.uniformRetimingUnavailable }
+                times[i] = try end.duration(since: previous).seconds
+                epochs.append(end); previous = end
+            }
+            plannedArrivals = epochs
+        }
         let passageVelocities = try velocities(times)
         var arrivals = [departureEpoch], departures: [Epoch] = [], paths: [WaypointBrachistochroneLeg] = []
         var reports: [BrachistochroneRouteClearance] = [], clearanceChecks = 0
@@ -157,7 +200,8 @@ public struct WaypointBrachistochroneRoute: StateProvider {
             let leave = try arrivals[i].advanced(by: waypoints[i].dwellDuration)
             departures.append(leave)
             guard i < times.count else { break }
-            let interval = try Duration(seconds: times[i]), end = try leave.advanced(by: interval)
+            let end = try plannedArrivals?[i+1] ?? leave.advanced(by: Duration(seconds: times[i]))
+            let interval = try end.duration(since: leave)
             guard end > leave else { throw BrachistochroneError.numericalRangeExceeded }
             let c = routeControls(points[i],points[i+1],passageVelocities[i],passageVelocities[i+1],interval.seconds)
             guard c.allSatisfy({ $0.x.isFinite && $0.y.isFinite && $0.z.isFinite }) else {
@@ -165,7 +209,9 @@ public struct WaypointBrachistochroneRoute: StateProvider {
             }
             let actualBound = max(routeNorm((c[2]-c[1]-(c[1]-c[0]))*(6/interval.seconds/interval.seconds)),
                 routeNorm((c[3]-c[2]-(c[2]-c[1]))*(6/interval.seconds/interval.seconds)))
-            guard actualBound.isFinite, actualBound <= legAccelerationsMetresPerSecondSquared[i] else {
+            guard actualBound.isFinite else { throw BrachistochroneError.numericalRangeExceeded }
+            guard actualBound <= legAccelerationsMetresPerSecondSquared[i] else {
+                if plannedArrivals != nil { throw BrachistochroneRouteError.timingAccelerationLimitExceeded(leg: i) }
                 throw BrachistochroneError.numericalRangeExceeded
             }
             let leg = WaypointBrachistochroneLeg(frame: frame, departureEpoch: leave, arrivalEpoch: end, duration: interval,

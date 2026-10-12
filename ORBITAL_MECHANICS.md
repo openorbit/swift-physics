@@ -617,7 +617,47 @@ and spatial boundaries cause a single split, without a stop or duplicate
 positive-duration segment. Final arrival retains the incoming left limit.
 
 This checks the existing spatial route against a temporal engine schedule. It
-does not change the route timing to fit that schedule. Explicit arrival windows,
-solving the relative order of untimed passages and temporal constraints, and
+does not change the route timing to fit that schedule. The geometric planner
+supports arrival windows through uniform retiming as described below. Solving
+the relative order of untimed passages and temporal constraints, and
 commanded burns with explicit directions remain planning extensions. Engine
 checks retain the sampled-feasibility limitations described above.
+
+### Waypoint arrival epochs and windows
+
+`BrachistochroneWaypoint` accepts an optional inclusive `arrivalWindow`, or an
+`arrivalEpoch` for an exact passage time. The first waypoint's window must
+contain the route departure epoch. Arrival means reaching the waypoint, before
+any permitted endpoint dwell. Intermediate waypoints still have no dwell.
+
+The geometric planner first computes its existing acceleration-bounded route.
+If passage constraints are supplied, it uniformly slows all flight legs to fit
+them. For each constrained waypoint, the allowed time relative to flight start
+divided by the nominal cumulative flight duration defines an interval of
+allowed scale factors. The planner intersects these intervals with scales at
+least one and selects the smallest common factor. Initial/final dwells are not
+scaled. The route then rebuilds epochs and velocities, validates acceleration
+bounds and checks obstacle clearance on the resulting curves. Exact arrival
+epochs are preserved as `Epoch` values; fractional-second rounding at window
+boundaries is resolved before the final checks.
+
+```swift
+let passage = try BrachistochroneWaypoint(positionMetres: waypointPosition,
+    arrivalWindow: earliestPassage...latestPassage)
+let destination = try BrachistochroneWaypoint(positionMetres: destinationPosition,
+    arrivalEpoch: requiredArrival)
+```
+
+Slower timing reduces passage velocities without introducing a stop or waiting
+at intermediate waypoints. Independently defined engine phases can then be
+supplied to `WaypointRoutePropagator`; their epochs do not move when geometry
+is retimed. Engine, gravity and fuel feasibility remain execution checks.
+
+`uniformRetimingUnavailable` means these arrival constraints cannot be met by
+uniformly slowing this nominal route. A different distribution of leg times,
+curve or thrust policy may still work. This method does not search those
+alternatives, optimize times under engine phases, or claim minimum travel time.
+An acceleration failure after reconstructing precise epochs is reported as
+`timingAccelerationLimitExceeded(leg:)`; geometry and clearance errors retain
+their existing explicit diagnostics. Local acceleration bounds on the reference
+curve and numerical endpoint tolerances retain their distinct meanings.
