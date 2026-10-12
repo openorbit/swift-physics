@@ -746,6 +746,52 @@ negative spacing is rejected. Precise epoch advancement must increase time.
 The Cartesian product is enumerated lazily by the existing search, subject to
 its own evaluation budget.
 
-This adds an automatic grid and phase-boundary policy, not adaptive refinement
-or continuous optimization. Smaller spacing can find additional candidates at
+This supplies an automatic grid and phase-boundary policy. Adaptive refinement
+is available through the API below; continuous optimization remains open.
+Smaller spacing can find additional candidates at
 greater cost, and candidate-set exhaustion does not establish global infeasibility.
+
+### Adaptive timing feasibility search
+
+`WaypointRouteTimingPlanner.adaptiveSearch` combines candidate generation and
+execution over successive grid resolutions. Supply finite `arrivalWindows`
+for spatial passages after departure and `WaypointTimingRefinementOptions`
+with initial and minimum spacing in SI seconds. The search intersects these
+windows with the waypoint's own arrival constraints; disjoint windows are an
+invalid search configuration. Exact windows remain exact at every level.
+
+At each level the search includes window endpoints and timed engine boundaries,
+then considers the candidate product in the existing lexicographic order. It
+stops at the first feasible route. If that grid is exhausted, spacing is halved,
+bounded below by the requested minimum, and another level is searched.
+Previously rejected exact arrival combinations are skipped across levels.
+Providers and forces must remain pure and deterministic throughout the search;
+inputs, force models and numerical tolerances are identical for every level.
+Refinement is global grid refinement, not a local optimizer guided by a smooth
+constraint residual. No monotonic feasibility assumption or bisection across
+feasible/infeasible candidates is made.
+
+The result includes aggregate candidate evaluations, failed attempts, and
+per-level spacing, generated entries, new evaluations and discrete-search
+status. Successful results include the selected route and its full numerical
+execution. Termination distinguishes:
+
+- `feasible`: a sampled candidate passed the route and execution checks.
+- `resolutionLimitReached`: the minimum-spacing grid is exhausted, or all
+  windows are exact and their one combination fails.
+- `evaluationLimitReached`: the total candidate evaluation budget is consumed.
+- `refinementLimitReached`: all permitted refinement levels are exhausted.
+- `candidateGenerationLimitReached`: the next grid exceeds the generation budget.
+
+Options allow 1...32 levels, 1...10,000 total new candidate evaluations and
+1...100,000 generated entries per level. Defaults are eight levels, 1,000
+evaluations and 100,000 generated entries. Generation and numerical budgets
+retain their separate meanings; RK work is bounded per propagation segment.
+Precise-epoch resolution errors and unexpected force/provider errors still throw.
+
+The finest sampled grid can miss a narrow feasible interval. These termination
+diagnostics do not prove global infeasibility or continuous convergence, and
+the first feasible result does not minimize arrival time. Reference-clearance
+and sampled-engine limitations also remain. Tests include a route whose coarse
+arrival endpoints both fail engine limits but whose midpoint succeeds, verifying
+that refinement finds it without evaluating the failed endpoints again.
