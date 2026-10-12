@@ -3,6 +3,7 @@ import Foundation
 import Math
 
 public enum BrachistochroneRouteError: Error, Equatable {
+    case movingObstacleOutsideCoverage(index: Int, obstacle: String), unsupportedMovingObstacleDwell
     case invalidLegDuration, arrivalWindowNotSatisfied(index: Int)
     case velocityDwellConflict(index: Int), velocityTimingLimitReached
     case departureOutsideArrivalWindow, uniformRetimingUnavailable
@@ -124,7 +125,12 @@ public struct WaypointBrachistochroneRoute: StateProvider {
 
     public init(departureEpoch: Epoch, frame: Frame, origin: BodyIdentifier,
                 waypoints: [BrachistochroneWaypoint], legAccelerationsMetresPerSecondSquared: [Double],
-                obstacles: [SphericalExclusionRegion] = [], legDurations: [Duration]? = nil) throws {
+                obstacles: [SphericalExclusionRegion] = [], legDurations: [Duration]? = nil,
+                movingObstacles: [MovingSphericalExclusionRegion] = []) throws {
+        try validateMovingObstacles(movingObstacles, staticObstacles: obstacles, frame: frame, origin: origin)
+        guard movingObstacles.isEmpty || waypoints.allSatisfy({ $0.dwellDuration == .zero }) else {
+            throw BrachistochroneRouteError.unsupportedMovingObstacleDwell
+        }
         try origin.validate()
         guard frame.pseudoInertial else { throw BrachistochroneError.nonInertialFrame }
         guard (2...10_001).contains(waypoints.count), obstacles.count <= 10_000 else {
@@ -139,7 +145,7 @@ public struct WaypointBrachistochroneRoute: StateProvider {
                 throw BrachistochroneRouteError.velocityDwellConflict(index: index)
             }
         }
-        guard obstacles.isEmpty || waypoints.count-1 <= 1_000_000/obstacles.count else { throw BrachistochroneRouteError.clearanceLimitExceeded }
+        guard obstacles.count + movingObstacles.count == 0 || waypoints.count-1 <= 1_000_000/(obstacles.count + movingObstacles.count) else { throw BrachistochroneRouteError.clearanceLimitExceeded }
         guard obstacles.allSatisfy({ $0.frame === frame }) else { throw SpacecraftDynamicsError.frameMismatch }
         guard obstacles.allSatisfy({ $0.origin == origin }) else { throw BrachistochroneRouteError.originMismatch }
         guard Set(obstacles.map(\.identifier)).count == obstacles.count else { throw BrachistochroneRouteError.invalidObstacle }
@@ -304,6 +310,9 @@ public struct WaypointBrachistochroneRoute: StateProvider {
                 reports.append(BrachistochroneRouteClearance(legIndex: i, obstacleIdentifier: obstacle.identifier,
                     minimumClearanceMetres: lowerBound))
             }
+            for obstacle in movingObstacles {
+                reports.append(try movingClearance(leg: leg, index: i, obstacle: obstacle, checks: &clearanceChecks))
+            }
             paths.append(leg); arrivals.append(end)
         }
         self.frame = frame; self.origin = origin; self.departureEpoch = departureEpoch
@@ -330,15 +339,15 @@ public struct WaypointBrachistochroneRoute: StateProvider {
         }
     }
 }
-private func routeNorm(_ v: SIMD3<Double>) -> Double { hypot(hypot(v.x,v.y),v.z) }
+func routeNorm(_ v: SIMD3<Double>) -> Double { hypot(hypot(v.x,v.y),v.z) }
 private func routeControls(_ p0: SIMD3<Double>, _ p1: SIMD3<Double>, _ v0: SIMD3<Double>, _ v1: SIMD3<Double>, _ t: Double) -> [SIMD3<Double>] {
     [p0,p0+v0*(t/3),p1-v1*(t/3),p1]
 }
-private func bezierPoint(_ c: [SIMD3<Double>], _ u: Double) -> SIMD3<Double> {
+func bezierPoint(_ c: [SIMD3<Double>], _ u: Double) -> SIMD3<Double> {
     let a = c[0]*(1-u)+c[1]*u, b = c[1]*(1-u)+c[2]*u, d = c[2]*(1-u)+c[3]*u
     return (a*(1-u)+b*u)*(1-u)+(b*(1-u)+d*u)*u
 }
-private func splitBezier(_ c: [SIMD3<Double>]) -> ([SIMD3<Double>],[SIMD3<Double>]) {
+func splitBezier(_ c: [SIMD3<Double>]) -> ([SIMD3<Double>],[SIMD3<Double>]) {
     let a = c[0]*0.5+c[1]*0.5, b = c[1]*0.5+c[2]*0.5, d = c[2]*0.5+c[3]*0.5
     let e = a*0.5+b*0.5, f = b*0.5+d*0.5, m = e*0.5+f*0.5
     return ([c[0],a,e,m],[m,f,d,c[3]])

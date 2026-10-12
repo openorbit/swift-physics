@@ -99,7 +99,8 @@ public enum WaypointRouteTimingPlanner {
         endpointPositionToleranceMetres: Double = 0.01,
         endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
         movingTarget: MovingWaypointRouteTarget? = nil,
-        movingWaypoints: [Int: MovingWaypointPassage] = [:]) throws -> WaypointTimingSearchResult {
+        movingWaypoints: [Int: MovingWaypointPassage] = [:],
+        movingObstacles: [MovingSphericalExclusionRegion] = []) throws -> WaypointTimingSearchResult {
         try searchImpl(departureEpoch: departureEpoch, frame: frame, origin: origin, waypoints: waypoints,
             legAccelerationsMetresPerSecondSquared: legAccelerationsMetresPerSecondSquared,
             candidateArrivalEpochs: candidateArrivalEpochs, initialMass: initialMass,
@@ -108,7 +109,7 @@ public enum WaypointRouteTimingPlanner {
             maximumCandidateEvaluations: maximumCandidateEvaluations, numericalOptions: numericalOptions,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
             endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond,
-            excluding: [], movingTarget: movingTarget, movingWaypoints: movingWaypoints)
+            excluding: [], movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles)
     }
 
     static func searchImpl(departureEpoch: Epoch, frame: Frame, origin: BodyIdentifier,
@@ -119,7 +120,8 @@ public enum WaypointRouteTimingPlanner {
         maximumCandidateEvaluations: Int, numericalOptions: NumericalPropagationOptions,
         endpointPositionToleranceMetres: Double, endpointVelocityToleranceMetresPerSecond: Double,
         excluding: Set<[Epoch]>, movingTarget: MovingWaypointRouteTarget? = nil,
-        movingWaypoints: [Int: MovingWaypointPassage] = [:]) throws -> WaypointTimingSearchResult {
+        movingWaypoints: [Int: MovingWaypointPassage] = [:],
+        movingObstacles: [MovingSphericalExclusionRegion] = []) throws -> WaypointTimingSearchResult {
         guard (1...10_000).contains(maximumCandidateEvaluations) else { throw WaypointTimingSearchError.invalidBudget }
         guard (2...10_001).contains(waypoints.count), candidateArrivalEpochs.count == waypoints.count-1,
               candidateArrivalEpochs.allSatisfy({ !$0.isEmpty }),
@@ -131,7 +133,7 @@ public enum WaypointRouteTimingPlanner {
             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
             timedEnginePhases: timedEnginePhases, obstacles: obstacles,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget, movingWaypoints: movingWaypoints)
+            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles)
         let candidates = candidateArrivalEpochs.map { values -> [Epoch] in
             let sorted = values.sorted()
             return sorted.enumerated().compactMap { index, epoch in
@@ -171,7 +173,7 @@ public enum WaypointRouteTimingPlanner {
                         }
                         let route = try WaypointBrachistochroneRoute(departureEpoch: departureEpoch, frame: frame, origin: origin,
                             waypoints: resolved, legAccelerationsMetresPerSecondSquared: legAccelerationsMetresPerSecondSquared,
-                            obstacles: obstacles, legDurations: durations)
+                            obstacles: obstacles, legDurations: durations, movingObstacles: movingObstacles)
                         let execution = try WaypointRoutePropagator(route: route, initialMass: initialMass,
                             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
                             timedEnginePhases: sortedPhases, numericalOptions: numericalOptions,
@@ -221,8 +223,10 @@ public enum WaypointRouteTimingPlanner {
         timedEnginePhases: [WaypointRouteEnginePhase], obstacles: [SphericalExclusionRegion],
         endpointPositionToleranceMetres: Double, endpointVelocityToleranceMetresPerSecond: Double,
         movingTarget: MovingWaypointRouteTarget? = nil,
-        movingWaypoints: [Int: MovingWaypointPassage] = [:]
+        movingWaypoints: [Int: MovingWaypointPassage] = [:],
+        movingObstacles: [MovingSphericalExclusionRegion] = []
     ) throws -> [WaypointRouteEnginePhase] {
+        try validateMovingObstacles(movingObstacles, staticObstacles: obstacles, frame: frame, origin: origin)
         // Validate frame, budget and engine configuration before searching.
         guard frame === backgroundDynamics.context.frame else { throw SpacecraftDynamicsError.frameMismatch }
         guard origin == backgroundDynamics.context.origin else { throw BrachistochroneRouteError.originMismatch }

@@ -1019,3 +1019,36 @@ offset geometry, light-time corrections and global optimal control remain open.
 Tests cover time-dependent positions, coverage rejection, independent velocity
 choices, stationary-body fly-through, zero-velocity matching rejection,
 provider-coverage-limited refinement/optimization and carried mass continuity.
+
+### Moving spherical exclusions
+
+Routes and all three timing planners accept `movingObstacles: [MovingSphericalExclusionRegion]`.
+Each region uses a checked `MovingWaypointRouteTarget` centre provider, a radius,
+a safety margin, and an explicit `maximumCentreSpeedMetresPerSecond`. The caller
+must guarantee that speed bound throughout the provider's declared coverage in
+the route's native frame and physical origin. An instantaneous ephemeris velocity
+does not establish this bound.
+
+For each subdivided cubic interval, the centre at its midpoint and the speed
+bound enclose the obstacle's motion in a sphere of radius
+`maximumCentreSpeed * halfInterval`. The distance from that centre to the cubic
+control polygon's bounding box, minus the motion radius and exclusion radius,
+gives a conservative clearance bound. Positive bounds, reduced by a floating
+point allowance, accept intervals; endpoint/midpoint samples can demonstrate
+collision but cannot establish safety. Ambiguous intervals subdivide up to depth
+24, with a shared static/moving budget of one million interval checks per route.
+Unresolved clearance and exhausted work budgets are explicit failures.
+
+Reports in `route.clearances` cover each entire geometric leg. Obstacle coverage
+must include both leg endpoints; coverage misses appear as indexed geometry
+failures in timing search. Every candidate checks the obstacle at its own epochs,
+including adaptive refinement and local optimization. Provider errors propagate.
+Identifiers must be unique across fixed and moving regions. Routes with endpoint
+dwells currently reject moving exclusions explicitly rather than leaving those
+stationary intervals unchecked.
+
+The guarantee depends on the declared motion bound and uses floating point
+geometry, not formal interval arithmetic. It applies to the prescribed reference
+curve; numerical integration residuals do not certify executed whole-path
+clearance. Automatic avoidance waypoint generation and relative waypoint offsets
+remain separate extensions.

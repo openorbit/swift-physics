@@ -51,7 +51,8 @@ extension WaypointRouteTimingPlanner {
         endpointPositionToleranceMetres: Double = 0.01,
         endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
         movingTarget: MovingWaypointRouteTarget? = nil,
-        movingWaypoints: [Int: MovingWaypointPassage] = [:]) throws -> WaypointTimingRefinementResult {
+        movingWaypoints: [Int: MovingWaypointPassage] = [:],
+        movingObstacles: [MovingSphericalExclusionRegion] = []) throws -> WaypointTimingRefinementResult {
         guard (2...10_001).contains(waypoints.count), arrivalWindows.count == waypoints.count-1 else {
             throw WaypointTimingSearchError.invalidCandidates
         }
@@ -60,7 +61,7 @@ extension WaypointRouteTimingPlanner {
             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
             timedEnginePhases: timedEnginePhases, obstacles: obstacles,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget, movingWaypoints: movingWaypoints)
+            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles)
         var windows = try intersectPassageCoverage(arrivalWindows, movingWaypoints: movingWaypoints)
         for index in windows.indices {
             if let constraint = waypoints[index+1].arrivalWindow {
@@ -100,7 +101,7 @@ extension WaypointRouteTimingPlanner {
                 timedEnginePhases: timedEnginePhases, obstacles: obstacles,
                 maximumCandidateEvaluations: refinementOptions.maximumCandidateEvaluations-evaluated,
                 numericalOptions: numericalOptions, endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: excluded, movingTarget: movingTarget, movingWaypoints: movingWaypoints)
+                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: excluded, movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles)
             evaluated += result.evaluatedCandidates
             failures.append(contentsOf: result.failedAttempts)
             for attempt in result.failedAttempts { excluded.insert(attempt.arrivalEpochs) }
