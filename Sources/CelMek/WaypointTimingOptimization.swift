@@ -52,7 +52,8 @@ extension WaypointRouteTimingPlanner {
         endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
         movingTarget: MovingWaypointRouteTarget? = nil,
         movingWaypoints: [Int: MovingWaypointPassage] = [:],
-        movingObstacles: [MovingSphericalExclusionRegion] = []) throws -> WaypointTimingOptimizationResult {
+        movingObstacles: [MovingSphericalExclusionRegion] = [],
+        physicalConstraints: WaypointRoutePhysicalConstraints = .unconstrained) throws -> WaypointTimingOptimizationResult {
         guard (2...10_001).contains(waypoints.count), arrivalWindows.count == waypoints.count-1,
               seedArrivalEpochs.count == arrivalWindows.count else { throw WaypointTimingSearchError.invalidCandidates }
         _ = try validateTimingConfiguration(departureEpoch: departureEpoch, frame: frame, origin: origin,
@@ -60,7 +61,7 @@ extension WaypointRouteTimingPlanner {
             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
             timedEnginePhases: timedEnginePhases, obstacles: obstacles,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles)
+            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles, physicalConstraints: physicalConstraints)
         var windows = try intersectPassageCoverage(arrivalWindows, movingWaypoints: movingWaypoints)
         for index in windows.indices {
             if let constraint = waypoints[index+1].arrivalWindow {
@@ -87,7 +88,7 @@ extension WaypointRouteTimingPlanner {
                 backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
                 timedEnginePhases: timedEnginePhases, obstacles: obstacles, maximumCandidateEvaluations: 1,
                 numericalOptions: numericalOptions, endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: [], movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles)
+                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: [], movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles, physicalConstraints: physicalConstraints)
             failures.append(contentsOf: result.failedAttempts)
             return result
         }
@@ -109,7 +110,7 @@ extension WaypointRouteTimingPlanner {
             if final < bestEpochs[last], final > departureEpoch {
                 // Final-only, proportional compression, then +/- one intermediate
                 // passage paired with an earlier final arrival. Generate lazily.
-                for pattern in 0..<(2+2*last) {
+                for pattern in 0..<(4+6*last) {
                     var proposal = bestEpochs
                     proposal[last] = final
                     if pattern == 1 {
@@ -119,7 +120,7 @@ extension WaypointRouteTimingPlanner {
                             proposal[index] = try departureEpoch.advanced(by: Duration(seconds:
                                 bestEpochs[index].duration(since: departureEpoch).seconds*ratio))
                         }
-                    } else if pattern >= 2 {
+                    } else if pattern >= 2 && pattern < 2+2*last {
                         let index = (pattern-2)/2
                         if pattern.isMultiple(of: 2) {
                             let available = try proposal[index].duration(since: windows[index].lowerBound)
@@ -129,6 +130,25 @@ extension WaypointRouteTimingPlanner {
                             let available = try windows[index].upperBound.duration(since: proposal[index])
                             proposal[index] = delta >= available ? windows[index].upperBound :
                                 try proposal[index].advanced(by: delta)
+                        }
+                    }
+                    if pattern >= 2+2*last {
+                        // Joint shifts of all intermediates, then each prefix/suffix.
+                        let joint = pattern-(2+2*last)
+                        let direction = joint.isMultiple(of: 2) ? -step : step
+                        let selection: Range<Int>
+                        if joint < 2 { selection = 0..<last }
+                        else {
+                            let group = (joint-2)/4
+                            selection = ((joint-2)%4 < 2) ? 0..<(group+1) : group..<last
+                        }
+                        for index in selection {
+                            let available = try direction < 0 ?
+                                proposal[index].duration(since: windows[index].lowerBound) :
+                                windows[index].upperBound.duration(since: proposal[index])
+                            proposal[index] = delta >= available ?
+                                (direction < 0 ? windows[index].lowerBound : windows[index].upperBound) :
+                                try proposal[index].advanced(by: Duration(seconds: direction))
                         }
                     }
                     for index in proposal.indices {
@@ -151,5 +171,66 @@ extension WaypointRouteTimingPlanner {
             }
         }
         return finish(.iterationLimitReached)
+    }
+}
+
+
+public enum WaypointTimingMultiStartStatus: Equatable, Sendable {
+    case seedsExhausted, evaluationLimitReached
+}
+public struct WaypointTimingMultiStartResult {
+    public let status: WaypointTimingMultiStartStatus
+    public let evaluatedCandidates: Int
+    public let starts: [WaypointTimingOptimizationResult]
+    public let route: WaypointBrachistochroneRoute?
+    public let propagation: WaypointRoutePropagationResult?
+}
+extension WaypointRouteTimingPlanner {
+    /// Explore bounded, caller-selected seeds, retaining the earliest feasible
+    /// local result. Seeds may span the full windows; no global optimum is implied.
+    public static func optimizeTimingFromSeeds(departureEpoch: Epoch, frame: Frame, origin: BodyIdentifier,
+        waypoints: [BrachistochroneWaypoint], legAccelerationsMetresPerSecondSquared: [Double],
+        arrivalWindows: [ClosedRange<Epoch>], seedArrivalEpochs: [[Epoch]], maximumTotalCandidateEvaluations: Int = 1000,
+        optimizationOptions: WaypointTimingOptimizationOptions, initialMass: SpacecraftMassProperties,
+        backgroundDynamics: SpacecraftDynamics, legEngineLimits: [WaypointRouteEngineLimits],
+        timedEnginePhases: [WaypointRouteEnginePhase] = [], obstacles: [SphericalExclusionRegion] = [],
+        numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions(),
+        endpointPositionToleranceMetres: Double = 0.01,
+        endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
+        movingTarget: MovingWaypointRouteTarget? = nil,
+        movingWaypoints: [Int: MovingWaypointPassage] = [:],
+        movingObstacles: [MovingSphericalExclusionRegion] = [],
+        physicalConstraints: WaypointRoutePhysicalConstraints = .unconstrained) throws -> WaypointTimingMultiStartResult {
+        guard !seedArrivalEpochs.isEmpty, seedArrivalEpochs.count <= 256,
+              (1...10_000).contains(maximumTotalCandidateEvaluations) else {
+            throw WaypointTimingSearchError.invalidBudget
+        }
+        var starts: [WaypointTimingOptimizationResult] = []
+        var seen = Set<[Epoch]>(), evaluated = 0
+        var best: WaypointTimingOptimizationResult?
+        for seed in seedArrivalEpochs where seen.insert(seed).inserted {
+            if evaluated == maximumTotalCandidateEvaluations { break }
+            let options = try WaypointTimingOptimizationOptions(
+                initialStepSeconds: optimizationOptions.initialStepSeconds,
+                minimumStepSeconds: optimizationOptions.minimumStepSeconds,
+                maximumIterations: optimizationOptions.maximumIterations,
+                maximumCandidateEvaluations: min(optimizationOptions.maximumCandidateEvaluations,
+                    maximumTotalCandidateEvaluations-evaluated))
+            let result = try optimizeTiming(departureEpoch: departureEpoch, frame: frame, origin: origin,
+                waypoints: waypoints, legAccelerationsMetresPerSecondSquared: legAccelerationsMetresPerSecondSquared,
+                arrivalWindows: arrivalWindows, seedArrivalEpochs: seed, optimizationOptions: options,
+                initialMass: initialMass, backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
+                timedEnginePhases: timedEnginePhases, obstacles: obstacles, numericalOptions: numericalOptions,
+                endpointPositionToleranceMetres: endpointPositionToleranceMetres,
+                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond,
+                movingTarget: movingTarget, movingWaypoints: movingWaypoints, movingObstacles: movingObstacles, physicalConstraints: physicalConstraints)
+            evaluated += result.evaluatedCandidates; starts.append(result)
+            if let route = result.route, best?.route == nil || route.arrivalEpoch < best!.route!.arrivalEpoch {
+                best = result
+            }
+        }
+        return WaypointTimingMultiStartResult(
+            status: evaluated == maximumTotalCandidateEvaluations ? .evaluationLimitReached : .seedsExhausted,
+            evaluatedCandidates: evaluated, starts: starts, route: best?.route, propagation: best?.propagation)
     }
 }

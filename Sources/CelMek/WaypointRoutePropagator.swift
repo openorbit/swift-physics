@@ -3,6 +3,7 @@ import Foundation
 import Math
 
 public enum WaypointRoutePropagationError: Error, Equatable {
+    case attitudeLimitExceeded(leg: Int), thermalBoundExceeded(leg: Int)
     case invalidLimits, unsupportedDwell, backgroundMassFlow
     case accelerationLimitExceeded(leg: Int), thrustLimitExceeded(leg: Int)
     case endpointToleranceExceeded(leg: Int)
@@ -18,8 +19,9 @@ public struct WaypointRouteEngineLimits: Equatable, Sendable {
     public let effectiveExhaustVelocityMetresPerSecond: Double
     public init(maximumAccelerationMetresPerSecondSquared: Double, maximumThrustNewtons: Double,
                 effectiveExhaustVelocityMetresPerSecond: Double) throws {
-        guard [maximumAccelerationMetresPerSecondSquared, maximumThrustNewtons,
-               effectiveExhaustVelocityMetresPerSecond].allSatisfy({ $0.isFinite && $0 > 0 }) else {
+        guard maximumAccelerationMetresPerSecondSquared.isFinite, maximumAccelerationMetresPerSecondSquared >= 0,
+              maximumThrustNewtons.isFinite, maximumThrustNewtons >= 0,
+              effectiveExhaustVelocityMetresPerSecond.isFinite, effectiveExhaustVelocityMetresPerSecond > 0 else {
             throw WaypointRoutePropagationError.invalidLimits
         }
         self.maximumAccelerationMetresPerSecondSquared = maximumAccelerationMetresPerSecondSquared
@@ -47,6 +49,8 @@ public struct WaypointRouteEnginePhase: Equatable {
 }
 
 public struct WaypointRouteExecutionSegment {
+    public let initialHeatUpperBoundJoules: Double?
+    public let finalHeatUpperBoundJoules: Double?
     public let legIndex: Int
     /// Index in the propagator's chronologically sorted phases; nil uses leg limits.
     public let timedEnginePhaseIndex: Int?
@@ -64,6 +68,7 @@ public struct WaypointRouteCheckpoint {
 }
 
 public struct WaypointRoutePropagationResult {
+    public let finalHeatUpperBoundJoules: Double?
     public let state: SpacecraftState
     /// Completed legs only; checkpoint mass is the next leg's initial mass.
     public let checkpoints: [WaypointRouteCheckpoint]
@@ -81,6 +86,7 @@ public struct WaypointRoutePropagator: SpacecraftStateProvider {
     public let legEngineLimits: [WaypointRouteEngineLimits]
     public let timedEnginePhases: [WaypointRouteEnginePhase]
     private let temporalBoundaries: [Epoch]
+    public let physicalConstraints: WaypointRoutePhysicalConstraints
     public let numericalOptions: NumericalPropagationOptions
     public let endpointPositionToleranceMetres: Double
     public let endpointVelocityToleranceMetresPerSecond: Double
@@ -92,7 +98,10 @@ public struct WaypointRoutePropagator: SpacecraftStateProvider {
                 timedEnginePhases: [WaypointRouteEnginePhase] = [],
                 numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions(),
                 endpointPositionToleranceMetres: Double = 0.01,
-                endpointVelocityToleranceMetresPerSecond: Double = 1e-5) throws {
+                endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
+                physicalConstraints: WaypointRoutePhysicalConstraints = .unconstrained) throws {
+        try physicalConstraints.validate(frame: route.frame)
+        self.physicalConstraints = physicalConstraints
         guard route.frame === backgroundDynamics.context.frame else { throw SpacecraftDynamicsError.frameMismatch }
         guard route.origin == backgroundDynamics.context.origin else { throw BrachistochroneRouteError.originMismatch }
         guard legEngineLimits.count == route.legs.count,
@@ -129,6 +138,7 @@ public struct WaypointRoutePropagator: SpacecraftStateProvider {
         guard coverage.contains(epoch) else { throw BrachistochroneError.outsideCoverage }
         var current = SpacecraftState(cartesian: try route.legs[0].state(at: route.departureEpoch), mass: initialMass)
         var checkpoints: [WaypointRouteCheckpoint] = [], segments: [WaypointRouteExecutionSegment] = []
+        var heat = physicalConstraints.thermalEnvelope?.initialHeatJoules
         var boundaryIndex = 0
         for (index, leg) in route.legs.enumerated() {
             guard epoch >= leg.departureEpoch else { break }
@@ -139,17 +149,26 @@ public struct WaypointRoutePropagator: SpacecraftStateProvider {
                 }
                 let phaseIndex = enginePhaseIndex(at: current.epoch)
                 let model = RouteExecutionModel(leg: leg, index: index, background: backgroundDynamics,
-                    limits: phaseIndex.map { timedEnginePhases[$0].limits } ?? legEngineLimits[index])
+                    limits: phaseIndex.map { timedEnginePhases[$0].limits } ?? legEngineLimits[index],
+                    thrustCone: physicalConstraints.thrustCone)
                 let dynamics = try SpacecraftDynamics(models: [model], context: backgroundDynamics.context)
                 var end = min(epoch, leg.arrivalEpoch)
                 if boundaryIndex < temporalBoundaries.count { end = min(end, temporalBoundaries[boundaryIndex]) }
                 let initial = current
+                let initialHeat = heat
+                if let envelope = physicalConstraints.thermalEnvelope, let initialHeat {
+                    let ceiling = min(model.limits.maximumThrustNewtons,
+                        model.limits.maximumAccelerationMetresPerSecondSquared * current.mass.totalMassKilograms)
+                    heat = try envelope.advance(heat: initialHeat, duration: end.duration(since: current.epoch).seconds,
+                        thrustCeiling: ceiling, leg: index)
+                }
                 let result = try NumericalSpacecraftPropagator(initialState: initial, dynamics: dynamics,
                     options: numericalOptions).propagation(at: end)
                 current = result.state
                 diagnostics = mergeRouteDiagnostics(diagnostics, result.diagnostics)
                 if end > initial.epoch {
-                    segments.append(WaypointRouteExecutionSegment(legIndex: index, timedEnginePhaseIndex: phaseIndex,
+                    segments.append(WaypointRouteExecutionSegment(initialHeatUpperBoundJoules: initialHeat,
+                        finalHeatUpperBoundJoules: heat, legIndex: index, timedEnginePhaseIndex: phaseIndex,
                         initialState: initial, finalState: current, diagnostics: result.diagnostics))
                 }
                 if end == epoch || end == leg.arrivalEpoch { break }
@@ -172,7 +191,8 @@ public struct WaypointRoutePropagator: SpacecraftStateProvider {
                 // The incoming segment used its own left limit for all RK stages.
                 let phaseIndex = enginePhaseIndex(at: epoch)
                 let model = RouteExecutionModel(leg: leg, index: index, background: backgroundDynamics,
-                    limits: phaseIndex.map { timedEnginePhases[$0].limits } ?? legEngineLimits[index])
+                    limits: phaseIndex.map { timedEnginePhases[$0].limits } ?? legEngineLimits[index],
+                    thrustCone: physicalConstraints.thrustCone)
                 let force = try model.contribution(for: current, in: backgroundDynamics.context)
                 current = SpacecraftState(cartesian: try CartesianState(epoch: epoch, frame: frame,
                     position: current.cartesian.position, velocity: current.cartesian.velocity,
@@ -182,7 +202,7 @@ public struct WaypointRoutePropagator: SpacecraftStateProvider {
             // acceleration and engine constraints. Never reset position/velocity/mass.
             if epoch < leg.arrivalEpoch || index == route.legs.count-1 { break }
         }
-        return WaypointRoutePropagationResult(state: current, checkpoints: checkpoints, segments: segments)
+        return WaypointRoutePropagationResult(finalHeatUpperBoundJoules: heat, state: current, checkpoints: checkpoints, segments: segments)
     }
 
     private func enginePhaseIndex(at epoch: Epoch) -> Int? {
@@ -212,6 +232,7 @@ private struct RouteExecutionModel: ForceModel {
     let index: Int
     let background: SpacecraftDynamics
     let limits: WaypointRouteEngineLimits
+    let thrustCone: WaypointThrustCone?
     func contribution(for state: SpacecraftState, in context: ForceEvaluationContext) throws -> ForceContribution {
         let environment = try background.derivative(at: state)
         guard environment.propellantMassRateKilogramsPerSecond == 0 else {
@@ -219,7 +240,9 @@ private struct RouteExecutionModel: ForceModel {
         }
         let reference = try leg.state(at: state.epoch)
         let acceleration = reference.acceleration!
-        let thrustAcceleration = executionNorm(acceleration-environment.velocityRateMetresPerSecondSquared)
+        let commandedAcceleration = acceleration-environment.velocityRateMetresPerSecondSquared
+        try thrustCone?.check(commandedAcceleration, at: state.epoch, leg: index)
+        let thrustAcceleration = executionNorm(commandedAcceleration)
         guard thrustAcceleration.isFinite else { throw SpacecraftDynamicsError.numericalRangeExceeded }
         guard thrustAcceleration <= limits.maximumAccelerationMetresPerSecondSquared else {
             throw WaypointRoutePropagationError.accelerationLimitExceeded(leg: index)

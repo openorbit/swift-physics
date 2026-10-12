@@ -81,3 +81,44 @@ public struct MovingWaypointRouteTarget {
             velocityMetresPerSecond: state.velocity)
     }
 }
+
+extension MovingWaypointRouteTarget {
+    /// A constant displacement in the target's native axes, retaining its velocity.
+    public func offset(positionMetres: SIMD3<Double>) throws -> MovingWaypointRouteTarget {
+        _ = try CartesianState(epoch: coverage.lowerBound, frame: frame,
+            position: positionMetres, velocity: .zero)
+        return MovingWaypointRouteTarget(frame: frame, origin: origin, coverage: coverage) { epoch in
+            let base = try self.state(at: epoch)
+            return try CartesianState(epoch: epoch, frame: frame, position: base.position + positionMetres,
+                velocity: base.velocity, acceleration: base.acceleration)
+        }
+    }
+
+    /// A constant target-relative displacement expressed in possibly rotating axes.
+    /// Only axes and their derivatives are used; the axes frame's translation is
+    /// ignored because the physical centre is supplied by this target.
+    public func offset(positionMetres: SIMD3<Double>, in axes: Frame,
+                       using tree: FrameTree) throws -> MovingWaypointRouteTarget {
+        _ = try CartesianState(epoch: coverage.lowerBound, frame: axes,
+            position: positionMetres, velocity: .zero)
+        _ = try tree.transform(from: axes, to: frame, at: coverage.lowerBound)
+        return MovingWaypointRouteTarget(frame: frame, origin: origin, coverage: coverage) { epoch in
+            let base = try self.state(at: epoch)
+            let transform = try tree.transform(from: axes, to: frame, at: epoch)
+            let r = transform.rotation.matrix * positionMetres
+            let v = offsetCross(transform.angularVelocity, r)
+            let a = offsetCross(transform.angularAcceleration, r) + offsetCross(transform.angularVelocity, v)
+            return try CartesianState(epoch: epoch, frame: frame, position: base.position + r,
+                velocity: base.velocity + v, acceleration: base.acceleration.map { $0 + a })
+        }
+    }
+
+    private init(frame: Frame, origin: BodyIdentifier, coverage: ClosedRange<Epoch>,
+                 evaluate: @escaping (Epoch) throws -> CartesianState) {
+        self.frame = frame; self.origin = origin; self.coverage = coverage; self.evaluate = evaluate
+    }
+}
+
+private func offsetCross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
+    SIMD3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x)
+}

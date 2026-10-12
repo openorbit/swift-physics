@@ -1052,3 +1052,92 @@ geometry, not formal interval arithmetic. It applies to the prescribed reference
 curve; numerical integration residuals do not certify executed whole-path
 clearance. Automatic avoidance waypoint generation and relative waypoint offsets
 remain separate extensions.
+
+### Relative passages and rendezvous
+
+A checked moving target can be shifted with
+`target.offset(positionMetres: offset)`. The offset is constant in its native
+axes, so the target velocity and acceleration are retained. To express the
+displacement in body-fixed or other rotating axes, use
+`target.offset(positionMetres: offset, in: axesFrame, using: frameTree)`.
+The frame system rotates the displacement and contributes its angular velocity
+and angular acceleration terms. Frame translations are deliberately excluded:
+the target provider supplies the physical centre. Missing target acceleration
+remains missing. Both forms preserve physical origin and declared coverage and
+can be used as a moving passage or final rendezvous target in every timing planner.
+Providers and the frame tree must remain deterministic during a search.
+
+### Exploration from multiple timing seeds
+
+`optimizeTimingFromSeeds` runs bounded local improvements from caller-selected
+arrival vectors and retains the earliest feasible result. Seeds can span separate
+timing basins within the arrival windows; identical seeds are visited once, and
+rejected seeds do not discard another seed's feasible result. Per-start diagnostics
+are retained, including local termination and rejected proposals, with an aggregate
+candidate evaluation limit. Local iteration limits apply separately to each start.
+The local patterns now include joint intermediate shifts and shifts of each
+prefix and suffix, paired with earlier final arrival, in addition to final-only,
+proportional and individual-passage changes.
+
+This is finite exploration plus local improvement. Exhausting the seeds or the
+requested step resolution proves neither global infeasibility nor stationarity
+or global minimum time. All proposals re-evaluate moving targets, exclusions,
+engine schedules and physical constraints.
+
+### Prescribed attitude and thermal constraints
+
+`WaypointRoutePhysicalConstraints` is accepted by numerical route execution and
+all timing planners. A `WaypointThrustCone` supplies a pure epoch-dependent axis,
+native frame and half-angle in radians. Execution checks the *required engine
+acceleration*, including compensation for background gravity, against that cone
+at derivative stages. No thrust means no direction restriction. Cone checks are
+sampled, like the engine limits, and do not certify between-stage compliance.
+These are prescribed attitude constraints; rigid-body attitude and slew dynamics
+belong to Milestone 7.
+
+A `WaypointThermalEnvelope` explicitly defines stored heat in joules, a maximum,
+heating watts per newton of thrust, and a linear cooling rate per second:
+`dH/dt = heatingWattsPerNewton * thrust - coolingRatePerSecond * H`.
+The engine ceiling for each spatial/temporal execution segment bounds heating.
+Its constant-power solution provides a conservative carried envelope, including
+a small floating arithmetic allowance; both endpoints bound that solution's
+maximum. Heat is carried across waypoints and engine-phase boundaries, and
+segments report their initial and final heat bounds. Zero acceleration/thrust
+ceilings permit explicit coast/cooldown phases; exhaust velocity remains positive.
+
+The envelope is conditional on the engine ceiling being respected continuously.
+It is not a reconstructed actual temperature history, and it can reject physically
+cooler trajectories. `thermalBoundExceeded` means this conservative model could
+not establish thermal feasibility; it is not a proof of physical infeasibility.
+No heat model is inferred merely because a lighter-burn phase was requested.
+
+### Commanded-burn shooting
+
+`CommandedBurnPlanner.search` evaluates a bounded list of
+`CommandedBurnCandidate(arrivalEpoch:schedule:)` values. Schedules contain explicit
+inertial `FiniteBurn` directions, thrust and exhaust velocity. The planner uses
+`ScheduledThrustPropagator` under caller-supplied background forces; it does not
+replace commands with inverse-dynamics thrust. Candidates are ordered by arrival
+epoch (stable input order for ties), and the earliest supplied feasible one wins.
+
+The final checked moving target requires position and velocity matching within
+explicit tolerances. Independent `CommandedBurnPassage` values require position
+matching and optionally velocity matching, at strictly increasing physical
+passage epochs. A passage may occur inside a burn or coast, with nonzero velocity.
+Numerical execution carries position, velocity and mass through these passages;
+ignition/cutoff boundaries remain separate. Burns must lie within the candidate
+flight, and target coverage, residuals, fuel reserve at checkpoints and numerical
+failures are diagnosed. Failed attempts retain available residual checkpoints.
+Provider/configuration errors propagate rather than being classified as
+trajectory infeasibility. Dry-mass checks occur inside numerical propagation.
+
+Candidate count/evaluation budgets are bounded; integrator limits apply to each
+propagation segment. Candidate-set exhaustion is not global infeasibility.
+This planner does not automatically synthesize burn directions, enforce waypoint
+route cones/thermal envelopes, or certify between-checkpoint obstacle clearance.
+Its commands are chosen explicitly by the caller; obstacle and physical
+constraint planning for prescribed cubic routes remains the separate route API.
+
+Milestone 6 provides bounded planning and numerical simulation with explicit
+limits. General optimal control, automatic avoidance geometry and formal
+continuous-constraint certification are future extensions.
