@@ -325,3 +325,59 @@ analytic velocity converted to atomic seconds. The reader has a configurable
 bounded record cache and internally serialized random-access IO. See
 [DE441.md](DE441.md) for supported binary profiles, split-date interpolation,
 time-model limits and optional local-data tests.
+
+## Explicit fallback tiers
+
+`FallbackEphemeris(de441:model:kepler:)` selects **DE441 → analytic/fitted model
+→ Kepler** at each requested epoch. Each tier is optional. Omit DE441 when its
+optional asset is absent; an invalid asset is an error, not permission to hide a
+failure. Selection uses declared coverage, including endpoints. Errors from a
+selected source (including narrower dependency coverage, corrupt coefficients,
+and state-contract violations) propagate. Accuracy hints control model evaluation,
+not tier ordering.
+
+`DefaultEphemerisModel.makeProvider(for:coverage:tdbModel:frames:velocityStep:accuracy:)`
+constructs the native-frame default where one exists:
+
+| Body identity | Built-in model |
+| --- | --- |
+| Sun, Mercury, Venus, Earth | VSOP87E |
+| Mars, Jupiter, Saturn, Uranus, Neptune system barycentres | VSOP87E |
+| Moon | Existing legacy ELP82-labelled truncated Meeus lunar series |
+| Pluto system barycentre | Goffin |
+| Other identities | None; use a supplied fitted model or Kepler |
+
+The current lunar implementation is **not full ELP82** and retains the honest
+`meeusMoon` name. The factory returns nil for bodies without a default, rather
+than substituting a different body identity. A caller-supplied fitted provider can
+occupy the model tier for any body.
+
+Compose providers only after converting them to the same origin and frame using
+the frame system and explicit metadata adapters. DE441 is usually barycentric
+ICRF; VSOP87E needs an axes conversion, the Moon needs Earth translation, and
+Goffin needs Sun translation. Retain the tree used by converted providers, and
+restrict coverage to all transform dependencies. The chain rejects different
+body identities, origins, frames, and gaps in its combined coverage.
+
+`KeplerEphemeris(body:propagator:coverage:provenance:)` wraps a `TwoBodyPropagator`
+with an explicit fixed reference state and central GM. The seed state must be
+relative to the central body in a suitable inertial frame. Convert this provider's
+origin/frame before combining it with barycentric providers. Supply a sensible
+usable coverage interval; there is no automatic orbit inferred from a body ID or
+seeding from the last query. Unknown bodies can therefore use a Kepler-only chain.
+
+```swift
+let ephemeris = try FallbackEphemeris(
+    de441: optionalDEProvider, // already converted to common coordinates
+    model: analyticOrFittedProvider,
+    kepler: optionalKeplerProvider)
+let answer = try ephemeris.selection(at: epoch)
+// answer.state is SI; answer.tier and answer.source report the selected model.
+```
+
+`selection(at:)` reports the selected source metadata, including its provenance
+and accuracy. Chain metadata lists all participating time scales. Acceleration is
+returned only if every tier supplies it, so its availability stays consistent
+when switching sources. Selection is deterministic and independent of query
+order. Switching models can introduce a jump; this policy does not blend states
+or assert that the tiers agree at their boundaries.
