@@ -916,8 +916,9 @@ anew and replaces the final waypoint's nominal position with the target position
 and its velocity with the target velocity. The final waypoint still supplies its
 arrival window. Its nominal position is ignored, and it must leave its optional
 velocity unspecified; an explicit static velocity would conflict with matching
-the moving target and is rejected. Intermediate waypoints stay fixed spatial
-constraints. Endpoint dwells remain unsupported by numerical execution.
+the moving target and is rejected. Intermediate waypoints default to fixed spatial
+constraints and can use the moving-passage API below. Endpoint dwells remain
+unsupported by numerical execution.
 
 ```swift
 let target = try MovingWaypointRouteTarget(ephemeris: targetEphemeris)
@@ -953,11 +954,68 @@ The resulting route and numerical execution match the candidate target state
 within the existing endpoint tolerances, with carried propellant and sampled
 engine feasibility checks. Timing improvement remains local to the cubic route
 family, with no global minimum-time claim or guarantee of continuous clearance.
-Targets may be ephemerides or spacecraft propagators; moving intermediate
-waypoints and moving obstacle avoidance remain separate extensions.
+Targets may be ephemerides or spacecraft propagators. Moving intermediate
+waypoints are supported below; moving obstacle avoidance remains separate.
 
 Swift Testing uses an independent linear target `p(T)=4+0.5*T`, `v(T)=0.5`.
 The rest-to-rendezvous cubic's departure acceleration is `24/T²+2/T`, giving a
 six-second threshold at 1 m/s². Tests check candidate resampling, matching both
 position and velocity, timing improvement against this threshold, ephemeris
 adaptation, coverage handling and explicit contract failures.
+
+### Moving intermediate waypoint passages
+
+`MovingWaypointPassage` supplies a moving spatial constraint for an intermediate
+waypoint using the same checked provider adapter as rendezvous targets. Pass
+`movingWaypoints: [waypointIndex: passage]` to discrete `search`, `adaptiveSearch`
+or `optimizeTiming`. Indices refer to the complete ordered waypoint array:
+departure is zero, intermediate indices are `1..<waypoints.count-1`, and final
+arrival uses the separate `movingTarget:` rendezvous option. Other indices are
+rejected. Multiple moving passages can be combined with a moving final target.
+
+```swift
+let body = try MovingWaypointRouteTarget(ephemeris: bodyEphemeris)
+let flyby = MovingWaypointPassage(provider: body)
+// Pass movingWaypoints: [1: flyby] to a timing planner with at least three points.
+```
+
+Every new, ordered timing candidate resolves each moving passage at its own
+candidate passage epoch, in waypoint-index order, before constructing the cubic
+legs. The resolved position replaces the template's nominal position; its
+arrival window and optional explicit route velocity remain constraints. The
+default `.preserveRouteVelocity` mode preserves an explicit waypoint velocity
+or generates the existing neighboring-chord fly-through velocity. It does not
+match the provider's velocity and therefore does not stop at a stationary body.
+
+`.matchProviderVelocity` instead constrains spacecraft passage velocity to the
+provider's velocity. A separate explicit template velocity conflicts with that
+mode and is rejected as `conflictingWaypointVelocity(index:)`. Matching a zero
+provider velocity at an intermediate point is rejected by the route's existing
+nonzero-passage rule. Both modes preserve position/velocity/mass continuity
+across legs and undergo the same acceleration, engine, fuel and geometric
+clearance checks as fixed spatial waypoints. Provider acceleration is not used
+as a passage constraint.
+
+The provider must share the exact route frame and physical origin; declared
+coverage and returned state contracts use the existing target checks. Discrete
+coverage misses are recorded as `movingWaypointOutsideCoverage(index:)`, while
+unexpected provider errors propagate. Adaptive search and optimization intersect
+each moving waypoint's search window with that provider's coverage; disjoint
+windows are invalid configuration, and optimized seeds must lie inside the
+intersection. Timing changes trigger fresh provider queries. No extrapolation,
+automatic origin conversion, departure-point motion or reordering of spatial
+constraints is performed.
+
+`passage.waypoint(at:template:)` can sample a fixed-time passage for manual
+construction; use explicit durations consistent with that sampled epoch. Keep
+the original template and `movingWaypoints:` when searching different times.
+Search work includes at most one query per moving passage and one final-target
+query for each new ordered candidate, stopping on the first rejected lookup.
+Existing candidate, waypoint and numerical work limits still apply.
+
+A moving passage is a position constraint at one epoch, not a moving exclusion
+region or whole-path avoidance guarantee. Moving obstacle bounds, target-relative
+offset geometry, light-time corrections and global optimal control remain open.
+Tests cover time-dependent positions, coverage rejection, independent velocity
+choices, stationary-body fly-through, zero-velocity matching rejection,
+provider-coverage-limited refinement/optimization and carried mass continuity.
