@@ -92,11 +92,29 @@ public struct SpacecraftDerivative {
 public struct SpacecraftDynamics {
     public let context: ForceEvaluationContext
     private let models: [any ForceModel]
+    private let rotating: RotatingDynamicsConfiguration?
     public init(models: [any ForceModel], context: ForceEvaluationContext) throws {
         guard context.frame.pseudoInertial else { throw SpacecraftDynamicsError.nonInertialFrame }
-        self.models = models; self.context = context
+        self.models = models; self.context = context; rotating = nil
+    }
+    /// Direct integration in moving/rotating axes, with physical forces evaluated
+    /// in an explicit inertial frame. Retains the tree; providers must supply all
+    /// transform derivatives and must not strongly capture their owning tree.
+    public init(rotatingFrame: Frame, origin: BodyIdentifier,
+                inertialDynamics: SpacecraftDynamics, using tree: FrameTree) throws {
+        guard inertialDynamics.context.frame.pseudoInertial, inertialDynamics.rotating == nil else {
+            throw SpacecraftDynamicsError.nonInertialFrame
+        }
+        guard tree.isRegistered(rotatingFrame), tree.isRegistered(inertialDynamics.context.frame) else {
+            throw FrameTransformError.disconnectedFrames
+        }
+        context = try ForceEvaluationContext(frame: rotatingFrame, origin: origin)
+        models = []
+        rotating = RotatingDynamicsConfiguration(frame: rotatingFrame, origin: origin,
+            inertial: inertialDynamics, tree: tree)
     }
     public func derivative(at state: SpacecraftState) throws -> SpacecraftDerivative {
+        if let rotating { return try rotating.derivative(at: state, fuelBoundary: false) }
         guard state.frame === context.frame else { throw SpacecraftDynamicsError.frameMismatch }
         var acceleration = SIMD3<Double>.zero, massRate = 0.0
         for model in models {
@@ -127,10 +145,15 @@ public enum FuelBoundaryError: Error, Equatable {
 }
 extension SpacecraftDynamics {
     func withoutFuelConsumers() throws -> SpacecraftDynamics {
-        try SpacecraftDynamics(models: models.filter { !($0 is any FuelConsumingForceModel) }
+        if let rotating {
+            return try SpacecraftDynamics(rotatingFrame: rotating.frame, origin: rotating.origin,
+                inertialDynamics: rotating.inertial.withoutFuelConsumers(), using: rotating.tree)
+        }
+        return try SpacecraftDynamics(models: models.filter { !($0 is any FuelConsumingForceModel) }
             .map { FuelBoundaryModel(model: $0) as any ForceModel }, context: context)
     }
     func fuelBoundaryDerivative(at state: SpacecraftState) throws -> SpacecraftDerivative {
+        if let rotating { return try rotating.derivative(at: state, fuelBoundary: true) }
         let wrapped = models.map { FuelBoundaryModel(model: $0) as any ForceModel }
         return try SpacecraftDynamics(models: wrapped, context: context).derivative(at: state)
     }
@@ -146,5 +169,36 @@ private struct FuelBoundaryModel: ForceModel {
         let result = try model.contribution(for: state, in: context)
         guard result.propellantMassRateKilogramsPerSecond == 0 else { throw FuelBoundaryError.unsupportedMassFlow }
         return result
+    }
+}
+
+
+private final class RotatingDynamicsConfiguration {
+    let frame: Frame
+    let origin: BodyIdentifier
+    let inertial: SpacecraftDynamics
+    let tree: FrameTree
+    init(frame: Frame, origin: BodyIdentifier, inertial: SpacecraftDynamics, tree: FrameTree) {
+        self.frame = frame; self.origin = origin; self.inertial = inertial; self.tree = tree
+    }
+    func derivative(at state: SpacecraftState, fuelBoundary: Bool) throws -> SpacecraftDerivative {
+        guard state.frame === frame else { throw SpacecraftDynamicsError.frameMismatch }
+        let transform = try tree.transform(from: inertial.context.frame, to: frame, at: state.epoch)
+        // Remove observational acceleration: physical force composition supplies it.
+        let coordinates = try CartesianState(epoch: state.epoch, frame: frame,
+            position: state.cartesian.position, velocity: state.cartesian.velocity)
+        let native = try transform.inverted().applying(to: coordinates, destination: inertial.context.frame)
+        let physicalState = SpacecraftState(cartesian: native, mass: state.mass)
+        let derivative = try fuelBoundary ? inertial.fuelBoundaryDerivative(at: physicalState) : inertial.derivative(at: physicalState)
+        let accelerated = try CartesianState(epoch: native.epoch, frame: native.frame,
+            position: native.position, velocity: native.velocity,
+            acceleration: derivative.velocityRateMetresPerSecondSquared)
+        // R*a plus Coriolis, Euler, centrifugal and translational terms, with the
+        // same coordinate-rotation sign convention as FrameTransform.applying.
+        let mapped = try transform.applying(to: accelerated, destination: frame)
+        return SpacecraftDerivative(epoch: state.epoch, frame: frame,
+            positionRateMetresPerSecond: state.cartesian.velocity,
+            velocityRateMetresPerSecondSquared: mapped.acceleration!,
+            propellantMassRateKilogramsPerSecond: derivative.propellantMassRateKilogramsPerSecond)
     }
 }

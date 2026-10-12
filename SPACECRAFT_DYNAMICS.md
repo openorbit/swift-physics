@@ -1,6 +1,6 @@
 # Spacecraft dynamics foundations
 
-The initial interfaces describe inertial translational dynamics in SI units,
+The interfaces describe inertial or explicitly transformed translational dynamics in SI units,
 using explicit epochs and existing Cartesian/frame identities. They evaluate
 an ordinary differential equation's right-hand side, used by the adaptive
 numerical propagator described below.
@@ -669,3 +669,65 @@ Swift Testing validates a variable-thrust exhaustion against analytic fuel/time,
 rocket-equation velocity and independent Simpson quadrature of position, post-cutoff
 coast, unchanged pre-depletion states, deterministic replay, recurring crossings
 forward/backward, invalid bands and unsupported background mass flow.
+
+## Direct integration in moving and rotating frames
+
+Use `SpacecraftDynamics(rotatingFrame:origin:inertialDynamics:using:)` to integrate
+Cartesian position/velocity directly in a registered moving or rotating frame.
+The ordinary `SpacecraftDynamics(models:context:)` initializer continues to require
+a pseudo-inertial frame. The adapter requires an ordinary pseudo-inertial physical
+force composition and both frames registered in the supplied `FrameTree`.
+It retains the tree so frame providers remain available during propagation.
+Custom providers must not strongly capture their owning tree.
+
+At every derivative evaluation, the adapter converts the current coordinates into
+the physical force frame, preserving instantaneous mass and explicit epoch. It
+computes physical acceleration there, then applies the complete rigid transform
+back into integration axes. Optional observational acceleration in the incoming
+state is discarded; it is not added to the physical forces. The position derivative
+is the integration-frame coordinate velocity, and propellant mass rate is unchanged.
+
+For the transform convention `pDestination = R*pSource + translation`, write
+`r = R*pSource`, `v = R*vSource`, and let w/alpha be the transform's angular
+velocity/acceleration expressed in destination axes. The coordinate acceleration
+is `R*aSource + 2*w×v + alpha×r + w×(w×r) + translationAcceleration`.
+This uses exactly `FrameTransform.applying` and its coordinate-rotation sign
+convention. Expressing v in terms of destination coordinate velocity yields the
+usual Coriolis/centrifugal/Euler terms. Translational and angular derivatives are
+per atomic SI second; providers must supply physically consistent derivatives.
+The explicit inertial reference and integration-frame pseudo-forces are also the
+pattern described by [Orekit's inertial-force model](https://www.orekit.org/site-orekit-13.0.2/apidocs/org/orekit/forces/inertia/package-summary.html).
+
+```swift
+let inertial = try SpacecraftDynamics(
+    models: [centralGravity, drag, radiation], context: inertialContext)
+let dynamics = try SpacecraftDynamics(
+    rotatingFrame: rotatingFrame, origin: rotatingOrigin,
+    inertialDynamics: inertial, using: tree)
+let coordinates = try tree.convert(inertialInitialState.cartesian, to: rotatingFrame)
+let initial = SpacecraftState(cartesian: coordinates, mass: inertialInitialState.mass)
+let trajectory = try NumericalSpacecraftPropagator(
+    initialState: initial, dynamics: dynamics, accuracy: .high)
+```
+
+Physical models receive the **inertial** context and its ephemerides/origin, not
+relabeled rotating-frame data. The integration origin is explicitly supplied;
+the caller ensures it matches the tree's actual translations. Origins may differ
+when the transform represents their relative motion. Force models should supply
+physical acceleration only; additional pseudo-forces would double-count the
+adapter's kinematics. Transform coverage/disconnection/epoch failures propagate.
+
+Numerical tolerances apply in the integration axes. Equivalent inertial and
+rotating runs can take different adaptive steps and have different numerical
+errors; rapidly rotating frames may require smaller steps. The general event
+propagator can use this dynamics composition, with detectors/resets expressed in
+the integration frame. `FuelLimitedNumericalPropagator` preserves the adapter
+both during dry-limit localization and after removing consuming forces. Native
+`ScheduledThrust` schedules still require inertial axes; rotating event-driven
+force switches can instead return a new adapted inertial composition.
+
+Swift Testing validates independent centrifugal/Coriolis signs, an analytic
+circular central-gravity orbit in spinning axes, forward/backward unforced motion
+under combined accelerating translation and angular acceleration, and fuel cutoff
+followed by coast with coordinate recovery into inertial axes. These exercise Euler
+and translating-origin terms as well as mass-aware frame adaptation.
