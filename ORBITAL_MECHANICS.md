@@ -526,3 +526,98 @@ Swift Testing checks fly-through position/velocity continuity, nonzero passage
 speed, unequal per-leg acceleration limits, independent cubic state values,
 endpoint dwell, a solar-avoidance route, an interior curve obstruction with clear
 endpoints, rejected intermediate dwell and degenerate retracing geometry.
+
+### Numerical execution of a prescribed waypoint route
+
+`WaypointRoutePropagator` executes a `WaypointBrachistochroneRoute` with
+`SpacecraftMassProperties`, explicit `backgroundDynamics`, and one
+`WaypointRouteEngineLimits` per leg. Each engine limit supplies a maximum thrust
+acceleration, maximum force in newtons, and effective exhaust velocity. Supply
+gravity through the existing force models; the route and dynamics must share
+the exact frame and physical origin. Background models must have zero mass flow.
+
+The engine commands the reference cubic acceleration minus the background
+acceleration evaluated at the integrated spacecraft state. Required thrust is
+the norm of this difference times current total mass; propellant consumption is
+thrust divided by exhaust velocity. This assumes ideal instantaneous thrust
+steering and perfect knowledge of the environment. Geometry bounds net
+acceleration, while the engine limits bound thrust acceleration including gravity
+compensation: those limits can differ substantially near a massive body.
+
+Propagation starts at the route's departure state and replays forward for each
+query. Integration splits at every waypoint, carrying the actual position,
+velocity and remaining propellant into the next leg without resetting them to
+the reference. Intermediate velocities remain nonzero. Endpoint dwells are
+currently rejected. Completed-leg checkpoints report position and velocity
+residuals, spacecraft mass, and integrator diagnostics. Explicit positive
+endpoint tolerances reject excessive residuals; local RK tolerances alone are
+not a global endpoint guarantee. Shared boundaries expose the outgoing leg's
+acceleration; the final arrival exposes the final leg's left-limit acceleration.
+No continuation beyond arrival is prescribed.
+
+Engine constraints are checked at every derivative evaluation, including trial
+stages. Violations, dry firing, unsupported background mass flow and integrator
+failures throw; a feasible prefix query does not establish that the whole route
+is feasible. These checks can conservatively reject a trial stage and are not a
+continuous bound between evaluations. The geometric route's obstacle clearance
+continues to describe its reference curve; endpoint residuals do not certify
+whole-path clearance of the numerical execution.
+
+This executes an existing feasible geometric plan under a chosen ideal engine;
+it does not optimize waypoint locations or times, solve a minimum-time transfer,
+or model attitude, thermal limits, moving obstacles or automatic avoidance.
+The broader numerical refinement backlog remains open.
+
+### Timed engine-limit phases
+
+`WaypointRouteEnginePhase` specifies engine limits over `[startEpoch, endEpoch)`.
+Its alternative initializer accepts a departure epoch, nonnegative start offset
+and positive duration. These intervals are independent of the spatial waypoints:
+a phase may begin within a leg, span several waypoint passages, or end exactly
+at a passage. Input order is arbitrary. `WaypointRoutePropagator` sorts phases,
+rejects overlaps (including duplicate intervals), and rejects intervals outside
+the route's coverage. Adjacent intervals are allowed. At most 10,000 phases are
+accepted.
+
+Pass phases using `timedEnginePhases:` alongside the existing per-leg engine
+limits. An active phase **replaces** all three per-leg engine limits; gaps use
+the per-leg limits. These are upper limits on the engine, not commands to burn
+at that magnitude. The inverse-dynamics controller still supplies the thrust
+needed by the reference curve. To express 0.3g, use
+`0.3 * WaypointRouteEngineLimits.standardGravityMetresPerSecondSquared`
+(standard gravity is 9.80665 m/s²).
+
+For example, given a route lasting at least three hours:
+
+```swift
+let full = try WaypointRouteEngineLimits(
+    maximumAccelerationMetresPerSecondSquared: 9.80665,
+    maximumThrustNewtons: 1_000_000,
+    effectiveExhaustVelocityMetresPerSecond: 30_000)
+let reduced = try WaypointRouteEngineLimits(
+    maximumAccelerationMetresPerSecondSquared: 0.3 * 9.80665,
+    maximumThrustNewtons: 1_000_000,
+    effectiveExhaustVelocityMetresPerSecond: 30_000)
+let phases = try [
+    WaypointRouteEnginePhase(departureEpoch: route.departureEpoch,
+        startOffset: .zero, duration: Duration(seconds: 3600), limits: full),
+    WaypointRouteEnginePhase(departureEpoch: route.departureEpoch,
+        startOffset: Duration(seconds: 3600), duration: Duration(seconds: 7200), limits: reduced)
+]
+```
+
+Integration splits exactly at phase starts, phase ends and waypoint epochs,
+using the incoming limits for the final RK stage of an interval and the outgoing
+limits at a boundary query. Position, velocity and fuel are carried unchanged
+across each split. `propagation(at:)` returns execution `segments` with initial
+and final spacecraft states, the spatial leg index, the active sorted phase
+index (or nil for per-leg defaults), and numerical diagnostics. Waypoint
+checkpoint diagnostics aggregate all segments in that leg. Coincident temporal
+and spatial boundaries cause a single split, without a stop or duplicate
+positive-duration segment. Final arrival retains the incoming left limit.
+
+This checks the existing spatial route against a temporal engine schedule. It
+does not change the route timing to fit that schedule. Explicit arrival windows,
+solving the relative order of untimed passages and temporal constraints, and
+commanded burns with explicit directions remain planning extensions. Engine
+checks retain the sampled-feasibility limitations described above.
