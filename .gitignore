@@ -3,3 +3,6 @@
 /Packages
 /*.xcodeproj
 xcuserdata/
+
+# Optional local JPL exports; never package multi-gigabyte ephemerides.
+/Data/DE441/
