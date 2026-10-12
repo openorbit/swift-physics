@@ -8,7 +8,7 @@ public enum FiniteThrustError: Error, Equatable {
 
 /// Constant prescribed thrust in inertial axes, drawing from the single reservoir.
 /// Effective exhaust velocity includes nozzle pressure effects: mass flow = thrust / ve.
-public struct FiniteThrust: ForceModel {
+public struct FiniteThrust: FuelConsumingForceModel {
     public let frame: Frame
     public let thrustNewtons: Double
     public let effectiveExhaustVelocityMetresPerSecond: Double
@@ -40,6 +40,10 @@ public struct FiniteThrust: ForceModel {
         guard thrustNewtons == 0 || state.mass.propellantMassKilograms > 0 else {
             throw NumericalPropagationError.propellantDepleted
         }
+        return try depletionBoundaryContribution(for: state, in: context)
+    }
+    public func depletionBoundaryContribution(for state: SpacecraftState, in context: ForceEvaluationContext) throws -> ForceContribution {
+        guard state.frame === frame, context.frame === frame else { throw SpacecraftDynamicsError.frameMismatch }
         return try ForceContribution(epoch: state.epoch, frame: frame,
             accelerationMetresPerSecondSquared: direction * (thrustNewtons / state.mass.totalMassKilograms),
             propellantMassRateKilogramsPerSecond: -propellantConsumptionKilogramsPerSecond)

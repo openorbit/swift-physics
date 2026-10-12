@@ -63,6 +63,7 @@ public struct NumericalPropagationDiagnostics {
 public struct NumericalSpacecraftPropagationResult {
     public let state: SpacecraftState
     public let diagnostics: NumericalPropagationDiagnostics
+    let rawPropellantMassKilograms: Double
 }
 
 /// Native Swift Dormand–Prince 5(4), integrating position/velocity/propellant.
@@ -104,7 +105,9 @@ public struct NumericalSpacecraftPropagator: StateProvider {
     /// Internal observer receives only error-controlled accepted steps. Returning
     /// false ends this integration at the accepted endpoint for event restart.
     func propagation(at target: Epoch,
-                     acceptedStep: ((SpacecraftState, SpacecraftState) throws -> Bool)?) throws -> NumericalSpacecraftPropagationResult {
+                     acceptedStep: ((SpacecraftState, SpacecraftState) throws -> Bool)?,
+                     extendFuelBoundary: Bool = false,
+                     fuelStep: ((SpacecraftState, Double, SpacecraftState, Double) throws -> Bool)? = nil) throws -> NumericalSpacecraftPropagationResult {
         var current = referenceEpoch
         let forward = target >= current
         var y = [initialState.cartesian.position.x,initialState.cartesian.position.y,initialState.cartesian.position.z,
@@ -117,12 +120,13 @@ public struct NumericalSpacecraftPropagator: StateProvider {
             guard values.allSatisfy(\.isFinite) else { throw NumericalPropagationError.numericalRangeExceeded }
             return SpacecraftState(cartesian: try CartesianState(epoch: epoch,frame: frame,
                 position: SIMD3(values[0],values[1],values[2]),velocity: SIMD3(values[3],values[4],values[5]),acceleration: acceleration),
-                mass: try SpacecraftMassProperties(dryMassKilograms: initialState.mass.dryMassKilograms,propellantMassKilograms: values[6]))
+                mass: try SpacecraftMassProperties(dryMassKilograms: initialState.mass.dryMassKilograms,propellantMassKilograms: extendFuelBoundary ? max(0,values[6]) : values[6]))
         }
         func derivative(_ values: [Double], at epoch: Epoch) throws -> [Double] {
             guard evaluations < options.maximumDerivativeEvaluations else { throw NumericalPropagationError.evaluationLimitExceeded }
             evaluations += 1
-            let d = try dynamics.derivative(at: state(values,at: epoch))
+            let local = try state(values,at: epoch)
+            let d = try extendFuelBoundary ? dynamics.fuelBoundaryDerivative(at: local) : dynamics.derivative(at: local)
             return [d.positionRateMetresPerSecond.x,d.positionRateMetresPerSecond.y,d.positionRateMetresPerSecond.z,
                     d.velocityRateMetresPerSecondSquared.x,d.velocityRateMetresPerSecondSquared.y,
                     d.velocityRateMetresPerSecondSquared.z,d.propellantMassRateKilogramsPerSecond]
@@ -150,7 +154,7 @@ public struct NumericalSpacecraftPropagator: StateProvider {
                     values[component] += h*sum
                 }
                 guard values.allSatisfy(\.isFinite) else { throw NumericalPropagationError.numericalRangeExceeded }
-                if values[6] < 0 { depleted = true; break }
+                if values[6] < 0 && !extendFuelBoundary { depleted = true; break }
                 let date = stage == 0 ? current : c[stage] == 1 ? end : try current.advanced(by: Duration(seconds: c[stage]*h))
                 if c[stage] > 0 && c[stage] < 1 && !(forward ? date > current && date < end : date < current && date > end) {
                     throw NumericalPropagationError.epochResolutionExceeded
@@ -173,10 +177,13 @@ public struct NumericalSpacecraftPropagator: StateProvider {
                 }
             }
             if error <= 1 {
-                let previous = acceptedStep == nil ? nil : try state(y, at: current)
+                let previous = acceptedStep == nil && fuelStep == nil ? nil : try state(y, at: current)
+                let previousFuel = y[6]
                 y = candidate; current = end; accepted += 1
                 smallest = min(smallest ?? abs(h),abs(h)); largest = max(largest ?? abs(h),abs(h))
                 maxError = max(maxError,error)
+                if let fuelStep, let previous,
+                   try !fuelStep(previous, previousFuel, state(y, at: current), y[6]) { break }
                 if let acceptedStep, let previous,
                    try !acceptedStep(previous, state(y, at: current)) { break }
                 let factor = error == 0 ? 5 : min(5,max(0.2,0.9*pow(error,-0.2)))
@@ -194,6 +201,6 @@ public struct NumericalSpacecraftPropagator: StateProvider {
         let result = try state(y,at: current,acceleration: SIMD3(finalDerivative[3],finalDerivative[4],finalDerivative[5]))
         return NumericalSpacecraftPropagationResult(state: result,diagnostics: NumericalPropagationDiagnostics(
             acceptedSteps: accepted,rejectedSteps: rejected,derivativeEvaluations: evaluations,
-            smallestAcceptedStepSeconds: smallest,largestAcceptedStepSeconds: largest,maximumAcceptedNormalizedError: maxError))
+            smallestAcceptedStepSeconds: smallest,largestAcceptedStepSeconds: largest,maximumAcceptedNormalizedError: maxError), rawPropellantMassKilograms: y[6])
     }
 }

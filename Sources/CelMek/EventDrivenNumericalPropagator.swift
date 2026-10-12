@@ -12,8 +12,8 @@ public struct EventStateTransition {
     }
 }
 
-/// Accepted-step crossing detection with one-shot events and explicit restarts.
-/// Each detector fires at most once per query. Queries restart from the seed;
+/// Accepted-step crossing detection with explicit restarts and optional rearming.
+/// Detectors are one-shot unless given a positive rearming threshold. Queries restart from the seed;
 /// no closure may mutate hidden simulation state. Forces must remain evaluable
 /// throughout a crossing bracket, including its trial stages.
 public struct EventDrivenNumericalPropagator {
@@ -22,16 +22,22 @@ public struct EventDrivenNumericalPropagator {
     public let detectors: [any PropagationEventDetector]
     public let numericalOptions: NumericalPropagationOptions
     public let eventOptions: PropagationEventOptions
+    public let rearmingThresholds: [String: Double]
     private let transition: ((PropagationEventOccurrence, Bool, SpacecraftDynamics) throws -> EventStateTransition)?
 
     public init(initialState: SpacecraftState, dynamics: SpacecraftDynamics,
                 detectors: [any PropagationEventDetector],
                 numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions(),
                 eventOptions: PropagationEventOptions = try! PropagationEventOptions(),
+                rearmingThresholds: [String: Double] = [:],
                 transition: ((PropagationEventOccurrence, Bool, SpacecraftDynamics) throws -> EventStateTransition)? = nil) throws {
         _ = try NumericalSpacecraftPropagator(initialState: initialState, dynamics: dynamics, options: numericalOptions)
         _ = try EventDetectedPropagation(trajectory: NumericalSpacecraftPropagator(initialState: initialState,
             dynamics: dynamics, options: numericalOptions), detectors: detectors, options: eventOptions)
+        guard rearmingThresholds.allSatisfy({ entry in
+            detectors.contains(where: { $0.identifier == entry.key }) && entry.value.isFinite && entry.value > 0
+        }) else { throw PropagationEventError.invalidOptions }
+        self.rearmingThresholds = rearmingThresholds
         self.initialState = initialState; self.dynamics = dynamics; self.detectors = detectors
         self.numericalOptions = numericalOptions; self.eventOptions = eventOptions; self.transition = transition
     }
@@ -53,6 +59,15 @@ public struct EventDrivenNumericalPropagator {
             maximumStepAttempts: numericalOptions.maximumStepAttempts,
             maximumDerivativeEvaluations: numericalOptions.maximumDerivativeEvaluations)
         func search(_ seed: SpacecraftState, to end: Epoch, endpoint: SpacecraftState? = nil) throws -> PropagationEventOccurrence? {
+            if endpoint != nil {
+                for detector in detectors where fired.contains(detector.identifier) {
+                    if let threshold = rearmingThresholds[detector.identifier] {
+                        let value = try detector.value(at: seed)
+                        guard value.isFinite else { throw PropagationEventError.nonFiniteValue }
+                        if abs(value) > threshold { fired.remove(detector.identifier) }
+                    }
+                }
+            }
             var remaining = detectors.filter { !fired.contains($0.identifier) }
             if let endpoint {
                 // Reuse accepted states. Only an actual crossing triggers local

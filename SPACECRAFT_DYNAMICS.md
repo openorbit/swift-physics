@@ -520,7 +520,8 @@ let result = try trajectory.propagation(at: requestedEpoch)
 Cutoff mode requires background models to return **zero propellant mass rate**.
 Unexpected background consumption or inflow throws `backgroundMassFlowUnsupported`;
 it cannot silently invalidate the known depletion time. Variable throttle,
-refueling, staging and multiple reservoirs require a more general event integrator.
+refueling, staging and multiple reservoirs remain unsupported; continuous variable
+consumption uses `FuelLimitedNumericalPropagator` below.
 An initially empty reservoir coasts forward with scheduled engines disabled.
 Backward queries from the immutable wet seed integrate the prescribed mass flow
 in reverse. A new empty seed cannot infer historical cutoff/engine activity, so
@@ -542,9 +543,10 @@ from the crossing step's left state, avoiding full-seed replay for every root.
 The accepted endpoint past a root is discarded; integration restarts at the
 localized state with the transition's force composition.
 
-Each detector is **one-shot per query**. Initial exact roots are included; fired
+Each detector is **one-shot per query by default**. Optional rearming thresholds
+are described below. Initial exact roots are included; fired
 identifiers are disabled for the rest of that query, preventing repeated resets
-at the same root. Recurring events and hysteresis/rearming remain future work.
+at the same root. Recurring events opt into a caller-selected nonzero rearming band.
 Equal exact epochs use detector input order; remaining detectors are rechecked
 at every reset epoch. `.stop` returns immediately without applying a transition.
 A `.record` occurrence continues and optionally invokes the transition closure.
@@ -585,7 +587,7 @@ The same sign-crossing limits apply: tangencies and multiple crossings inside
 one check interval are not guaranteed. All forces must remain valid through the
 trial step and crossing bracket, so arbitrary zero-fuel events cannot yet recover
 negative fuel stages or singular-force evaluations. Variable-flow depletion
-requires a dedicated integration-domain boundary mechanism and remains pending.
+uses the dedicated consuming-force boundary contract described below.
 Numerical work limits apply per restart/localization query; event query, accepted
 step-check and occurrence counts are bounded across the complete event run.
 `stateEvaluations` reports localization/search provider queries, not RK derivative
@@ -595,3 +597,75 @@ Swift Testing verifies a terminal plane crossing, an impulse with inverse replay
 two force-switch events against analytic motion, deterministic replay, initial
 one-shot roots, and rejected resets with incompatible epochs. Existing numerical
 propagation tests verify unchanged behavior when no observer is installed.
+
+## Variable-flow depletion and recurring events
+
+`VariableThrust` accepts a pure command closure `(state, context) -> FiniteThrust`.
+A command can change throttle, effective exhaust velocity and inertial direction
+continuously with epoch/state. Engine validation and frame checks apply at every
+evaluation. Commands must be defined at dry mass for depletion localization and
+must not mutate hidden state. Known discontinuities still use explicit resets.
+
+`FuelConsumingForceModel` marks a model as drawing from the shared reservoir and
+provides `depletionBoundaryContribution`. For positive fuel this must equal normal
+force evaluation; at zero fuel it provides the continuous dry-mass limit for root
+localization. This method must return a nonpositive mass rate. `FiniteThrust` and
+`VariableThrust` conform. Normal evaluation still rejects firing with zero fuel.
+Unmarked background forces must return exactly zero mass rate; incompatible
+consumption/inflow throws rather than silently changing the depletion model.
+
+`FuelLimitedNumericalPropagator` integrates the coupled position, velocity and
+variable fuel inventory. During controlled boundary trials, the private reservoir
+coordinate may go negative while force models see zero propellant and dry total
+mass. This extension exists only to bracket depletion; negative inventory is
+never exposed in a returned spacecraft state. An accepted crossing triggers
+bounded bisection through reintegration from the valid side. The reported depletion
+epoch is the last valid side of a time bracket no wider than `timeToleranceSeconds`;
+its bounded residual inventory is replaced with the known zero-fuel boundary.
+`FuelLimitedPropagationResult` reports the state, optional depletion epoch and
+final bracket width. All consuming models then switch off together and the
+background forces continue.
+No arbitrary invalid stage is accepted or silently clipped in the generic solver.
+
+```swift
+let engine = try VariableThrust(frame: initialState.frame) { state, context in
+    let elapsed = try state.epoch.duration(since: initialState.epoch).seconds
+    return try FiniteThrust(frame: state.frame,
+        thrustNewtons: 10 * (1 + elapsed),
+        effectiveExhaustVelocityMetresPerSecond: 100,
+        direction: SIMD3(1, 0, 0))
+}
+let powered = try SpacecraftDynamics(models: [centralGravity, engine], context: context)
+let trajectory = try FuelLimitedNumericalPropagator(
+    initialState: initialState, dynamics: powered,
+    eventOptions: PropagationEventOptions(timeToleranceSeconds: 1e-8))
+let result = try trajectory.propagation(at: requestedEpoch)
+```
+
+The boundary time has numerical integration error in addition to bracket width;
+a time tolerance does not certify a fuel/state error bound. Use appropriate
+mass/position/velocity tolerances. Event options bound localization iterations
+and all integration queries (initial search, trials, coast); RK work limits apply
+per query. The check-interval and occurrence-count event options are not used by
+this dedicated single, monotonic depletion search. Continuous consumption with a
+well-defined dry-mass limit is required. Refueling, staging, multiple tanks and
+other simultaneous state resets are outside this propagator. Backward queries
+use the original ordinary dynamics and require an evaluable wet seed; a dry seed
+cannot reconstruct burn history. The generic solver's depletion failure behavior
+is unchanged.
+
+For recurring general events, supply `rearmingThresholds: [identifier: threshold]`
+to `EventDrivenNumericalPropagator`. Thresholds must be finite and positive and
+identify registered detectors. They use each detector's scalar units, so the
+caller chooses a meaningful band (metres for clearance, for example). After firing,
+a detector stays disabled until an accepted step starts outside that band, then
+can trigger a later crossing. Reset states are not immediately rearmed, and the
+same root cannot repeatedly fire while remaining in the band. Check intervals
+must still separate roots and resolve the excursion outside the band. Detectors
+without a threshold retain one-shot behavior. Occurrence and evaluation limits
+bound repeated events, and backward searches use the same physical-time direction.
+
+Swift Testing validates a variable-thrust exhaustion against analytic fuel/time,
+rocket-equation velocity and independent Simpson quadrature of position, post-cutoff
+coast, unchanged pre-depletion states, deterministic replay, recurring crossings
+forward/backward, invalid bands and unsupported background mass flow.

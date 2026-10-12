@@ -114,3 +114,37 @@ public struct SpacecraftDynamics {
             velocityRateMetresPerSecondSquared: acceleration,propellantMassRateKilogramsPerSecond: massRate)
     }
 }
+
+
+/// Consuming forces expose a continuous dry-mass limit for root localization.
+/// This must equal normal evaluation for positive fuel and have nonpositive mass
+/// rate. It does not authorize actual firing from an empty reservoir.
+public protocol FuelConsumingForceModel: ForceModel {
+    func depletionBoundaryContribution(for state: SpacecraftState, in context: ForceEvaluationContext) throws -> ForceContribution
+}
+public enum FuelBoundaryError: Error, Equatable {
+    case unsupportedMassFlow, positiveConsumptionRate
+}
+extension SpacecraftDynamics {
+    func withoutFuelConsumers() throws -> SpacecraftDynamics {
+        try SpacecraftDynamics(models: models.filter { !($0 is any FuelConsumingForceModel) }
+            .map { FuelBoundaryModel(model: $0) as any ForceModel }, context: context)
+    }
+    func fuelBoundaryDerivative(at state: SpacecraftState) throws -> SpacecraftDerivative {
+        let wrapped = models.map { FuelBoundaryModel(model: $0) as any ForceModel }
+        return try SpacecraftDynamics(models: wrapped, context: context).derivative(at: state)
+    }
+}
+private struct FuelBoundaryModel: ForceModel {
+    let model: any ForceModel
+    func contribution(for state: SpacecraftState, in context: ForceEvaluationContext) throws -> ForceContribution {
+        if let consumer = model as? any FuelConsumingForceModel {
+            let result = try consumer.depletionBoundaryContribution(for: state, in: context)
+            guard result.propellantMassRateKilogramsPerSecond <= 0 else { throw FuelBoundaryError.positiveConsumptionRate }
+            return result
+        }
+        let result = try model.contribution(for: state, in: context)
+        guard result.propellantMassRateKilogramsPerSecond == 0 else { throw FuelBoundaryError.unsupportedMassFlow }
+        return result
+    }
+}
