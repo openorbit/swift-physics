@@ -34,11 +34,15 @@ public enum DE441Error: Error, CustomStringConvertible {
   case invalidFile(String)
   case dateOutOfRange(Double)
   case unsupportedBody(Int)
+  case invalidCacheCapacity
+  case invalidTimeScale
 
   public var description: String {
     switch self {
     case .invalidFile(let reason): "Invalid DE441 file: \(reason)"
     case .dateOutOfRange(let date): "Julian date \(date) is outside this DE441 file"
+    case .invalidCacheCapacity: "DE441 cache capacity must be nonnegative"
+    case .invalidTimeScale: "DE441 queries require TDB Julian dates"
     case .unsupportedBody(let body): "DE441 body \(body) is not supported"
     }
   }
@@ -79,12 +83,25 @@ public final class DE441Ephemeris {
   public let metadata: DE441FileMetadata
   private let handle: FileHandle
   private let dataRecordCount: Int
-  private var cachedRecordIndex: Int?
-  private var cachedRecord: [Double] = []
+  public let maximumCachedRecords: Int
+  private let lock = NSLock()
+  private var records: [Int: [Double]] = [:]
+  private var recency: [Int] = []
+  private var hits = 0, reads = 0
+  public var cacheStatistics: DE441RecordCacheStatistics {
+    lock.lock(); defer { lock.unlock() }
+    return DE441RecordCacheStatistics(cachedRecords: records.count, cacheHits: hits, diskReads: reads)
+  }
+  public func clearRecordCache() {
+    lock.lock(); defer { lock.unlock() }
+    records.removeAll(); recency.removeAll()
+  }
   public private(set) var startDate = 0.0
   public private(set) var endDate = 0.0
 
-  public init(url: URL) throws {
+  public init(url: URL, maximumCachedRecords: Int = 4) throws {
+    guard maximumCachedRecords >= 0 else { throw DE441Error.invalidCacheCapacity }
+    self.maximumCachedRecords = maximumCachedRecords
     let openedHandle = try FileHandle(forReadingFrom: url)
     handle = openedHandle
     var completed = false
@@ -124,52 +141,90 @@ public final class DE441Ephemeris {
     try? handle.close()
   }
 
-  /// Position in AU and velocity in AU/day, evaluated at a TDB Julian date.
+  /// Position in AU and velocity in AU/TDB-day. No coordinate-time scaling
+  /// into atomic seconds is performed by this low-level API.
   public func vector(target: Int, center: Int, at julianDate: Double) throws -> EphemerisVector {
     guard julianDate.isFinite, julianDate >= startDate, julianDate <= endDate else {
       throw DE441Error.dateOutOfRange(julianDate)
     }
-    let targetVector = try barycentricVector(body: target, at: julianDate)
-    let centerVector = try barycentricVector(body: center, at: julianDate)
-    return EphemerisVector(
-      position: targetVector.position - centerVector.position,
-      velocity: targetVector.velocity - centerVector.velocity
-    )
+    return try vector(target: target, center: center,
+                      at: JulianDateComponents(value: julianDate, scale: .tdb))
   }
 
-  /// Nutation in longitude and obliquity, in radians and radians/day.
-  func nutation(at julianDate: Double) throws -> NutationAngles {
-    let values = try storedValues(layout: Self.nutationLayout, coordinates: 2, at: julianDate)
-    return NutationAngles(
-      longitude: values[0].value,
-      obliquity: values[1].value,
-      longitudeRate: values[0].derivative,
-      obliquityRate: values[1].derivative
-    )
+  public func vector(target: Int, center: Int, at date: JulianDateComponents) throws -> EphemerisVector {
+    lock.lock(); defer { lock.unlock() }
+    let location = try coefficientLocation(at: date)
+    let targetVector = try barycentricVector(body: target, at: location)
+    let centerVector = try barycentricVector(body: center, at: location)
+    let result = targetVector - centerVector
+    guard [result.position, result.velocity].allSatisfy({ [$0.x,$0.y,$0.z].allSatisfy(\.isFinite) }) else {
+      throw DE441Error.invalidFile("nonfinite relative vector")
+    }
+    return result
   }
 
-  private func barycentricVector(body: Int, at julianDate: Double) throws -> EphemerisVector {
+  /// Nutation in radians and radians/TDB-day.
+  public func nutation(at julianDate: Double) throws -> NutationAngles {
+    guard julianDate.isFinite, julianDate >= startDate, julianDate <= endDate else {
+      throw DE441Error.dateOutOfRange(julianDate)
+    }
+    return try nutation(at: JulianDateComponents(value: julianDate, scale: .tdb))
+  }
+  public func nutation(at date: JulianDateComponents) throws -> NutationAngles {
+    lock.lock(); defer { lock.unlock() }
+    let values = try storedValues(layout: Self.nutationLayout, coordinates: 2,
+                                  at: coefficientLocation(at: date))
+    return NutationAngles(longitude: values[0].value, obliquity: values[1].value,
+                          longitudeRate: values[0].derivative, obliquityRate: values[1].derivative)
+  }
+
+  private struct Location { let recordIndex: Int; let daysWithinRecord: Double }
+
+  internal func validateDate(_ date: JulianDateComponents) throws {
+    _ = try coefficientLocation(at: date)
+  }
+  private func coefficientLocation(at date: JulianDateComponents) throws -> Location {
+    guard date.scale == .tdb else { throw DE441Error.invalidTimeScale }
+    let start = try JulianDateComponents(value: startDate, scale: .tdb)
+    let end = try JulianDateComponents(value: endDate, scale: .tdb)
+    guard (date.wholeDay > start.wholeDay || (date.wholeDay == start.wholeDay && date.fractionalDay >= start.fractionalDay)),
+          (date.wholeDay < end.wholeDay || (date.wholeDay == end.wholeDay && date.fractionalDay <= end.fractionalDay)) else {
+      throw DE441Error.dateOutOfRange(date.value)
+    }
+    let (difference, overflow) = date.wholeDay.subtractingReportingOverflow(start.wholeDay)
+    guard !overflow else { throw DE441Error.dateOutOfRange(date.value) }
+    var days = difference, fraction = date.fractionalDay - start.fractionalDay
+    if fraction < 0 { days -= 1; fraction += 1 }
+    guard days >= 0 else { throw DE441Error.dateOutOfRange(date.value) }
+    var index = Int(days / 32)
+    var offset = Double(days % 32) + fraction
+    if index == dataRecordCount { index -= 1; offset = 32 }
+    guard index >= 0, index < dataRecordCount else { throw DE441Error.dateOutOfRange(date.value) }
+    return Location(recordIndex: index, daysWithinRecord: offset)
+  }
+
+  private func barycentricVector(body: Int, at location: Location) throws -> EphemerisVector {
     switch body {
     case 1, 2, 4...9, 11:
-      return try storedVector(index: body - 1, at: julianDate)
+      return try storedVector(index: body - 1, at: location)
     case 3:
-      let emb = try storedVector(index: 2, at: julianDate)
-      let moon = try storedVector(index: 9, at: julianDate)
+      let emb = try storedVector(index: 2, at: location)
+      let moon = try storedVector(index: 9, at: location)
       return emb - moon / (1 + metadata.earthMoonMassRatio)
     case 10:
-      let earth = try barycentricVector(body: 3, at: julianDate)
-      return earth + (try storedVector(index: 9, at: julianDate))
+      let earth = try barycentricVector(body: 3, at: location)
+      return earth + (try storedVector(index: 9, at: location))
     case 12:
       return EphemerisVector(position: .zero, velocity: .zero)
     case 13:
-      return try storedVector(index: 2, at: julianDate)
+      return try storedVector(index: 2, at: location)
     default:
       throw DE441Error.unsupportedBody(body)
     }
   }
 
-  private func storedVector(index: Int, at julianDate: Double) throws -> EphemerisVector {
-    let values = try storedValues(layout: Self.layouts[index], coordinates: 3, at: julianDate)
+  private func storedVector(index: Int, at location: Location) throws -> EphemerisVector {
+    let values = try storedValues(layout: Self.layouts[index], coordinates: 3, at: location)
     return EphemerisVector(
       position: SIMD3(values[0].value, values[1].value, values[2].value) / metadata.astronomicalUnitKilometres,
       velocity: SIMD3(values[0].derivative, values[1].derivative, values[2].derivative)
@@ -180,29 +235,26 @@ public final class DE441Ephemeris {
   private func storedValues(
     layout: CoefficientLayout,
     coordinates: Int,
-    at julianDate: Double
+    at location: Location
   ) throws -> [(value: Double, derivative: Double)] {
-    guard julianDate.isFinite, julianDate >= startDate, julianDate <= endDate else {
-      throw DE441Error.dateOutOfRange(julianDate)
-    }
-    var recordIndex = Int(floor((julianDate - startDate) / Self.recordDuration))
-    if recordIndex == dataRecordCount { recordIndex -= 1 }
-    let record = try readRecord(recordIndex)
-    guard julianDate >= record[0], julianDate <= record[1] else {
-      throw DE441Error.invalidFile("non-contiguous coefficient records")
-    }
-
+    let record = try readRecord(location.recordIndex)
     let subdivisionDuration = Self.recordDuration / Double(layout.subdivisions)
-    var subdivision = Int(floor((julianDate - record[0]) / subdivisionDuration))
+    var subdivision = Int(floor(location.daysWithinRecord / subdivisionDuration))
     if subdivision == layout.subdivisions { subdivision -= 1 }
-    let subdivisionStart = record[0] + Double(subdivision) * subdivisionDuration
-    let time = 2 * (julianDate - subdivisionStart) / subdivisionDuration - 1
+    let offset = location.daysWithinRecord - Double(subdivision) * subdivisionDuration
+    let time = 2 * offset / subdivisionDuration - 1
+    guard subdivision >= 0, subdivision < layout.subdivisions, time >= -1, time <= 1 else {
+      throw DE441Error.invalidFile("invalid coefficient subdivision")
+    }
     let scale = 2 / subdivisionDuration
     let base = layout.start - 1 + subdivision * layout.count * coordinates
 
     var result: [(value: Double, derivative: Double)] = []
     for coordinate in 0..<coordinates {
       let start = base + coordinate * layout.count
+      guard start >= 0, start + layout.count <= record.count else {
+        throw DE441Error.invalidFile("coefficient slice outside record")
+      }
       let values = evaluate(
         coefficients: record[start ..< start + layout.count],
         at: time
@@ -238,12 +290,17 @@ public final class DE441Ephemeris {
 
   private func readRecord(_ index: Int) throws -> [Double] {
     guard index >= 0, index < dataRecordCount else { throw DE441Error.invalidFile("coefficient record index out of range") }
-    if cachedRecordIndex == index { return cachedRecord }
+    if let record = records[index] {
+      hits += 1
+      recency.removeAll { $0 == index }; recency.append(index)
+      return record
+    }
     let offset = UInt64(index + Self.dataRecordOffset) * UInt64(Self.recordSize)
     try handle.seek(toOffset: offset)
     guard let data = try handle.read(upToCount: Self.recordSize), data.count == Self.recordSize else {
       throw DE441Error.invalidFile("short read at coefficient record \(index)")
     }
+    reads += 1
     let record: [Double] = data.withUnsafeBytes { bytes in
       (0..<(Self.recordSize / 8)).map { item in
         let bits = bytes.loadUnaligned(fromByteOffset: item * 8, as: UInt64.self)
@@ -255,8 +312,12 @@ public final class DE441Ephemeris {
     guard record[0] == expectedStart, record[1] == expectedStart + Self.recordDuration else {
       throw DE441Error.invalidFile("invalid span at coefficient record \(index)")
     }
-    cachedRecordIndex = index
-    cachedRecord = record
+    if maximumCachedRecords > 0 {
+      if records.count == maximumCachedRecords {
+        records.removeValue(forKey: recency.removeFirst())
+      }
+      records[index] = record; recency.append(index)
+    }
     return record
   }
 }

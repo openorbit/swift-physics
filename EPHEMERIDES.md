@@ -315,3 +315,13 @@ model/data dependencies require explicit invalidation; no data changes are detec
 automatically. Tests check ordered and reversed batches, duplicate and subnanosecond
 keys, LRU eviction, scope isolation, generation changes during evaluation, failures,
 invalid cache hits, and mixed-body fail-fast queries.
+
+## Native JPL DE441
+
+`DE441StateProvider` adapts a URL-opened `DE441Ephemeris` to the shared SI
+ephemeris contract with explicit target/centre, coverage, frame and TDB model.
+It evaluates complete file coefficients for all accuracy hints and supplies
+analytic velocity converted to atomic seconds. The reader has a configurable
+bounded record cache and internally serialized random-access IO. See
+[DE441.md](DE441.md) for supported binary profiles, split-date interpolation,
+time-model limits and optional local-data tests.

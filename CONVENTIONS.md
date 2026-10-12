@@ -122,7 +122,7 @@ application boundary; select an alternate provider or approximation explicitly.
 | `BodyFixedFrameError` | Origin/orientation frames differ, origin acceleration is missing, or an estimation step is invalid; align frames and choose an explicit acceleration policy. |
 | `IAUOrientationError` | Unknown body, legacy model requires opt-in, or query outside selected coverage; choose a supported model and coverage. |
 | `EphemerisOriginError` | Incompatible origin/frame, disjoint coverage, duplicate or insufficient barycentre components, or invalid mass ratios; provide compatible covered states and explicit positive ratios. |
-| `DE441Error` | Unsupported/malformed native binary profile, record or constant data, uncovered/nonfinite TDB Julian date or unsupported testpo body; supply a validated little-endian DE441 file and a covered query. |
+| `DE441Error` | Unsupported/malformed native binary profile, record or constant data, uncovered/nonfinite TDB Julian date, unsupported testpo body, non-TDB date label or invalid record-cache limit; supply a validated little-endian DE441 file and a covered query. |
 | `PropagationError` | Invalid dynamics inputs/options, incompatible GM time convention, radial motion, numerical range limits or bounded-solver failure; use a supported two-body model and suitable solver controls. |
 | `ManeuverError` | Nonfinite delta-v, burn before reference epoch, duplicate burn epoch or missing frame tree; provide an explicit, resolvable burn schedule. |
 | `TrajectorySamplingError` | Invalid/exceeded sample bound, nonadvancing step or absent conversion tree; use a bounded schedule and connected frames. |

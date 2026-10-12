@@ -9,7 +9,7 @@ struct DE441EphemerisTests {
 
   // Synthetic records are deliberately independent of astronomical datasets.
   // Every component uses p(x) = a + 2x + 3(2x² - 1), p'(x) = 2 + 12x.
-  private func fixture(spans: [(Double, Double)]? = nil) throws -> URL {
+  func fixture(spans: [(Double, Double)]? = nil) throws -> URL {
     let spans = spans ?? [(epoch, epoch + 32), (epoch + 32, epoch + 64)]
     let layouts = [(3,14,4,3), (171,10,2,3), (231,13,2,3),
                    (309,11,1,3), (342,8,1,3), (366,7,1,3),

@@ -19,6 +19,32 @@ private enum LocalDE441Assets {
 
 @Suite(.enabled(if: LocalDE441Assets.available, "Optional DE441 binary and testpo.441 are not installed"))
 struct DE441LocalDataTests {
+    @Test func commonAdapterAtInteriorAndRecordBoundaryEpochs() throws {
+        let reader = try DE441Ephemeris(url: LocalDE441Assets.directory.appendingPathComponent("linux_m13000p17000.441"))
+        let model = try FairheadTDBModel()
+        let start = try Epoch.j2000.advanced(by: Duration(seconds: -86400*40))
+        let end = try Epoch.j2000.advanced(by: Duration(seconds: 86400*40))
+        let provider = try DE441StateProvider(reader: reader, target: .earth, coverage: start...end, tdbModel: model)
+        let index = floor((2451545-reader.startDate)/32)
+        let boundary = reader.startDate+index*32
+        for jd in [boundary, boundary+4, boundary+32, 2451545] {
+            let date = try JulianDateComponents(value: jd, scale: .tdb)
+            let epoch = try Epoch(julianDate: date, using: model)
+            let actual = try provider.checkedState(at: epoch)
+            let native = try reader.vector(target: .earth, center: .solarSystemBarycentre,
+                                           at: epoch.julianDate(in: .tdb, using: model))
+            let rate = try epoch.tdbCorrection(using: model).rate
+            let scale = reader.metadata.astronomicalUnitKilometres*1000
+            for axis in 0..<3 {
+                #expect(abs(actual.position[axis]-native.position[axis]*scale) < 1e-5)
+                #expect(abs(actual.velocity[axis]-native.velocity[axis]*(scale/86400*rate)) < 1e-9)
+            }
+            let before = try provider.state(at: epoch.advanced(by: Duration(seconds: -0.5)))
+            let after = try provider.state(at: epoch.advanced(by: Duration(seconds: 0.5)))
+            for axis in 0..<3 { #expect(abs(after.position[axis]-before.position[axis]-actual.velocity[axis]) < 0.002) }
+        }
+    }
+
     @Test func binaryHeaderAndJPLTestpoReferences() throws {
         let reader = try DE441Ephemeris(url: LocalDE441Assets.directory.appendingPathComponent("linux_m13000p17000.441"))
         #expect(reader.metadata.constants.count == 645)
