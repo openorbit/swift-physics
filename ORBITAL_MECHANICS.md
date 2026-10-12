@@ -894,8 +894,70 @@ since a stationary dwell would require an unmodelled impulse. Nonfinite velocity
 components are rejected. Large velocities and long flight times can bend a
 cubic beyond its waypoint chords, so whole-curve clearance is checked on the
 actual controls. There is no implicit turn smoothing, jerk/attitude constraint,
-moving-target lookup or orbital rendezvous solver.
+implicit moving-target lookup. Explicit moving endpoints are available below;
+there is no general orbital rendezvous or optimal-control solver.
 
 Swift Testing uses independent constant-velocity and constant-deceleration
 references, analytic exhaust-velocity fuel consumption, constrained timing
 optimization, intermediate velocity continuity and invalid velocity/dwell cases.
+
+### Moving-target rendezvous endpoints
+
+`MovingWaypointRouteTarget` adapts an `EphemerisProvider` or another
+`StateProvider`. Its ephemeris initializer uses the provider's physical origin,
+frame and declared coverage and invokes `checkedState(at:)`. For arbitrary
+state providers the caller supplies and guarantees origin and coverage. Every
+query checks coverage before evaluation and verifies the returned epoch and
+exact frame identity. Providers must be pure and deterministic during planning.
+
+Pass this adapter as `movingTarget:` to discrete `search`, `adaptiveSearch` or
+`optimizeTiming`. For each candidate final epoch, the planner queries the target
+anew and replaces the final waypoint's nominal position with the target position
+and its velocity with the target velocity. The final waypoint still supplies its
+arrival window. Its nominal position is ignored, and it must leave its optional
+velocity unspecified; an explicit static velocity would conflict with matching
+the moving target and is rejected. Intermediate waypoints stay fixed spatial
+constraints. Endpoint dwells remain unsupported by numerical execution.
+
+```swift
+let target = try MovingWaypointRouteTarget(ephemeris: targetEphemeris)
+// Pass movingTarget: target to the timing planner. The final waypoint supplies
+// the arrival window; its position is a nominal placeholder and its velocity nil.
+```
+
+For a single chosen arrival epoch, `target.waypoint(at:)` returns a waypoint with
+that exact epoch and sampled target position/velocity, usable with explicit leg
+durations. This fixed-time helper does not track later timing changes; use the
+planner's `movingTarget:` parameter when searching or optimizing arrival time.
+Keep the original waypoint template for those searches; a returned route's final
+waypoint already contains a resolved velocity at its selected arrival epoch.
+
+The target must already use the route's inertial frame and physical origin.
+Use explicit frame/origin conversion through the existing frame system before
+constructing the target adapter; no implicit transformation or origin translation
+is applied here. Matching uses geometric SI position/velocity at the same epoch,
+without light-time or apparent-position corrections. Target acceleration is not
+an arrival constraint, and the result prescribes no continuation beyond arrival.
+
+Discrete out-of-coverage arrival candidates are recorded as
+`targetOutsideCoverage`, permitting later candidates to be tested. Adaptive search
+and local optimization intersect the final search window with target coverage;
+a disjoint window is an invalid search configuration, and an optimizer seed must
+lie inside the intersection. Frame/origin mismatches, malformed returned states
+and unexpected provider errors propagate instead of being hidden as rejected
+timings. Coverage is never extrapolated. One target lookup is made per ordered,
+newly evaluated candidate; force-model provider calls retain their own numerical
+work limits.
+
+The resulting route and numerical execution match the candidate target state
+within the existing endpoint tolerances, with carried propellant and sampled
+engine feasibility checks. Timing improvement remains local to the cubic route
+family, with no global minimum-time claim or guarantee of continuous clearance.
+Targets may be ephemerides or spacecraft propagators; moving intermediate
+waypoints and moving obstacle avoidance remain separate extensions.
+
+Swift Testing uses an independent linear target `p(T)=4+0.5*T`, `v(T)=0.5`.
+The rest-to-rendezvous cubic's departure acceleration is `24/T²+2/T`, giving a
+six-second threshold at 1 m/s². Tests check candidate resampling, matching both
+position and velocity, timing improvement against this threshold, ephemeris
+adaptation, coverage handling and explicit contract failures.

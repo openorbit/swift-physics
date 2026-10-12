@@ -9,6 +9,7 @@ public enum WaypointTimingSearchStatus: Equatable, Sendable {
     case feasible, candidateSetExhausted, evaluationLimitReached
 }
 public enum WaypointTimingCandidateFailure: Equatable {
+    case targetOutsideCoverage
     case invalidOrdering
     case geometry(BrachistochroneRouteError)
     case engine(WaypointRoutePropagationError)
@@ -95,7 +96,8 @@ public enum WaypointRouteTimingPlanner {
         maximumCandidateEvaluations: Int = 1000,
         numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions(),
         endpointPositionToleranceMetres: Double = 0.01,
-        endpointVelocityToleranceMetresPerSecond: Double = 1e-5) throws -> WaypointTimingSearchResult {
+        endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
+        movingTarget: MovingWaypointRouteTarget? = nil) throws -> WaypointTimingSearchResult {
         try searchImpl(departureEpoch: departureEpoch, frame: frame, origin: origin, waypoints: waypoints,
             legAccelerationsMetresPerSecondSquared: legAccelerationsMetresPerSecondSquared,
             candidateArrivalEpochs: candidateArrivalEpochs, initialMass: initialMass,
@@ -104,7 +106,7 @@ public enum WaypointRouteTimingPlanner {
             maximumCandidateEvaluations: maximumCandidateEvaluations, numericalOptions: numericalOptions,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
             endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond,
-            excluding: [])
+            excluding: [], movingTarget: movingTarget)
     }
 
     static func searchImpl(departureEpoch: Epoch, frame: Frame, origin: BodyIdentifier,
@@ -114,7 +116,7 @@ public enum WaypointRouteTimingPlanner {
         timedEnginePhases: [WaypointRouteEnginePhase], obstacles: [SphericalExclusionRegion],
         maximumCandidateEvaluations: Int, numericalOptions: NumericalPropagationOptions,
         endpointPositionToleranceMetres: Double, endpointVelocityToleranceMetresPerSecond: Double,
-        excluding: Set<[Epoch]>) throws -> WaypointTimingSearchResult {
+        excluding: Set<[Epoch]>, movingTarget: MovingWaypointRouteTarget? = nil) throws -> WaypointTimingSearchResult {
         guard (1...10_000).contains(maximumCandidateEvaluations) else { throw WaypointTimingSearchError.invalidBudget }
         guard (2...10_001).contains(waypoints.count), candidateArrivalEpochs.count == waypoints.count-1,
               candidateArrivalEpochs.allSatisfy({ !$0.isEmpty }),
@@ -126,7 +128,7 @@ public enum WaypointRouteTimingPlanner {
             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
             timedEnginePhases: timedEnginePhases, obstacles: obstacles,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond)
+            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget)
         let candidates = candidateArrivalEpochs.map { values -> [Epoch] in
             let sorted = values.sorted()
             return sorted.enumerated().compactMap { index, epoch in
@@ -150,8 +152,14 @@ public enum WaypointRouteTimingPlanner {
                     if !ordered {
                         failures.append(WaypointTimingAttempt(arrivalEpochs: arrivals, failure: .invalidOrdering))
                     } else {
+                        var resolved = waypoints
+                        if let movingTarget {
+                            let target = try movingTarget.state(at: arrivals.last!)
+                            resolved[resolved.count-1] = try BrachistochroneWaypoint(positionMetres: target.position,
+                                arrivalWindow: waypoints.last!.arrivalWindow, velocityMetresPerSecond: target.velocity)
+                        }
                         let route = try WaypointBrachistochroneRoute(departureEpoch: departureEpoch, frame: frame, origin: origin,
-                            waypoints: waypoints, legAccelerationsMetresPerSecondSquared: legAccelerationsMetresPerSecondSquared,
+                            waypoints: resolved, legAccelerationsMetresPerSecondSquared: legAccelerationsMetresPerSecondSquared,
                             obstacles: obstacles, legDurations: durations)
                         let execution = try WaypointRoutePropagator(route: route, initialMass: initialMass,
                             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
@@ -162,6 +170,8 @@ public enum WaypointRouteTimingPlanner {
                         return WaypointTimingSearchResult(status: .feasible, evaluatedCandidates: evaluated,
                             route: route, propagation: result, failedAttempts: failures)
                     }
+                } catch MovingWaypointTargetError.outsideCoverage {
+                    failures.append(WaypointTimingAttempt(arrivalEpochs: arrivals, failure: .targetOutsideCoverage))
                 } catch let error as BrachistochroneRouteError {
                     failures.append(WaypointTimingAttempt(arrivalEpochs: arrivals, failure: .geometry(error)))
                 } catch let error as WaypointRoutePropagationError {
@@ -196,12 +206,18 @@ public enum WaypointRouteTimingPlanner {
         waypoints: [BrachistochroneWaypoint], legAccelerationsMetresPerSecondSquared: [Double],
         backgroundDynamics: SpacecraftDynamics, legEngineLimits: [WaypointRouteEngineLimits],
         timedEnginePhases: [WaypointRouteEnginePhase], obstacles: [SphericalExclusionRegion],
-        endpointPositionToleranceMetres: Double, endpointVelocityToleranceMetresPerSecond: Double
+        endpointPositionToleranceMetres: Double, endpointVelocityToleranceMetresPerSecond: Double,
+        movingTarget: MovingWaypointRouteTarget? = nil
     ) throws -> [WaypointRouteEnginePhase] {
         // Validate frame, budget and engine configuration before searching.
         guard frame === backgroundDynamics.context.frame else { throw SpacecraftDynamicsError.frameMismatch }
         guard origin == backgroundDynamics.context.origin else { throw BrachistochroneRouteError.originMismatch }
         guard frame.pseudoInertial else { throw SpacecraftDynamicsError.nonInertialFrame }
+        if let movingTarget {
+            guard movingTarget.frame === frame else { throw MovingWaypointTargetError.frameMismatch }
+            guard movingTarget.origin == origin else { throw MovingWaypointTargetError.originMismatch }
+            guard waypoints.last!.velocityMetresPerSecond == nil else { throw MovingWaypointTargetError.conflictingEndpointVelocity }
+        }
         guard legEngineLimits.count == waypoints.count-1,
               legAccelerationsMetresPerSecondSquared.count == waypoints.count-1 else {
             throw BrachistochroneRouteError.legCountMismatch

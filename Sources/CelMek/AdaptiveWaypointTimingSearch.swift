@@ -49,7 +49,8 @@ extension WaypointRouteTimingPlanner {
         obstacles: [SphericalExclusionRegion] = [],
         numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions(),
         endpointPositionToleranceMetres: Double = 0.01,
-        endpointVelocityToleranceMetresPerSecond: Double = 1e-5) throws -> WaypointTimingRefinementResult {
+        endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
+        movingTarget: MovingWaypointRouteTarget? = nil) throws -> WaypointTimingRefinementResult {
         guard (2...10_001).contains(waypoints.count), arrivalWindows.count == waypoints.count-1 else {
             throw WaypointTimingSearchError.invalidCandidates
         }
@@ -58,7 +59,7 @@ extension WaypointRouteTimingPlanner {
             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
             timedEnginePhases: timedEnginePhases, obstacles: obstacles,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond)
+            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget)
         var windows = arrivalWindows
         for index in windows.indices {
             if let constraint = waypoints[index+1].arrivalWindow {
@@ -67,6 +68,13 @@ extension WaypointRouteTimingPlanner {
                 guard lower <= upper else { throw WaypointTimingSearchError.invalidCandidates }
                 windows[index] = lower...upper
             }
+        }
+        if let movingTarget {
+            let last = windows.count-1
+            let lower = max(windows[last].lowerBound, movingTarget.coverage.lowerBound)
+            let upper = min(windows[last].upperBound, movingTarget.coverage.upperBound)
+            guard lower <= upper else { throw WaypointTimingSearchError.invalidCandidates }
+            windows[last] = lower...upper
         }
         var spacing = refinementOptions.initialSpacingSeconds
         var failures: [WaypointTimingAttempt] = [], rounds: [WaypointTimingRefinementRound] = []
@@ -91,7 +99,7 @@ extension WaypointRouteTimingPlanner {
                 timedEnginePhases: timedEnginePhases, obstacles: obstacles,
                 maximumCandidateEvaluations: refinementOptions.maximumCandidateEvaluations-evaluated,
                 numericalOptions: numericalOptions, endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: excluded)
+                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: excluded, movingTarget: movingTarget)
             evaluated += result.evaluatedCandidates
             failures.append(contentsOf: result.failedAttempts)
             for attempt in result.failedAttempts { excluded.insert(attempt.arrivalEpochs) }

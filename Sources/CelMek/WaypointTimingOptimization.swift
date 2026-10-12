@@ -49,7 +49,8 @@ extension WaypointRouteTimingPlanner {
         timedEnginePhases: [WaypointRouteEnginePhase] = [], obstacles: [SphericalExclusionRegion] = [],
         numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions(),
         endpointPositionToleranceMetres: Double = 0.01,
-        endpointVelocityToleranceMetresPerSecond: Double = 1e-5) throws -> WaypointTimingOptimizationResult {
+        endpointVelocityToleranceMetresPerSecond: Double = 1e-5,
+        movingTarget: MovingWaypointRouteTarget? = nil) throws -> WaypointTimingOptimizationResult {
         guard (2...10_001).contains(waypoints.count), arrivalWindows.count == waypoints.count-1,
               seedArrivalEpochs.count == arrivalWindows.count else { throw WaypointTimingSearchError.invalidCandidates }
         _ = try validateTimingConfiguration(departureEpoch: departureEpoch, frame: frame, origin: origin,
@@ -57,7 +58,7 @@ extension WaypointRouteTimingPlanner {
             backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
             timedEnginePhases: timedEnginePhases, obstacles: obstacles,
             endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond)
+            endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, movingTarget: movingTarget)
         var windows = arrivalWindows
         for index in windows.indices {
             if let constraint = waypoints[index+1].arrivalWindow {
@@ -65,6 +66,12 @@ extension WaypointRouteTimingPlanner {
                 let high = min(windows[index].upperBound, constraint.upperBound)
                 guard low <= high else { throw WaypointTimingSearchError.invalidCandidates }
                 windows[index] = low...high
+            }
+            if index == windows.count-1, let movingTarget {
+                let lower = max(windows[index].lowerBound, movingTarget.coverage.lowerBound)
+                let upper = min(windows[index].upperBound, movingTarget.coverage.upperBound)
+                guard lower <= upper else { throw WaypointTimingSearchError.invalidCandidates }
+                windows[index] = lower...upper
             }
             guard windows[index].contains(seedArrivalEpochs[index]) else { throw WaypointTimingSearchError.invalidCandidates }
         }
@@ -78,7 +85,7 @@ extension WaypointRouteTimingPlanner {
                 backgroundDynamics: backgroundDynamics, legEngineLimits: legEngineLimits,
                 timedEnginePhases: timedEnginePhases, obstacles: obstacles, maximumCandidateEvaluations: 1,
                 numericalOptions: numericalOptions, endpointPositionToleranceMetres: endpointPositionToleranceMetres,
-                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: [])
+                endpointVelocityToleranceMetresPerSecond: endpointVelocityToleranceMetresPerSecond, excluding: [], movingTarget: movingTarget)
             failures.append(contentsOf: result.failedAttempts)
             return result
         }
