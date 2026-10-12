@@ -255,3 +255,38 @@ Combined central/third-body propagation is also tested with a moving injected
 provider, unchanged mass and acceleration consistent with the summed derivative.
 The direct/indirect distinction is also described in
 [Orekit's third-body gravity API](https://www.orekit.org/site-orekit-7.1/apidocs/org/orekit/forces/gravity/ThirdBodyAttraction.html).
+
+## J2 gravity
+
+`J2Gravity` adds only the axisymmetric degree-two correction. Compose it with
+`CentralGravity` for central attraction plus oblateness; do not add it to another
+model already including degree two/order zero. The signed dimensionless coefficient
+is J2 = −C20 for **unnormalized** C20, not a normalized harmonic coefficient.
+This convention follows [Orekit's J2-only model](https://javadoc.io/static/org.orekit/orekit/12.2.1/org/orekit/forces/gravity/J2OnlyPerturbation.html).
+
+Supply the body identifier, Newtonian or TT-compatible GM, a sourced equatorial
+radius in metres, a finite J2 with its provenance, and an `OrientationProvider`.
+No body constants are inferred. Zero and negative J2 are supported. The context
+origin must be that body, and propagation requires a pseudo-inertial frame.
+The orientation provider and its result must use the exact propagation frame
+and requested epoch; provider failures propagate. An ICRF orientation cannot
+be silently relabeled to a different frame.
+
+The provider maps reference axes into body axes with the pole along body z.
+For unit body position n, distance r, and radius R, the correction is
+`1.5 J2 (GM/r²) (R/r)² [nx(5nz²−1), ny(5nz²−1), nz(5nz²−3)]`.
+Rotate this acceleration vector back into propagation axes without kinematic
+rotation terms. Spin around a fixed pole leaves this axisymmetric force unchanged;
+a changing pole changes the force. Mass and propellant remain unchanged.
+
+This is an exterior gravity expansion, with no surface collision model, radius
+cutoff, higher harmonics, tides, or relativistic corrections. The caller must
+select a physically valid domain. The origin is singular, even for zero J2;
+nonfinite arithmetic fails explicitly.
+
+Swift Testing checks equatorial/polar values, independent numerical gradients of
+the potential, signed/zero coefficients, tilted poles and spin invariance, and
+central-plus-J2 integration. A ten-orbit weak-J2 case agrees within 1% with the
+[first-order secular nodal regression](https://ai-solutions.com/_freeflyeruniversityguide/j2_perturbation.htm)
+and checks conservation of angular momentum about the pole. This validates the
+force and integrator; it does not validate a particular body's chosen constants.
