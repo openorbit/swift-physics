@@ -7,7 +7,7 @@ public enum BrachistochroneError: Error, Equatable {
     case numericalRangeExceeded, outsideCoverage
 }
 
-public enum BrachistochronePhase: Sendable { case accelerating, braking, arrived }
+public enum BrachistochronePhase: Equatable, Sendable { case accelerating, braking, arrived }
 
 /// Minimum-time, straight-line, rest-to-rest motion with bounded acceleration
 /// magnitude in a Newtonian inertial frame. No gravity, mass or fuel model.

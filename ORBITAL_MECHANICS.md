@@ -443,3 +443,86 @@ reverse sampling and rotating-frame derivatives. The bounded-acceleration
 minimum-time control background is described in
 [MIT's double-integrator discussion](https://underactuated.csail.mit.edu/dp.html)
 and [Liberzon's double-integrator example](https://liberzon.csl.illinois.edu/teaching/cvoc/node85.html).
+
+## Fly-through waypoint routes
+
+`WaypointBrachistochroneRoute` plans gravity-free motion from A to B through an
+ordered list of fixed inertial waypoints. It passes through intermediate points
+with continuous **nonzero velocity**; waypoints are neither stops nor impulses.
+Each leg has its own positive acceleration limit, allowing prescribed lighter
+burns for cooldown or other operational constraints. No engine temperature model
+is inferred. Route endpoints are at rest in this first version. Optional dwell
+is accepted only at the initial/final endpoint; intermediate dwell is rejected.
+
+```swift
+let route = try WaypointBrachistochroneRoute(
+    departureEpoch: departure, frame: frame, origin: .sun,
+    waypoints: [
+        BrachistochroneWaypoint(positionMetres: start),
+        BrachistochroneWaypoint(positionMetres: avoidanceWaypoint),
+        BrachistochroneWaypoint(positionMetres: destination)
+    ],
+    legAccelerationsMetresPerSecondSquared: [1, 0.25],
+    obstacles: [SphericalExclusionRegion(
+        identifier: "Sun", frame: frame, origin: .sun, centreMetres: .zero,
+        radiusMetres: suppliedSolarRadius, safetyMarginMetres: clearanceMargin)]
+)
+let crossing = try route.state(at: route.waypointArrivalEpochs[1])
+// crossing.velocity is nonzero; the next leg carries that exact velocity.
+```
+
+This is a **feasible smooth approximation**, not a minimum-time brachistochrone
+optimizer. Each leg is a time-parameterized cubic Hermite curve, represented as a
+cubic Bézier segment. Initial nominal durations use the ideal rest-to-rest model
+with each leg's acceleration limit. Internal velocity follows the chord through
+neighboring waypoints divided by the adjacent nominal durations. A common time
+scale then reduces acceleration until every leg satisfies its own bound, with a
+1% scale margin against floating-point rounding. Scaling one leg's requested
+limit can also change neighboring passage speeds and route-wide timing.
+The final controls and acceleration bounds are checked before returning a route.
+
+For leg duration T and Bézier controls P0...P3, velocity is quadratic and
+acceleration is affine in normalized time u. Its maximum magnitude is bounded
+by the larger endpoint acceleration magnitude, giving a whole-leg acceleration
+check rather than a sampled approximation. Position and velocity match at each
+waypoint; acceleration may jump when switching legs. This assumes instantaneous
+thrust-direction/magnitude changes with finite acceleration; jerk/attitude slew
+constraints belong to later refinement. Consecutive coincident points and
+neighbor geometry that yields zero passage velocity are rejected, including an
+exact retracing turn whose neighboring endpoints coincide. More geometric points
+are required to describe a nonstopping turn in that case.
+
+`SphericalExclusionRegion` supplies an explicit frame/origin, fixed centre, body
+radius and safety margin. Clearance checks follow the **curves**, not the waypoint
+polyline or output samples. The [Bézier convex-hull property](https://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node12.html)
+allows control-point bounding boxes to certify exclusion; uncertain boxes are
+split with [de Casteljau subdivision](https://web.mit.edu/hyperbook/Patrikalakis-Maekawa-Cho/node13.html).
+Sampled points can demonstrate obstruction, but clearance is accepted only when
+all boxes have positive distance from the exclusion sphere, including a coordinate
+scale-dependent floating-point margin. Reports contain conservative lower bounds
+on clearance, not the exact closest distance. Tangency/near-contact may produce
+an obstruction or explicit unresolved-clearance error; unresolved cases never
+silently pass. This is conservative floating-point geometry, not formal interval
+arithmetic certification.
+
+Subdivision depth is capped at 24, total clearance-node checks at 1,000,000,
+and route legs/obstacles at 10,000 each, with at most 1,000,000 leg-obstacle pairs.
+Invalid inputs, incompatible obstacle frames/origins, obstructed legs, unresolved
+clearance and exhausted budgets throw explicit errors. Callers supply the route;
+no automatic avoidance-waypoint generation is performed. Obstacles are fixed
+throughout the route, so a Sun-centred scenario uses an explicit Sun-centred frame
+and origin. Moving bodies need ephemeris-aware clearance refinement. The planner
+has no gravity, mass, propellant or thermal evolution, and supplies no globally
+optimal travel-time claim.
+
+Arrival is the final waypoint crossing; completion additionally includes any final
+endpoint dwell. Coverage is departure through completion. Querying a shared leg
+boundary selects the outgoing leg, with unchanged position/velocity and its new
+acceleration. Completion returns zero velocity/acceleration. The route and each
+leg implement `StateProvider`, so existing sampling and explicit frame conversion
+remain available without hidden clocks or mutable query history.
+
+Swift Testing checks fly-through position/velocity continuity, nonzero passage
+speed, unequal per-leg acceleration limits, independent cubic state values,
+endpoint dwell, a solar-avoidance route, an interior curve obstruction with clear
+endpoints, rejected intermediate dwell and degenerate retracing geometry.
