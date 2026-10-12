@@ -34,7 +34,8 @@ Negative mass rates represent propellant consumption; positive rates represent
 explicitly modelled inflow. The derivative contract supports both. Evaluation
 does not mutate mass, clip consumption, or silently disable thrust. Models must
 handle their operating constraints explicitly. The integrator rejects negative
-propellant stages; exact depletion localization remains future event work. This single-reservoir interface does not yet model
+propellant stages; scheduled constant-flow burns additionally support the analytic
+cutoff policy described below. This single-reservoir interface does not yet model
 multiple tanks, staging or changing dry mass.
 
 ```swift
@@ -155,7 +156,7 @@ trusting the seed's optional acceleration field.
 Trial states with negative propellant are rejected before force evaluation.
 Step reduction may recover a valid trial; continued depletion at the minimum
 fails with `propellantDepleted`. No propellant is clipped, no engine is implicitly
-disabled, and no partial final state is returned. Exact depletion localization,
+disabled by this generic propagator, and no partial final state is returned. General depletion localization,
 staging, impacts, impulsive burns and other discontinuity events remain future
 work. Segment integration explicitly at known force discontinuities; the adaptive
 error estimate alone does not guarantee that a discontinuity is discovered.
@@ -339,17 +340,16 @@ let result = try trajectory.spacecraftState(at: cutoff)
 ```
 
 The schedule accepts at most 10,000 burns. Numerical options and work budgets
-apply separately to each segment; there is no aggregate diagnostics API yet.
+apply separately to each segment; there is no aggregate step-diagnostics API yet.
 Background models must be continuous between scheduled boundaries. Other force
 events still require explicit handling. Passing `ScheduledThrust` directly to
 the generic numerical propagator does **not** provide boundary splitting.
 
-Fuel exhaustion fails explicitly; no automatic engine cutoff, clipping, or
-post-depletion trajectory is produced. Exact exhaustion at a cutoff is also not
-guaranteed to succeed, because RK stages and endpoint force evaluation require
-valid fuel. Plan a reserve until depletion localization is implemented. Backward
-replay likewise needs an evaluable seed/segment and does not support starting an
-active engine from an empty reservoir.
+The default `FuelDepletionPolicy.fail` preserves explicit exhaustion failures,
+including potentially at exact scheduled cutoffs. Select `.cutoff` to localize
+constant-flow scheduled depletion and continue under background forces, as
+specified below. The standalone `FiniteThrust` and generic numerical propagator
+retain their failure semantics.
 
 Swift Testing checks an independently integrated constant-thrust rocket solution
 for velocity, position and fuel, short burns followed by coast, exact boundary
@@ -471,8 +471,8 @@ and every detector must remain valid throughout sampled/localized brackets.
 A terminal search may evaluate past the root while forming its bracket, so it
 cannot prevent a singular force or depleted-fuel provider error there. A positive
 fuel-reserve detector can be used where the trajectory is still valid, but exact
-zero-fuel localization and automatic engine cutoff require integration-level
-handling and remain pending.
+zero-fuel localization for arbitrary mass-flow models requires integration-level
+handling. Constant-flow scheduled burns support the analytic cutoff policy below.
 
 Event actions report or terminate; they do not mutate forces or automatically
 apply maneuvers. Restart from the reported state with explicit changed inputs to
@@ -485,3 +485,49 @@ query in addition to the search's state-query budget.
 Swift Testing validates analytic straight-line sphere crossings, backward crossing
 direction, record/terminal ordering, initial-root suppression, exact epoch events,
 scheduled-burn mass state, invalid detector contracts and bounded search failure.
+
+## Automatic scheduled fuel cutoff
+
+Set `fuelDepletionPolicy: .cutoff` on `ScheduledThrustPropagator`. The default is
+`.fail` for compatibility. For every segment, sum the active engines' positive
+constant consumption rates q. If the forward segment would exhaust available
+propellant P, split at `segmentStart + P/q`, integrate thrust up to that epoch,
+set the known boundary fuel to exactly zero, and continue with background forces.
+All scheduled engines draw from this one reservoir and shut down together;
+later ignitions also remain off. `propagation(at:)` returns the state and optional
+`depletionEpoch`, including depletion coincident with a scheduled cutoff.
+
+Fuel evolves analytically within each constant-flow segment. Cartesian integration
+supplies that exact inventory to every background force evaluation, so drag,
+radiation pressure and other mass-dependent forces see evolving total mass.
+The RK reservoir coordinate is held fixed internally rather than generating
+negative fuel stages. Endpoint stage evaluations use the smooth thrust left
+limit at dry mass; the public returned state uses zero fuel and thrust-free
+right-limit acceleration. This is a localized boundary condition, not clipping
+arbitrary negative inventories. Numerical position/velocity tolerances still
+apply; the exhaustion time inherits floating-point P/q precision and epoch
+resolution. An unrepresentable positive-duration depletion boundary fails.
+
+```swift
+let trajectory = try ScheduledThrustPropagator(
+    initialState: initialState, schedule: schedule,
+    backgroundModels: [centralGravity], context: context,
+    fuelDepletionPolicy: .cutoff)
+let result = try trajectory.propagation(at: requestedEpoch)
+// result.depletionEpoch reports reservoir exhaustion; result.state may be a coast state.
+```
+
+Cutoff mode requires background models to return **zero propellant mass rate**.
+Unexpected background consumption or inflow throws `backgroundMassFlowUnsupported`;
+it cannot silently invalidate the known depletion time. Variable throttle,
+refueling, staging and multiple reservoirs require a more general event integrator.
+An initially empty reservoir coasts forward with scheduled engines disabled.
+Backward queries from the immutable wet seed integrate the prescribed mass flow
+in reverse. A new empty seed cannot infer historical cutoff/engine activity, so
+backward traversal through a positive-flow burn fails explicitly. Querying from
+the original wet seed after depletion remains deterministic.
+
+Swift Testing compares exhaustion velocity/position and subsequent coast against
+the rocket equation, verifies exact scheduled cutoff, overlapping engines,
+empty seeds, later suppressed ignitions, evolving mass in background forces,
+unsupported background mass flow, and missing backward-history failures.
