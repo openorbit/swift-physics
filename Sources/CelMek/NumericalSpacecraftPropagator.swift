@@ -99,6 +99,12 @@ public struct NumericalSpacecraftPropagator: StateProvider {
     public func spacecraftState(at epoch: Epoch) throws -> SpacecraftState { try propagation(at: epoch).state }
 
     public func propagation(at target: Epoch) throws -> NumericalSpacecraftPropagationResult {
+        try propagation(at: target, acceptedStep: nil)
+    }
+    /// Internal observer receives only error-controlled accepted steps. Returning
+    /// false ends this integration at the accepted endpoint for event restart.
+    func propagation(at target: Epoch,
+                     acceptedStep: ((SpacecraftState, SpacecraftState) throws -> Bool)?) throws -> NumericalSpacecraftPropagationResult {
         var current = referenceEpoch
         let forward = target >= current
         var y = [initialState.cartesian.position.x,initialState.cartesian.position.y,initialState.cartesian.position.z,
@@ -167,9 +173,12 @@ public struct NumericalSpacecraftPropagator: StateProvider {
                 }
             }
             if error <= 1 {
+                let previous = acceptedStep == nil ? nil : try state(y, at: current)
                 y = candidate; current = end; accepted += 1
                 smallest = min(smallest ?? abs(h),abs(h)); largest = max(largest ?? abs(h),abs(h))
                 maxError = max(maxError,error)
+                if let acceptedStep, let previous,
+                   try !acceptedStep(previous, state(y, at: current)) { break }
                 let factor = error == 0 ? 5 : min(5,max(0.2,0.9*pow(error,-0.2)))
                 nextStep = max(options.minimumStepSeconds,min(options.maximumStepSeconds,abs(h)*factor))
             } else {
@@ -181,8 +190,8 @@ public struct NumericalSpacecraftPropagator: StateProvider {
                 nextStep = max(options.minimumStepSeconds,magnitude*factor)
             }
         }
-        let finalDerivative = try derivative(y,at: target)
-        let result = try state(y,at: target,acceleration: SIMD3(finalDerivative[3],finalDerivative[4],finalDerivative[5]))
+        let finalDerivative = try derivative(y,at: current)
+        let result = try state(y,at: current,acceleration: SIMD3(finalDerivative[3],finalDerivative[4],finalDerivative[5]))
         return NumericalSpacecraftPropagationResult(state: result,diagnostics: NumericalPropagationDiagnostics(
             acceptedSteps: accepted,rejectedSteps: rejected,derivativeEvaluations: evaluations,
             smallestAcceptedStepSeconds: smallest,largestAcceptedStepSeconds: largest,maximumAcceptedNormalizedError: maxError))

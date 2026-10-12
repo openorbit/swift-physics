@@ -531,3 +531,67 @@ Swift Testing compares exhaustion velocity/position and subsequent coast against
 the rocket equation, verifies exact scheduled cutoff, overlapping engines,
 empty seeds, later suppressed ignitions, evolving mass in background forces,
 unsupported background mass flow, and missing backward-history failures.
+
+## Accepted-step events and explicit transitions
+
+`EventDrivenNumericalPropagator` checks detector values at error-controlled
+accepted step endpoints. It reuses those states; only a candidate crossing
+requires localization queries. Maximum step size is capped by the event check
+interval independently of the numerical tolerance preset. Localization restarts
+from the crossing step's left state, avoiding full-seed replay for every root.
+The accepted endpoint past a root is discarded; integration restarts at the
+localized state with the transition's force composition.
+
+Each detector is **one-shot per query**. Initial exact roots are included; fired
+identifiers are disabled for the rest of that query, preventing repeated resets
+at the same root. Recurring events and hysteresis/rearming remain future work.
+Equal exact epochs use detector input order; remaining detectors are rechecked
+at every reset epoch. `.stop` returns immediately without applying a transition.
+A `.record` occurrence continues and optionally invokes the transition closure.
+Returned occurrences contain the pre-transition state. A reset at the target
+is applied and its resulting acceleration recomputed before returning.
+
+The closure receives `(occurrence, forward, currentDynamics)` and returns an
+`EventStateTransition(state:dynamics:)`. It can alter position/velocity/mass
+explicitly or replace the composed forces. State epoch/frame and dynamics
+frame/origin must match the event's propagation context. The caller supplies
+inverse reset behavior for backward replay; arbitrary changes are not implicitly
+inverted. Closures and detectors must be deterministic without external mutation.
+Each query starts from the original seed and original dynamics.
+
+```swift
+let checkpoint = try EpochEvent(
+    identifier: "impulse", epoch: burnEpoch, action: .record)
+let trajectory = try EventDrivenNumericalPropagator(
+    initialState: initialState, dynamics: dynamics, detectors: [checkpoint]
+) { event, forward, currentDynamics in
+    let state = event.state
+    let velocity = state.cartesian.velocity + (forward ? deltaV : -deltaV)
+    let reset = SpacecraftState(
+        cartesian: try CartesianState(epoch: state.epoch, frame: state.frame,
+            position: state.cartesian.position, velocity: velocity), mass: state.mass)
+    return EventStateTransition(state: reset, dynamics: currentDynamics)
+}
+let result = try trajectory.propagation(at: requestedEpoch)
+```
+
+Known discontinuities must be changed by the reset closure, rather than hidden
+inside a force's epoch-dependent branch. For example, use a continuous pre-event
+force set and return the post-event force set at an `EpochEvent`. Prescribed
+constant-flow engine schedules still use `ScheduledThrustPropagator` and its
+specialized fuel-cutoff handling.
+
+The same sign-crossing limits apply: tangencies and multiple crossings inside
+one check interval are not guaranteed. All forces must remain valid through the
+trial step and crossing bracket, so arbitrary zero-fuel events cannot yet recover
+negative fuel stages or singular-force evaluations. Variable-flow depletion
+requires a dedicated integration-domain boundary mechanism and remains pending.
+Numerical work limits apply per restart/localization query; event query, accepted
+step-check and occurrence counts are bounded across the complete event run.
+`stateEvaluations` reports localization/search provider queries, not RK derivative
+evaluations. General accepted-step events have no aggregated RK diagnostics yet.
+
+Swift Testing verifies a terminal plane crossing, an impulse with inverse replay,
+two force-switch events against analytic motion, deterministic replay, initial
+one-shot roots, and rejected resets with incompatible epochs. Existing numerical
+propagation tests verify unchanged behavior when no observer is installed.
