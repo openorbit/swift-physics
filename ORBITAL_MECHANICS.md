@@ -1789,3 +1789,7 @@ physical passage inside its local arc; continuous mass and nonzero passage speed
 impulse and finite-burn refinement; independent epoch adjustment; safe, unresolved
 and violated clearance; attitude, thermal, engine and fuel rejection; and grid,
 query, proposal and evaluation exhaustion.
+
+### Attitude and rotational dynamics
+
+See [ATTITUDE_DYNAMICS.md](ATTITUDE_DYNAMICS.md) for prescribed attitude providers, physical body rates and frame adapters, constant-inertia Euler dynamics, torque/control/environmental models, and coupled translation/fuel/rotation propagation. `AttitudeDynamicsDemo` is a runnable off-centre body-engine example. All rotations remain right handed; torque and thrust are evaluated in explicit axes at the current epoch.
