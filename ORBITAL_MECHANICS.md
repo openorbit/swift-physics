@@ -1422,3 +1422,136 @@ per scheduled segment. A positive fuel margin is required to avoid firing exactl
 through depletion. Rocket-equation seeds do not imply impulsive endpoint
 equivalence: tests compare actual Hohmann realizations under central gravity and
 verify that progressively shorter burns approach the impulsive result.
+
+### Zero-revolution Lambert arcs
+
+`LambertSolver.solve` takes two central-body-relative positions in metres,
+explicit departure/arrival epochs, an inertial frame, central body and compatible
+GM. It returns both endpoint velocities in metres per second and Cartesian states,
+plus a `trajectory()` convenience method for independent two-body propagation.
+Input states can supply their positions and epochs; their velocities do not
+participate in the boundary-value solution. The caller asserts the physical origin
+and must express both positions in the same supplied frame.
+
+A nonzero `referencePole` and `LambertDirection` are mandatory. Positive means
+angular momentum has positive projection on that pole; negative means negative
+projection. The pole need not be the orbit normal. Geometry and that direction
+select the short-way (angle below pi) or long-way (above pi) zero-revolution arc.
+The result reports the branch, angle and actual unit orbital normal. It does not
+silently choose the shortest arc. This API does not match spacecraft or body
+velocities or generate rendezvous/capture burns.
+
+The native Swift solver scales radius, velocity and time, brackets the universal
+time equation below its first positive singularity, and bisects within caller
+work limits. The universal-variable f/g equations follow the formulation described
+in [Vallado's Lambert routine](https://github.com/CelesTrak/fundamentals-of-astrodynamics/blob/main/software/matlab/lambertu.m).
+Small-argument Stumpff series and half-angle differences reduce cancellation.
+The absolute/relative tolerances bound the time-equation residual, not physical
+endpoint errors; tighter reference comparisons request tighter time tolerances.
+Results include iteration count, bracket evaluation count and signed time residual.
+
+Collinear/coincident/opposite endpoints, and near-collinear geometry with normalized
+cross-product magnitude at or below `1e-8`, are explicitly rejected. A pole whose
+projection on the geometry's unit normal is at or below `1e-12` cannot define a
+direction and is rejected. Revolution counts outside `0...32` are unsupported. Invalid
+inputs, incompatible GM conventions, rotating frames, numerical range limits,
+bracket limits and convergence limits report errors. Extreme flight times can
+fail within the bounded numerical domain; the solver does not change branches
+or relax tolerances to return an answer.
+
+Tests compare velocities against independent circular and Kepler-anomaly elliptic,
+hyperbolic and Barker-equation parabolic references, then propagate the solutions
+to their arrival positions and velocities. Both directions, long-way motion,
+inclined planes, time reversal, near-collinear accepted cases and bounded failures
+are covered. Multi-revolution support is described below; ephemeris-driven transfer windows
+remain a separate backlog item.
+
+
+### Multi-revolution Lambert branches
+
+`LambertSolver.solve` supports `revolutions` from 1 through 32 when an explicit
+`multiRevolutionBranch` is supplied. `lowerUniversalParameter` and
+`upperUniversalParameter` select roots on the decreasing and increasing sides of
+the time-of-flight curve's minimum. These names describe numerical root identity;
+they do not rank energy, delta-v or focus position. Short/long-way geometry and
+orbital direction retain the existing reference-pole conventions independently
+of this choice. Zero-revolution solves reject a multi-revolution branch argument.
+
+`solveBranches` enumerates both roots for a caller-selected positive revolution
+count in lower/upper order. It returns one solution when the roots coalesce within
+the caller's time tolerance. It throws when a solve fails instead of silently
+omitting a branch. No branch switching is performed. The reported transfer angle
+excludes completed revolutions: total angular sweep is `2*pi*revolutions + angle`.
+
+The solver searches the minimum between consecutive universal-variable
+singularities using bounded golden-section minimization, then brackets and bisects
+the requested side. The minimum search stops at relative universal-parameter
+interval width `1e-12`; the reported minimum time is a numerical estimate.
+`maximumIterations` bounds the minimum search and root solve separately;
+`maximumBracketExpansions` bounds the selected root's bracketing. Enumeration
+applies those budgets per solve. The solution reports revolution count, selected
+root, universal parameter, minimum time, minimum-search iterations, a coalescence
+flag and the existing root/time-residual diagnostics. Below-minimum flights beyond
+the requested time tolerance produce `belowMinimumFlightTime` with the estimated
+minimum; within that tolerance the minimum orbit is returned and explicitly
+flagged as coalesced. Minimum-search and bracketing failures remain explicit errors.
+
+The interval/branch structure follows the universal-variable formulation in
+[Vallado's routine](https://github.com/CelesTrak/fundamentals-of-astrodynamics/blob/main/software/matlab/lambertu.m);
+[Izzo's discussion](https://arxiv.org/abs/1403.2705) describes the multiple-root
+and minimum-time structure. This implementation uses local anomaly reduction
+between singularities so completed-turn parity does not alter the geometry.
+Tests cover both roots, both directions, short/long-way motion and revolution
+counts 1, 2, 5 and 32. Independent circular and eccentric Kepler solutions verify
+velocities; propagated endpoint states and sampled angular sweeps verify every
+returned root and its revolution count. Minimum-time coalescence, nearby distinct
+roots, infeasible flight times and work limits are also checked.
+
+### Moving-body Lambert transfer plans
+
+`LambertTransferPlanner.plan` accepts explicit endpoint states, checked
+`MovingWaypointRouteTarget` sources or `EphemerisProvider` sources. The moving
+sources are sampled at departure and arrival respectively, so the destination is
+resolved at arrival rather than frozen at departure. Coverage, exact state epochs,
+frame identity and physical origin are checked; provider errors propagate.
+Both providers must be relative to the selected central body in the same inertial
+frame. For the direct-state overload the caller guarantees those physical origins.
+No automatic rotation, origin shift or apparent-position correction is applied.
+
+The caller explicitly chooses `intercept`, `flyby` or
+`velocityMatchedRendezvous`, together with the Lambert direction, revolution count
+and root where required. The departure impulse is the Lambert departure velocity
+minus the sampled source velocity. The coast is independently propagated to
+arrival. Intercept and flyby retain that incoming velocity and have no arrival
+impulse. Rendezvous uses target velocity minus the actual propagated incoming
+velocity, preserving actual position. The plan reports source/target states,
+pre/post-arrival states, relative velocity vectors, actual impulse norms and their
+sum, endpoint errors and whether the selected endpoint condition meets the caller's
+tolerances. Intercept/flyby require position matching; rendezvous additionally
+requires velocity matching. A residual position miss is retained and cannot be
+made feasible by an arrival velocity impulse.
+
+`LambertTransferTrajectory` covers only departure through arrival. Its default
+queries are right-continuous at impulses, with `.before` available at each
+endpoint. It retains the supplied physical pre-departure state, the transfer coast
+and the post-arrival impulse state; queries outside the flight throw. No preceding
+spacecraft history or following encounter orbit is inferred. This also supports
+stationary or radial target velocities at rendezvous without inventing an orbit.
+The plan's `maneuvers` can seed `FiniteTransferPlanner` using an actual spacecraft
+state, engine and mass.
+
+When departure/arrival sources represent body centres, relative velocity vectors
+are ideal patched-conic excess-velocity inputs. Their norms are central-frame
+velocity-difference costs, not local parking-orbit injection/capture costs. Use the
+body's own GM and parking radius with `ParkingOrbitTransfer` for those local energy
+changes. Matching a body-centre velocity does not establish a body-bound parking
+orbit. A flyby here describes the incoming encounter endpoint; deflection, periapsis
+clearance, B-plane targeting and outgoing encounter arcs require the separate
+flyby/patch models in the backlog. Offset providers may instead specify explicit
+physical passage or rendezvous locations.
+
+Swift Testing cases use independent circular endpoint velocities and moving linear
+sources to verify arrival sampling, actual impulses, mode-dependent costs and
+velocity retention. They also check ephemeris metadata integration, both
+multi-revolution roots, stationary rendezvous, residual preservation, bounded
+trajectory queries and coverage/frame/origin errors.
