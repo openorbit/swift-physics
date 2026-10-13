@@ -84,7 +84,7 @@ that refinement must resolve.
 
 ## Using the samples in a game
 
-The JSON includes legs, flyby diagnostics, flight-time comparison and sampled SI
+The JSON includes legs, flyby diagnostics, flight-time comparison, clock playback and sampled SI
 position/velocity states. Solar coasts contain 49 uniformly spaced samples each;
 parking/departure and local encounters have their own labelled sample groups. Separate
 `phase` values before drawing: joining all rows as one polyline would connect unrelated
@@ -101,5 +101,19 @@ render samples as a replacement for orbital propagation.
 Rendering can subtract the camera's **Double** position before converting to `Float`,
 with an explicit scene scale. The sample coordinates are Sun-relative metres, not
 camera-relative graphics units; a separate renderer adapter remains roadmap work.
-This example does not yet implement a general simulation-clock, rendering, persistence
-or time-warp API, and does not complete all of Milestone 9.
+The `playback` rows exercise the reusable `SimulationClock`: one real second advances
+one 365-day simulation year, followed by pause, reverse and a seek to the Jupiter patch.
+Each row queries the spacecraft and all five prescribed planets at the same epoch.
+A 30-day future query leaves the clock untouched; predictions beyond Neptune are
+omitted instead of extrapolating the itinerary. Segment selection uses the following
+coast at an exact patch epoch, so velocity jumps remain explicit. Orbital display
+samples use `TrajectorySampler` rather than hidden interpolation.
+
+See [TIME.md](../../TIME.md) for clock semantics, bounds and floating-point limits.
+Renderer adapters, persistence and the remaining release-readiness work are separate
+Milestone 9 items.
+
+Playback also exports `spacecraftCentredPlanetPositionsRenderUnits`: five planet
+positions relative to the spacecraft, converted to `Float` after subtracting in
+`Double`, at 1e9 metres per render unit. Axes remain right-handed heliocentric
+axes; the spacecraft renders at zero. See [rendering contracts](../../GAME_INTEGRATION.md).

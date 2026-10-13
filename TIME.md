@@ -244,3 +244,49 @@ ISO string parsing, timezones and historical-calendar presentation remain separa
 ```sh
 swift test --filter EpochTests
 ```
+
+## Game simulation clocks
+
+`SimulationClock` is a caller-owned value containing an atomic `Epoch`, a finite
+signed playback rate and an optional inclusive coverage interval. It does not read
+the operating system clock, fetch ephemerides, integrate dynamics or select fidelity.
+Supply elapsed monotonic real durations from the game's update loop:
+
+```swift
+var clock = try SimulationClock(epoch: start, rate: 86_400, coverage: start...end)
+try clock.advance(realDuration: Duration(seconds: frameElapsedSeconds))
+let now = clock.epoch
+let future = try clock.prediction(after: Duration(seconds: 3_600))
+clock.setPaused(true)
+try clock.setRate(-60)           // reverse after resuming
+clock.setPaused(false)
+try clock.seek(to: savedEpoch)
+```
+
+Rate is simulation SI seconds per real second. Negative rate reverses playback;
+zero or pause freezes it. Real durations must be nonnegative even while paused.
+Prediction takes **simulation** seconds, independent of pause/rate, and never mutates
+the clock. Changing rate or pause reanchors at the current instant without a jump.
+Seeking validates coverage. Bounds throw rather than clamp, and a failed advance,
+seek or rate change leaves the stored clock unchanged.
+
+Advances accumulate split real duration and recompute from the current anchor,
+instead of repeatedly adding scaled frame increments to a distant epoch. The whole
+and fractional scaled durations are added separately. Arbitrary noninteger rates
+still use Double multiplication, so neither exact real-number scaling nor bitwise
+invariance under all update partitions/platforms is promised. Integer rates and
+split epochs preserve small epoch fractions when the scaled whole seconds remain
+representable. Duration/Epoch range errors propagate. Reanchor deliberate long-running
+sessions when appropriate; there is no automatic wall-time synchronization.
+
+Copies of the value-type clock advance independently. Own mutations on one actor or
+thread, or synchronize them yourself. The same selected epoch should drive both
+prescribed body ephemerides and propagated spacecraft queries. Reverse playback is
+suitable for analytical stored trajectories; it is not an instruction to reverse an
+irreversible numerical integrator or replay external side effects. Time warp does not
+choose integration step size or handle event crossings automatically.
+
+The [Voyager game demo](Examples/Voyager2GameDemo/README.md) combines simulation-clock
+playback, independent prediction, explicit bounded coast selection, `TrajectorySampler`
+and prescribed moving planets. Its reported encounter patch discontinuities remain
+visible; changing the clock does not resolve the mission's connector residuals.

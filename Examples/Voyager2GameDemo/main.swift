@@ -108,7 +108,7 @@ let injection = try selected.escape.plan(kind: .escape,periapsisEpoch: launch,fr
 let lastCentre = endpoints[3][selected.indices[3]]
 let lastIncoming = selected.legs[3].arrivalState.velocity-lastCentre.velocity
 let away = lastIncoming/norm(lastIncoming)
-let downward = SIMD3<Double>(0,0,-1)-away*away.z*(-1)
+let downward = SIMD3<Double>(0,0,-1)+away*away.z
 let terminalTurn = 2*asin(1/(1+(radii[3]+minAltitudes[3])*norm(lastIncoming)*norm(lastIncoming)/mus[3].cubicMetresPerSecondSquared))*(1-1e-10)
 let terminalDesired = (away*cos(terminalTurn)+downward/norm(downward)*sin(terminalTurn))*norm(lastIncoming)
 let terminal = try flyby(3,lastCentre.epoch,lastIncoming,terminalDesired)
@@ -133,10 +133,10 @@ struct LegReport: Encodable { let from,to,departureUTC,arrivalUTC: String; let d
 var reports: [LegReport] = []
 for i in 0..<4 {
     let leg = selected.legs[i], coast = try leg.trajectory(), duration = try leg.arrivalState.epoch.duration(since: leg.departureState.epoch).seconds
-    for k in 0...48 {
-        let e = k == 48 ? leg.arrivalState.epoch : try leg.departureState.epoch.advanced(by: CelMek.Duration(seconds: duration*Double(k)/48))
-        try append(coast.state(at: e),"Lambert coast \(i+1)")
+    let epochs = try (0...48).map { k in
+        k == 48 ? leg.arrivalState.epoch : try leg.departureState.epoch.advanced(by: CelMek.Duration(seconds: duration*Double(k)/48))
     }
+    for state in try TrajectorySampler.sample(coast,at: epochs) { try append(state,"Lambert coast \(i+1)") }
     reports.append(LegReport(from: i == 0 ? "Earth" : names[i-1],to: names[i],departureUTC: try label(leg.departureState.epoch),
         arrivalUTC: try label(leg.arrivalState.epoch),days: duration/86400,
         endpointResidualMetres: norm(try coast.state(at: leg.arrivalState.epoch).position-leg.arrivalState.position)))
@@ -162,13 +162,56 @@ for (i,f) in allFlybys.enumerated() {
         try append(CartesianState(epoch: e,frame: heliocentric,position: planet.position+local.position,velocity: planet.velocity+local.velocity),"local \(names[i]) flyby")
     }
 }
+// Playback selects a bounded coast explicitly; exact patch epochs use the following leg.
+let playbackCoasts = try selected.legs.map { try $0.trajectory() }
+func spacecraft(at epoch: Epoch) throws -> CartesianState {
+    guard epoch >= launch, epoch <= lastCentre.epoch else { throw LambertTransferPlanningError.outsideFlight }
+    for i in 0..<4 where epoch < selected.legs[i].arrivalState.epoch || i == 3 {
+        return try playbackCoasts[i].state(at: epoch)
+    }
+    throw LambertTransferPlanningError.outsideFlight
+}
+struct Playback: Encodable {
+    let mode,utc: String
+    let simulationSecondsFromLaunch,simulationSecondsPerRealSecond: Double
+    let isPaused: Bool
+    let spacecraftPositionMetres: [Double]
+    let prescribedPlanetPositionsMetres: [[Double]]
+    let spacecraftCentredPlanetPositionsRenderUnits: [[Float]]
+    let predictionUTC: String?
+    let predictedSpacecraftPositionMetres: [Double]?
+}
+var clock = try SimulationClock(epoch: launch,rate: 365*86400,coverage: launch...lastCentre.epoch)
+var playback: [Playback] = []
+func capture(_ mode: String) throws {
+    let epoch = clock.epoch, remaining = try lastCentre.epoch.duration(since: epoch)
+    let lookAhead = try CelMek.Duration(seconds: 30*86400)
+    let future = remaining >= lookAhead ? try clock.prediction(after: lookAhead) : nil
+    let renderAdapter = try RendererAdapter(origin: spacecraft(at: epoch), metresPerRenderUnit: 1e9)
+    let renderPlanets = try (0..<5).map { index in
+        let position = try renderAdapter.adapt(bodyState(index,epoch)).position
+        return [position.x,position.y,position.z]
+    }
+    playback.append(Playback(mode: mode,utc: try label(epoch),simulationSecondsFromLaunch: try epoch.duration(since: launch).seconds,
+        simulationSecondsPerRealSecond: clock.rate,isPaused: clock.isPaused,spacecraftPositionMetres: array(try spacecraft(at: epoch).position),
+        prescribedPlanetPositionsMetres: try (0..<5).map { array(try bodyState($0,epoch).position) },
+        spacecraftCentredPlanetPositionsRenderUnits: renderPlanets,
+        predictionUTC: try future.map(label),predictedSpacecraftPositionMetres: try future.map { array(try spacecraft(at: $0).position) }))
+}
+try capture("start")
+for _ in 0..<12 { try clock.advance(realDuration: CelMek.Duration(seconds: 1)); try capture("forward warp") }
+clock.setPaused(true); try clock.advance(realDuration: CelMek.Duration(seconds: 100)); try capture("paused")
+try clock.setRate(-365*86400); clock.setPaused(false)
+try clock.advance(realDuration: CelMek.Duration(seconds: 1)); try capture("reverse warp")
+try clock.seek(to: selected.legs[0].arrivalState.epoch); try capture("seek Jupiter patch")
+
 struct Output: Encodable {
     let model,axes,nativeEphemerisAxes,referenceURL: String
     let flightDays,referenceFlightDays,flightTimeDifferenceDays,injectionDeltaVelocityMetresPerSecond,departureC3SquareKilometresPerSquareSecond: Double
     let searchedCandidates: Int
     let isContinuousMissionTrajectory: Bool
     let assumptions: [String]
-    let legs: [LegReport]; let flybys: [FlybyReport]; let samples: [Sample]
+    let legs: [LegReport]; let flybys: [FlybyReport]; let samples: [Sample]; let playback: [Playback]
 }
 let output = Output(model: "Voyager 2 inspired bounded-date Lambert / unpowered flyby diagnostic",axes: heliocentric.name,
     nativeEphemerisAxes: ephemerides[0].frame.name,referenceURL: "https://science.nasa.gov/mission/voyager/fact-sheet/",
@@ -186,6 +229,6 @@ let output = Output(model: "Voyager 2 inspired bounded-date Lambert / unpowered 
         "Rank by injection delta-v plus connector velocity residuals. Residuals are unresolved asymptotic mismatches, not implemented burns.",
         "Independent local flyby arcs and Earth escape are not finitely patched to coasts; their positions and velocities can differ at transitions.",
         "Neptune departure is a chosen out-of-plane local flyby, not a reconstructed interstellar trajectory."],
-    legs: reports,flybys: encounters,samples: samples)
+    legs: reports,flybys: encounters,samples: samples,playback: playback)
 let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted,.sortedKeys]
 print(String(decoding: try encoder.encode(output),as: UTF8.self))
