@@ -791,3 +791,38 @@ pending real-kernel/oracle validation.
 Reference: [NAIF CK type-3 format and interpolation algorithm](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/ck.html#Data%20Type%203).
 Only public format and behavior documentation was used; no toolkit implementation
 source or external native library was introduced.
+
+
+## Ephemeris fallback integration
+
+`FallbackEphemeris` now accepts an optional SPK ephemeris alongside optional DE441,
+model and Kepler providers. The caller selects `.de441ThenSPK` or `.spkThenDE441`
+within the file-backed tier. Missing assets are represented by omitted providers;
+no files are loaded automatically. Exact body, origin and frame identities are required.
+
+The default SPK policy in this overload permits only missing chain links and segment
+coverage gaps to fall through. Strict `.declaredCoverageOnly` propagates these too.
+Corrupt/unsupported data, cycles, limits, frame and time-model failures, and state
+contract errors always propagate. DE441/model/Kepler query failures retain their existing
+strict behavior. Results report the selected source and skipped sources/reasons; if no
+backup succeeds, the last SPK availability error is preserved.
+
+See [EPHEMERIDES.md](EPHEMERIDES.md) for the API and provenance/coverage contracts.
+Swift Testing covers explicit file priority, absent sources, gap diagnostics, strict
+error handling and real synthetic SPK interior gaps, including retained snapshots and
+a selected unsupported segment. No optional large asset or CSPICE installation is needed.
+
+## Pinned black-box validation
+
+Small checked-in synthetic kernels and outputs from CSPICE N0067 now independently
+check SPK types 2/3 and chained centres, CK types 1/2/3 (including missing rates), binary
+PCK type-2 orientation, leap labels and fractional SCLK correlations. The normal Swift
+Testing suite needs neither CSPICE nor network access. Existing independent public-format
+fixtures retain coverage of byte orders, malformed inputs, precedence, gaps and unload/reload.
+
+See [fixture provenance and tolerances](Tests/CelMekTests/Fixtures/spice-oracle/README.md)
+and [optional generator](Scripts/generate_spice_oracle.py). Toolkit/wrapper versions,
+asset hashes and a reference-output hash are pinned. The optional generator uses only
+public writer/query APIs with a binary oracle; no toolkit implementation source was used.
+These tests validate supported synthetic formats and conventions, not deferred types or
+all real mission assets. No CSPICE runtime dependency was added to the library.

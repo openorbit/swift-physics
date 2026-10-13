@@ -336,6 +336,39 @@ selected source (including narrower dependency coverage, corrupt coefficients,
 and state-contract violations) propagate. Accuracy hints control model evaluation,
 not tier ordering.
 
+The SPK overload requires `fileBackedOrder: .de441ThenSPK` or `.spkThenDE441`:
+
+```swift
+let ephemeris = try FallbackEphemeris(
+    de441: optionalDEProvider,
+    spk: optionalSPKProvider,
+    fileBackedOrder: .de441ThenSPK,
+    spkFallbackPolicy: .missingLinksAndGaps,
+    model: optionalModelProvider,
+    kepler: optionalKeplerProvider)
+let result = try ephemeris.selection(at: epoch)
+// result.tier distinguishes .de441, .spk, .model and .kepler.
+// result.source identifies the selected provider; skippedSources records reasons.
+```
+
+Both file sources precede the analytic/fitted and Kepler tiers. The new overload
+permits only `SpiceSPKResolutionError.missingLink` and `.coverageGap` from the SPK
+slot to fall through, and records the missing body ID. Use `.declaredCoverageOnly`
+to propagate those failures too. No other error permits retry, including unsupported
+SPK types, malformed coefficients, cycles, work limits, missing frame bindings,
+time-model failures or returned state-contract violations. If no fallback succeeds,
+the last permitted SPK availability error is rethrown. Generic `outsideCoverage`
+errors from an otherwise eligible provider are not interpreted as SPK gaps.
+
+Assets remain caller-owned and optional: omit absent providers; loading or constructing
+an invalid provider must fail before composing the chain. SPK construction still validates
+coverage endpoints, so a wholly unavailable dataset is not an implicit optional provider.
+Interior SPK gaps can be handled by the composed chain. Every supplied provider must
+already share exact target, origin and frame identities. Retained SPK snapshots preserve
+selection after pool unload/reload. The existing acceleration normalization and coverage
+union checks still apply; source metadata records provider-level provenance, and
+`SpiceSPKStateProvider.evaluation` remains available for per-segment chain details.
+
 `DefaultEphemerisModel.makeProvider(for:coverage:tdbModel:frames:velocityStep:accuracy:)`
 constructs the native-frame default where one exists:
 

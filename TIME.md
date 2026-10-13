@@ -171,6 +171,27 @@ calendar columns are checked for integer syntax. Tables must be ordered and chan
 must be ±1 second. Negative leap days are supported, although none occur in the
 bundled history. Invalid leap labels and out-of-coverage dates throw `UTCError`.
 
+A SPICE LSK can provide the same `LeapSecondTable` in place of the bundled history:
+
+```swift
+let kernels = try SpiceKernelSet()
+try kernels.load(lskURL)
+let data = try kernels.snapshot().leapSecondData()
+let table = try data.table(
+    validUntilModifiedJulianDay: expiryMJD,
+    version: "my LSK asset version")
+let instant = try Epoch(utc: utcDate, using: table)
+let roundTrip = try instant.utc(using: table)
+```
+
+Use that table wherever UTC conversion or Earth-orientation conversion takes a table.
+It preserves kernel source paths and follows effective kernel-pool precedence. The
+caller supplies its version and exclusive expiry because an LSK does not certify a
+future validity date. Loading it does not replace a global default: time APIs receive
+the chosen table explicitly, and a retained table remains valid after kernel unload.
+The LSK's periodic TDB parameters are separate from leap-second history and do not
+automatically replace the injected `TDBTimeModel`.
+
 UTC days contain 86399, 86400 or 86401 labelled seconds. `secondOfDay` is validated
 against the chosen table, so 86400 is accepted only on positive leap days. Advance
 `Epoch` by SI durations for simulation arithmetic, rather than adding nominal UTC

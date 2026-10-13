@@ -7,9 +7,11 @@ import Math
   private struct Source: EphemerisProvider {
     let metadata: EphemerisMetadata
     let value: Double
+    var error: (any Error)?
     var fails = false
     var wrongEpoch = false
     func state(at epoch: Epoch) throws -> CartesianState {
+      if let error { throw error }
       if fails { throw Failure.corrupt }
       return try CartesianState(epoch: wrongEpoch ? .j2000 : epoch, frame: frame,
         position: SIMD3(value,0,0), velocity: .zero,
@@ -70,6 +72,78 @@ import Math
     let touching = try FallbackEphemeris(de441: p, model: source(frame,1,3,2))
     #expect(try touching.selection(at: epoch(1)).tier == .de441)
     #expect(try touching.selection(at: epoch(3)).tier == .model)
+  }
+  @Test func explicitFilePriorityAvailabilityDiagnosticsAndFatalErrors() throws {
+    let frame = Frame(name: "file fallback",pseudoInertial: true)
+    let de = try source(frame,-1,1,1), spk = try source(frame,-2,2,2), model = try source(frame,-3,3,3)
+    for (order,expected) in [(FileBackedEphemerisOrder.de441ThenSPK,EphemerisFallbackTier.de441),(.spkThenDE441,.spk)] {
+      let chain = try FallbackEphemeris(de441: de,spk: spk,fileBackedOrder: order,model: model)
+      #expect(try chain.selection(at: .j2000).tier == expected)
+      let selected = try chain.selection(at: epoch(2))
+      #expect(selected.tier == .spk)
+      #expect(selected.source.provenance.source == "source 2.0")
+    }
+    for failure in [SpiceSPKResolutionError.missingLink(bodyID: 399,secondsTDB: 0),.coverageGap(bodyID: 399,secondsTDB: 0)] {
+      var unavailable = spk; unavailable.error = failure
+      let chain = try FallbackEphemeris(de441: de,spk: unavailable,fileBackedOrder: .spkThenDE441,model: model)
+      let result = try chain.selection(at: .j2000)
+      #expect(result.tier == .de441 && result.skippedSources.count == 1)
+      #expect(result.skippedSources[0].tier == .spk)
+      #expect(result.skippedSources[0].source.provenance.source == "source 2.0")
+      let strict = try FallbackEphemeris(spk: unavailable,fileBackedOrder: .spkThenDE441,spkFallbackPolicy: .declaredCoverageOnly,model: model)
+      #expect(throws: failure) { try strict.state(at: .j2000) }
+      let exhausted = try FallbackEphemeris(spk: unavailable,fileBackedOrder: .spkThenDE441)
+      #expect(throws: failure) { try exhausted.state(at: .j2000) }
+      // A model cannot use an SPK error to masquerade as an availability skip.
+      let mislabeled = try FallbackEphemeris(model: unavailable,kepler: model)
+      #expect(throws: failure) { try mislabeled.state(at: .j2000) }
+    }
+    for failure: any Error in [Failure.corrupt,SpiceSPKResolutionError.cycle([399,3]),
+      SpiceSPKResolutionError.descriptorLimit(1),EphemerisError.outsideCoverage,
+      SpiceSPKAdapterError.unknownNativeFrame(2)] {
+      var bad = spk; bad.error = failure
+      let chain = try FallbackEphemeris(spk: bad,fileBackedOrder: .spkThenDE441,model: model)
+      #expect(throws: (any Error).self) { try chain.state(at: .j2000) }
+    }
+    let optional = try FallbackEphemeris(spk: nil,fileBackedOrder: .spkThenDE441,model: model)
+    #expect(try optional.selection(at: .j2000).tier == .model)
+  }
+  @Test func realSPKInteriorGapAndRetainedSnapshotFallback() throws {
+    let files = SpiceDAFTests(), helpers = SpiceSPKAdapterTests()
+    try files.withFile(SPKFixture(records: 1).daf.bytes) { early in
+      try files.withFile(SPKFixture(initial: 10,records: 1).daf.bytes) { late in
+        let set = try SpiceKernelSet(); try set.load(early); let latest = try set.load(late)
+        let coverage = try epoch(-18)...epoch(18)
+        let provider = try SpiceSPKStateProvider(snapshot: set.snapshot(),body: .earth,
+          frameBindings: helpers.bindings(),coverage: coverage,tdbModel: SpiceSPKAdapterTests.Clock(coverage: coverage),
+          dataProvenance: helpers.provenance)
+        let backup = try source(CelestialFrames.icrf,-30,30,42,origin: .solarSystemBarycentre,acceleration: true)
+        let chain = try FallbackEphemeris(spk: provider,fileBackedOrder: .spkThenDE441,model: backup)
+        try set.unload(latest)
+        for t in [-18.0,18,-15,15] {
+          let result = try chain.selection(at: epoch(t))
+          #expect(result.tier == .spk && result.skippedSources.isEmpty)
+          let expected = try provider.checkedState(at: epoch(t))
+          #expect(result.state == expected)
+        }
+        let gap = try chain.selection(at: .j2000)
+        #expect(gap.tier == .model && gap.state.position.x == 42 && gap.state.acceleration == nil)
+        #expect(gap.skippedSources[0].reason == .spkCoverageGap(399))
+        #expect(gap.skippedSources[0].source.provenance.source.contains(late.path))
+        let outside = try chain.selection(at: epoch(25))
+        #expect(outside.skippedSources[0].reason == .outsideDeclaredCoverage)
+        // A highest-priority unsupported segment inside the interval must not become a gap.
+        try set.load(late)
+        try files.withFile(SPKFixture(type: 99,initial: -1,interval: 2,records: 1).daf.bytes) { unsupported in
+          try set.load(unsupported)
+          let broken = try SpiceSPKStateProvider(snapshot: set.snapshot(),body: .earth,
+            frameBindings: helpers.bindings(),coverage: coverage,tdbModel: SpiceSPKAdapterTests.Clock(coverage: coverage),
+            dataProvenance: helpers.provenance)
+          let protected = try FallbackEphemeris(spk: broken,fileBackedOrder: .spkThenDE441,model: backup)
+          #expect(throws: SpiceSPKError.unsupportedType(99)) { try protected.state(at: .j2000) }
+        }
+      }
+    }
   }
   @Test func defaultBodyIdentityMapping() {
     for body: BodyIdentifier in [.sun,.mercury,.venus,.earth,.marsBarycentre,.jupiterBarycentre,
