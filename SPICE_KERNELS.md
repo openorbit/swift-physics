@@ -1,14 +1,70 @@
 # Native Swift SPICE kernels
 
+## Support matrix
+
+This is a native Swift subset of the public SPICE formats and behavior, not the
+SPICE Toolkit or a complete replacement for its frame, time and geometry APIs.
+The library has no CSPICE/C/Fortran runtime dependency. Its algorithms are implemented
+from public documentation; a binary CSPICE oracle is used only for optional fixture
+generation. All application state outputs use metres and elapsed atomic seconds.
+
+| Kernel/format | Implemented evaluation | Time/axes requirements | Derivative availability |
+| --- | --- | --- | --- |
+| MK (`KPL/MK`) | Bounded manifests, relative dependencies and path substitution | Paths relative to containing manifest | Not applicable |
+| LSK (`KPL/LSK`) | Validated post-1971 leap history as `LeapSecondTable` | Caller supplies version and expiry; explicitly inject table into UTC APIs | Periodic TDB parameters retained, not installed as a TDB model |
+| Text PCK (`KPL/PCK`) | Sourced radii/GM, supported polynomial/periodic orientation | Explicit body/system, base axes, coverage and TDB model | Analytic angular velocity and acceleration |
+| FK (`KPL/FK`) class 4 | Fixed MATRIX/ANGLES/QUATERNION definitions and providers | Explicit relative axes and centre state provider | Fixed relative angular derivatives; centre acceleration policy explicit |
+| SPK DAF type 2 | Chebyshev position and differentiated velocity; centre chains | TDB model, exact NAIF identities and native axes bindings | Velocity converted to atomic seconds; acceleration unavailable |
+| SPK DAF type 3 | Separate position/velocity polynomials; centre chains | Same as type 2; supplied velocity need not equal position derivative | Acceleration unavailable |
+| Binary PCK DAF type 2 | Euler polynomials and continuous orientation provider | Explicit frame class ID, inertial base axes, coverage and TDB model | Analytic atomic-time angular velocity and acceleration |
+| SCLK (`KPL/SCLK`) type 1 | Partitions, canonical fields, fractional ticks, TT/TDB correlation | Explicit spacecraft ID, tick coverage and TDB model when needed | Piecewise local clock rate; jumps/gaps/ambiguity diagnosed |
+| CK DAF type 1 | Discrete pointing and exact-sample attitude | Explicit instrument/clock association, inertial axes bindings and rate convention | Optional stored angular velocity; acceleration unavailable |
+| CK DAF type 2 | Constant-rate interval pointing and continuous attitude | Explicit clock/axes; record seconds/tick combined with clock correlation | Local clock-consistent angular velocity and acceleration |
+| CK DAF type 3 | Fixed-axis pointing interpolation and independent stored-rate interpolation | Explicit clock/axes and rate convention; declared interpolation intervals | Optional stored angular velocity; acceleration unavailable in attitude adapter |
+
+Binary files require modern IEEE `LTL-IEEE` or `BIG-IEEE` DAF identification and
+integrity markers. Loading inspects descriptors; it does not certify every payload.
+Selected unsupported or malformed segments fail when evaluated. Coverage endpoints
+are inclusive; interior gaps remain possible. All supplied coefficients are evaluated;
+accuracy hints do not truncate kernel data. Synthetic fixtures exercise both byte orders;
+pinned CSPICE N0067 outputs check the supported state/orientation/time conventions.
+
+## Frame combinations and identity contracts
+
+A native integer frame ID is bound explicitly to a library `Frame` through
+`SpiceFrameBindings`. `.icrfJ2000(provenance:)` is a caller assertion about the
+particular dataset's axes, not an automatic equivalence inferred from a label.
+Origins and body identities must also be explicit: planet centres, system barycentres
+and frame class IDs are not interchangeable. An FK centre field alone does not construct
+a physical centre provider or connect the entire frame graph.
+
+| Combination | Supported integration |
+| --- | --- |
+| SPK native axes equal requested axes | Direct SI ephemeris output with explicit physical origin |
+| SPK chain links in different native axes | Convert each displacement through caller-owned FrameTree; apply rotation derivatives without duplicating origin translation |
+| Fixed FK relative to registered axes | Decode class-4 definition and create a frame with explicit relative axes and centre provider |
+| Text/binary PCK orientation | Inject supported orientation provider into body-fixed frame machinery; bind base axes explicitly |
+| CK type 2 orientation | Use `SpiceCKAttitudeProvider` through `AttitudeOrientationProvider`; local derivatives support rotating frames |
+| CK types 1/3 orientation | Primitive pointing/attitude supported; frame adapter rejects unavailable acceleration |
+| Automatic FK class-2/class-3 registration | Deferred; binary PCK/CK providers are available directly with explicit bindings |
+| FK dynamic/switch frames and arbitrary SPICE name lookup | Deferred; no implicit toolkit graph resolver |
+
+SPK axes conversions can use registered rotating frames. PCK/CK orientation adapters
+currently require pseudo-inertial reference/base axes; their explicit frame-tree conversions
+do not imply unrestricted non-inertial base support. Keep a supplied FrameTree alive
+externally: providers hold it weakly to avoid reference cycles. A body-fixed centre state
+without acceleration requires the caller to select an explicit acceleration policy.
+See [frame API](Sources/CelMek/FrameTransform.swift) and the provider sections below.
+
 ## Supported kernel loading
 
 `SpiceKernelSet` is a caller-owned, synchronized text kernel pool. It loads
 numeric/string assignments in identified `KPL/PCK`, `KPL/FK`, `KPL/LSK`, `KPL/SCLK` and
 `KPL/MK` files. Explicit snapshot adapters supply leap-second tables, sourced
-constants, PCK orientations, fixed FK frame providers and type-1 clock correlation. Modern IEEE DAF/SPK and DAF/PCK
+constants, PCK orientations, fixed FK frame providers and type-1 clock correlation. Modern IEEE DAF/SPK, DAF/PCK and DAF/CK
 files can also be loaded for inspection and bounded array reads.
-Primitive geometric state evaluation supports SPK types 2 and 3; other architectures
-are rejected by the kernel set.
+Geometric SPK types 2/3, binary PCK type 2 and CK types 1/2/3 have evaluation
+adapters described below; other architectures are rejected by the kernel set.
 
 ```swift
 let kernels = try SpiceKernelSet()
@@ -49,7 +105,7 @@ are intentional library conventions rather than full CSPICE path compatibility.
 ## Ownership, precedence and invalidation
 
 Every successful load creates an opaque ownership group, including its manifest
-and dependencies in traversal order. SPK readers appear in `snapshot.binaryKernels`. Later groups have higher priority. Within a
+and dependencies in traversal order. SPK/PCK/CK readers appear in `snapshot.binaryKernels`. Later groups have higher priority. Within a
 file, later direct assignments replace earlier values and incremental assignments
 append. Inspection returns contributing source paths and immediate parent manifests.
 Repeated loading creates another group, taking a fresh snapshot of file contents.
@@ -88,20 +144,33 @@ continued paths, provenance, independent sets, reload/unload, retained snapshots
 transactional rollback, missing dependencies, recursive manifests, unsupported
 formats and bounded parsing. They require neither large assets nor CSPICE.
 
-## Remaining work
+## Explicitly deferred extensions
 
-Next: CK loading and attitude providers using the explicit SCLK clock. Additional binary PCK types,
-file-backed fallback integration and independent black-box reference fixtures follow
-as tracked in `ROADMAP.md`. Kernel data provenance, licensing and redistribution
-must be assessed per supplied asset; loading does not grant redistribution rights.
+Deferred formats include IK instrument geometry, DSK shapes, EK event tables,
+additional SPK types, binary PCK types 3/20 and CK types 4/5/6. Raw variables in
+supported text kernels are not equivalent to semantic support for those subsystems.
+SCLK types/time systems beyond the documented subset, legacy DAF representations,
+DAS, transfer formats and decoded binary comment lines remain unsupported.
+
+Automatic frame-graph construction, general FK classes 1/2/3/5/6, arbitrary frame-name
+resolution, full toolkit time-string parsing, pre-1972 UTC frequency adjustments,
+light-time/stellar-aberration corrections and full toolkit tolerance-expanded descriptor
+search are outside this implementation. Half-turn CK interpolation and branch-boundary
+derivatives follow the explicit library policies below. A derivative-consistent opt-in
+CK type-3 orientation provider would need a separate contract from stored-rate interpolation.
+
+The native DE441 reader is a separate supported format; see [DE441.md](DE441.md).
+Fallback order between DE441 and SPK is explicit, followed by analytic/fitted and Kepler
+sources. Future additions should keep the documented-source implementation constraint
+and add pinned independent references rather than silently expanding compatibility.
 
 ## DAF binary inspection
 
 `SpiceDAFFile` opens modern `DAF/SPK`, `DAF/CK` and `DAF/PCK` files marked
 `LTL-IEEE` or `BIG-IEEE`, with an intact published FTP integrity string. Legacy
 `NAIF/DAF`, absent format markers, VAX representations, DAS and transfer formats
-are unsupported. `SpiceKernelSet` registers SPKs and binary PCKs; low-level CK
-inspection does not imply attitude/orientation evaluation support.
+are unsupported. `SpiceKernelSet` registers SPKs, binary PCKs and CKs; supported
+segment evaluators are listed in the support matrix.
 
 Metadata includes internal name, format, size, summary dimensions, ordered arrays
 and raw double/integer summary components. SPK descriptors additionally expose NAIF
@@ -826,3 +895,128 @@ asset hashes and a reference-output hash are pinned. The optional generator uses
 public writer/query APIs with a binary oracle; no toolkit implementation source was used.
 These tests validate supported synthetic formats and conventions, not deferred types or
 all real mission assets. No CSPICE runtime dependency was added to the library.
+
+## Specification register
+
+These are the public document revisions used for the supported formats, checked on
+2026-10-13. A revision date identifies the document, not the version of a kernel asset.
+Public API descriptive contracts clarify conventions where the required reading is
+incomplete; toolkit implementation source is not an implementation reference.
+
+| Public NAIF reference | Stated revision | Sections used |
+| --- | --- | --- |
+| [Kernel Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/kernel.html) | 2021 DEC 29 | Type identification, text specifications, variable rules, manifests, competing data |
+| [DAF Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/daf.html) | 2017 MAR 22 | File record, summary/name records, addresses, array access and integrity bytes |
+| [SPK Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/spk.html) | 2021 AUG 31 | Types 2/3, state conventions, centre graph, segment order and priority |
+| [PCK Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/pck.html) | 2021 DEC 24 | Text constants/orientation, binary type 2, frame class IDs and base-frame/epoch aliases |
+| [Frames Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/frames.html) | 2021 DEC 31 | Frame identities, TK class-4 specifications and matrix conventions |
+| [Time Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/time.html) | 2021 DEC 23 | UTC/TAI/TT/TDB relationships and LSK parameters |
+| [SCLK Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/sclk.html) | 2021 SEP 04 | Encoded clocks, partitions, type-1 constants, time systems and correlations |
+| [CK Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/ck.html) | 2014 FEB 13 | C-matrix/rate conventions, types 1/2/3, directories, intervals and independent rate interpolation |
+| [Rotation Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/rotation.html) | 2017 MAR 09 | Hamilton quaternions and coordinate-rotation signs |
+
+The binary PCK type-3 layout and decoded DAF comment delimiters are documented gaps
+for this implementation, not invitations to recover details from toolkit source.
+The public `pckw02`, `scencd`, quaternion and writer/query API contracts used for
+clarification or black-box generation are linked in their sections and the
+[oracle fixture provenance](Tests/CelMekTests/Fixtures/spice-oracle/README.md).
+
+## Asset provenance and attribution
+
+Application code supplies `PhysicalDataProvenance` when constructing providers.
+Text adapters retain contributing source paths; binary evaluations expose selected
+file/array/record or centre-chain contributions. Snapshot `cacheScope` changes after
+pool mutation. A scope is an in-process cache namespace, not a durable content hash.
+Provider coverage is a query contract, not a certificate of physical accuracy.
+
+Keep an application-owned sidecar for every shipped or downloaded kernel set:
+
+| Field | Purpose |
+| --- | --- |
+| Asset ID, version and SHA-256 | Identify exact bytes across installs and saved games |
+| Original filename and source URL/archive identifier | Trace the acquired dataset |
+| Producer, producing institution and retrieval date | Preserve attribution and provenance |
+| Redistribution terms and notices | Record the applicable source's distribution conditions |
+| Architecture, supported segment types, body/frame IDs | Check compatibility before provider creation |
+| Actual binary coverage and application-selected usable coverage | Avoid treating filenames/title strings as authoritative coverage |
+| Native units/time scale, axes bindings and injected time-model version | Make conversion assumptions reproducible |
+| Dependency paths, file priority, DE441/SPK order and fallback policy | Preserve deterministic source selection |
+| LSK expiry and SCLK partition/correlation coverage | Keep time dependencies within the chosen validity contract |
+| Modification/subsetting history | Distinguish altered data and its last producer |
+
+The library does not authenticate assets or calculate production content hashes
+at load time. Binary comments are preserved as raw records; decoded attribution
+is not automatically extracted. Obtain producer metadata from the dataset's supplied
+comments/readme/archive record and carry it in the sidecar. A provider provenance
+string complements that manifest; it does not replace it.
+
+NAIF's published rules permit redistribution of unmodified kernels it distributes;
+modified kernels must replace attribution to identify the last modifier and institution.
+Modification guidance also calls for a new filename and documented, validated changes.
+Kernels supplied by other entities follow those entities' rules. See the
+[NAIF kernel distribution and redistribution rules](https://naif.jpl.nasa.gov/naif/rules.html).
+Do not infer a blanket license for mission assets from the Swift library's license.
+
+NAIF encourages acknowledgement of SPICE/NAIF/PDS resources and of the teams supplying
+the underlying data. Retain relevant producer references and archive identifiers in
+credits; see [NAIF credit guidance](https://naif.jpl.nasa.gov/naif/credit.html).
+The independent Swift implementation is not presented as NAIF-supported toolkit code.
+The optional oracle runtime is not shipped with the library; toolkit redistribution
+has separate rules from kernel redistribution. The checked-in oracle kernels are
+project-authored synthetic test inputs and generated outputs, documented separately.
+
+## Optional game asset packaging
+
+Kernel assets are application-owned. The library receives local URLs, never downloads
+kernels automatically, and does not require a planetary or mission asset at startup.
+Large production kernels belong in an optional application bundle/content pack or a
+versioned download managed by the game. They are not SwiftPM library resources.
+Only small synthetic reference fixtures are bundled with the test target.
+
+A content pack can use this layout (names are application conventions):
+
+```text
+CelestialData/v1/
+  assets.json          # provenance, hashes, coverage, dependencies, policy
+  solar-system.tm      # relative paths; desired load order
+  planets.bsp
+  leap-seconds.tls
+  body-constants.tpc
+  frames.tf
+  spacecraft.tsc
+  attitude.bc
+```
+
+For a concrete set, include only dependencies it needs. The manifest should not list
+files that the application deliberately omitted as optional; missing listed dependencies
+are errors. Fixed frame definitions need caller-supplied centre providers; CK providers
+need explicit instrument/spacecraft-clock association. There is no implicit association
+from a filename or numeric ID convention.
+
+Recommended application flow:
+
+1. Resolve the installed pack and verify its sidecar/hashes before opening files.
+2. Load its meta-kernel into a caller-owned `SpiceKernelSet`. A load is atomic;
+   invalid files or dependencies fail instead of publishing a partial pool.
+3. Inspect the retained snapshot, construct explicit time/frame/body providers and
+   constrain coverage to their dependencies. An LSK table can replace the built-in
+   history through the explicit [UTC APIs](TIME.md).
+4. Compose `FallbackEphemeris` with the selected DE441/SPK priority, then analytic/fitted
+   defaults where applicable and caller-seeded Kepler. If a pack is absent, omit that
+   provider. If a present pack is invalid, report the error; do not treat it as absent.
+5. Cache using snapshot/provider identity and query inputs. Store durable asset versions,
+   time-model configuration and fallback policy in saved simulation inputs.
+
+Files must remain unchanged while any snapshot/provider/reader using them is alive.
+Install updates in a new version directory, load a new set and replace application
+provider references deliberately. Unloading a pool group does not close readers held
+by older snapshots, and does not rewrite decoded tables or providers. Retire old packs
+only after their users release them. Binary IO is serialized and reads are bounded;
+provider evaluation can still depend on externally owned frame/time providers whose
+concurrency contracts the application must respect.
+
+The existing [DE441 packaging guidance](DE441.md) remains applicable to native DE assets.
+Do not infer `.bsp` support from the DE number: inspect the SPK's actual segment types.
+The checked-in [black-box validation fixtures](Tests/CelMekTests/Fixtures/spice-oracle/README.md)
+and public-format tests verify the supported subset offline; shipping a different
+production dataset remains subject to its actual types, axes, time data and coverage.
