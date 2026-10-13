@@ -1,0 +1,45 @@
+{
+  "format": "celmek.simulation",
+  "schemaVersion": 1,
+  "clock": {
+    "epoch": {"offsetFromJ2000": {"wholeSeconds": "2", "fractionalSecond": 0.5}},
+    "anchor": {"offsetFromJ2000": {"wholeSeconds": "0", "fractionalSecond": 0}},
+    "realElapsed": {"wholeSeconds": "1", "fractionalSecond": 0.25},
+    "rate": 2,
+    "isPaused": false
+  },
+  "states": [{
+    "id": "ship",
+    "frameID": "earth-inertial-v1",
+    "epoch": {"offsetFromJ2000": {"wholeSeconds": "8000000000000", "fractionalSecond": 0.125}},
+    "positionMetres": {"x": 7000000, "y": 0, "z": 0},
+    "velocityMetresPerSecond": {"x": 0, "y": 7500, "z": 0},
+    "dryMassKilograms": 100,
+    "propellantMassKilograms": 25
+  }],
+  "twoBodyInputs": [{
+    "id": "coast",
+    "initialState": {
+      "id": "coast",
+      "frameID": "earth-inertial-v1",
+      "epoch": {"offsetFromJ2000": {"wholeSeconds": "0", "fractionalSecond": 0}},
+      "positionMetres": {"x": 7000000, "y": 0, "z": 0},
+      "velocityMetresPerSecond": {"x": 0, "y": 7500, "z": 0}
+    },
+    "centralBody": {"naif": 399},
+    "gmCubicMetresPerSecondSquared": 398600441800000,
+    "gmConvention": "newtonian",
+    "gmSource": "Version 1 fixture",
+    "gmVersion": "1",
+    "absoluteTimeToleranceSeconds": 0.00000001,
+    "relativeTimeTolerance": 0.000000000001,
+    "maximumIterations": 100,
+    "maximumBracketExpansions": 90
+  }],
+  "dependencies": [{
+    "id": "earth-inertial-v1",
+    "kind": "frame",
+    "version": "1",
+    "parameters": {"origin": "naif:399", "axes": "ICRF", "pseudoInertial": "true"}
+  }]
+}

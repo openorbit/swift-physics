@@ -102,3 +102,6 @@ storage overhead. Setup measurements are single observations in a fixed order an
 include first-use effects; do not interpret their ordering as a mode speed ranking.
 The renderer workload lasts only microseconds per batch and is especially sensitive
 to timer overhead and optimizer effects; use it as a small-operation baseline.
+
+For repeatability assumptions, platform limits and replay/comparison policy, see
+[REPRODUCIBILITY.md](REPRODUCIBILITY.md).

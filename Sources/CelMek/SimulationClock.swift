@@ -60,3 +60,31 @@ public struct SimulationClock: Sendable {
         guard coverage?.contains(epoch) ?? true else { throw SimulationClockError.outsideCoverage }
     }
 }
+
+extension SimulationClock {
+    /// Includes the elapsed anchor to preserve continuation after a checkpoint.
+    public func saved() -> SavedSimulationClock {
+        SavedSimulationClock(epoch: SavedEpoch(epoch),anchor: SavedEpoch(anchor),realElapsed: SavedDuration(realElapsed),
+            rate: rate,isPaused: isPaused,coverageStart: coverage.map { SavedEpoch($0.lowerBound) },
+            coverageEnd: coverage.map { SavedEpoch($0.upperBound) })
+    }
+    internal static func restoring(_ saved: SavedSimulationClock) throws -> SimulationClock {
+        let coverage: ClosedRange<Epoch>?
+        switch (saved.coverageStart,saved.coverageEnd) {
+        case (nil,nil): coverage = nil
+        case let (start?,end?):
+            let lower = try start.restore(), upper = try end.restore()
+            guard lower <= upper else { throw SimulationSnapshotError.invalidClock }
+            coverage = lower...upper
+        default: throw SimulationSnapshotError.invalidClock
+        }
+        let elapsed = try saved.realElapsed.restore()
+        guard elapsed >= .zero, !(saved.isPaused || saved.rate == 0) || elapsed == .zero else {
+            throw SimulationSnapshotError.invalidClock
+        }
+        var clock = try SimulationClock(epoch: saved.anchor.restore(),rate: saved.rate,isPaused: saved.isPaused,coverage: coverage)
+        try clock.advance(realDuration: elapsed)
+        guard clock.epoch == (try saved.epoch.restore()) else { throw SimulationSnapshotError.invalidClock }
+        return clock
+    }
+}

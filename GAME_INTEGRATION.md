@@ -91,3 +91,6 @@ For component synchronization, frame/asset lifetimes and actor isolation, see
 
 For repeatability assumptions, platform limits and replay/comparison policy, see
 [REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+
+Versioned saved states and reconstruction policy are documented in
+[SERIALIZATION.md](SERIALIZATION.md).
