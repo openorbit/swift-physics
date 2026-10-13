@@ -41,6 +41,11 @@ let package = Package(
             dependencies: ["CelMek", "Math"],
             path: "Examples/AttitudeDynamicsDemo"),
         .executableTarget(
+            name: "Voyager2GameDemo",
+            dependencies: ["CelMek", "Math"],
+            path: "Examples/Voyager2GameDemo",
+            exclude: ["README.md"]),
+        .executableTarget(
             name: "VSOP87Characterization",
             dependencies: ["CelMek", "Math"],
             path: "Tools/VSOP87Characterization"),
