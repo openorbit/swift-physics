@@ -54,11 +54,18 @@ public struct SpiceKernelLoad: Sendable {
 }
 
 /// Immutable evaluation view. Retained views remain valid after set mutation.
+public struct SpiceBinaryKernel: Sendable {
+    public let source: SpiceKernelSource
+    public let file: SpiceDAFFile
+}
+
 public struct SpiceKernelSnapshot: Sendable {
     /// Changes after every successful mutation; suitable as an external cache namespace.
     public let cacheScope: EphemerisCacheScope
     public let loads: [SpiceKernelLoad]
     public let variables: [String: SpiceKernelVariable]
+    /// Loaded SPKs/PCKs/CKs in increasing priority order; arrays retain DAF list order.
+    public let binaryKernels: [SpiceBinaryKernel]
     public subscript(name: String) -> SpiceKernelVariable? { variables[name] }
 }
 
@@ -71,27 +78,31 @@ private struct SpiceAssignment {
 private struct SpiceLoadedGroup {
     let metadata: SpiceKernelLoad
     let assignments: [(SpiceAssignment, SpiceKernelSource)]
+    var binaries: [SpiceBinaryKernel] = []
 }
 
 /// Caller-owned kernel pool. Mutations are serialized; each load commits atomically.
-/// Only the documented numeric/string text subset is currently supported.
+/// Supports the documented text subset and SPK/PCK/CK binary inspection; evaluation is separate.
 public final class SpiceKernelSet: @unchecked Sendable {
     public let limits: SpiceKernelLimits
+    public let dafLimits: SpiceDAFLimits
     private let lock = NSLock()
     private var groups: [SpiceLoadedGroup] = []
     private var scope = EphemerisCacheScope()
-    public init(limits: SpiceKernelLimits? = nil) throws {
+    public init(limits: SpiceKernelLimits? = nil, dafLimits: SpiceDAFLimits? = nil) throws {
         self.limits = try limits ?? SpiceKernelLimits()
+        self.dafLimits = try dafLimits ?? SpiceDAFLimits()
     }
     public func snapshot() -> SpiceKernelSnapshot {
         lock.lock(); defer { lock.unlock() }
-        return SpiceKernelSnapshot(cacheScope: scope, loads: groups.map(\.metadata), variables: pool(groups))
+        return SpiceKernelSnapshot(cacheScope: scope, loads: groups.map(\.metadata), variables: pool(groups), binaryKernels: groups.flatMap(\.binaries))
     }
     /// Paths are resolved relative to the containing manifest, independent of process cwd.
     /// A repeated load is a new ownership group and raises its data priority.
     @discardableResult public func load(_ url: URL) throws -> SpiceKernelLoadID {
         lock.lock(); defer { lock.unlock() }
         var sources: [SpiceKernelSource] = []
+        var binaries: [SpiceBinaryKernel] = []
         var assignments: [(SpiceAssignment, SpiceKernelSource)] = []
         var assignmentCount = 0, valueCount = 0
         func visit(_ input: URL, parent: String?, stack: [String]) throws {
@@ -104,8 +115,19 @@ public final class SpiceKernelSet: @unchecked Sendable {
             do {
                 let handle = try FileHandle(forReadingFrom: file)
                 defer { try? handle.close() }
+                let prefix = try handle.read(upToCount: 8) ?? Data()
+                if prefix.starts(with: Array("DAF/".utf8)) {
+                    let binary = try SpiceDAFFile(url: file, limits: dafLimits)
+                    guard ["SPK", "PCK", "CK"].contains(binary.metadata.kind) else { throw SpiceKernelError.unsupportedFormat("DAF/" + binary.metadata.kind) }
+                    let source = SpiceKernelSource(path: path, kind: binary.metadata.kind, parentManifest: parent)
+                    sources.append(source); binaries.append(SpiceBinaryKernel(source: source, file: binary))
+                    return
+                }
+                try handle.seek(toOffset: 0)
                 data = try handle.read(upToCount: limits.maximumFileBytes + (limits.maximumFileBytes < Int.max ? 1 : 0)) ?? Data()
-            } catch {
+            } catch let error as SpiceDAFError { throw error }
+            catch let error as SpiceKernelError { throw error }
+            catch {
                 throw SpiceKernelError.dependency(source: parent ?? path, path: path, reason: "cannot read file: \(error)")
             }
             guard data.count <= limits.maximumFileBytes else { throw SpiceKernelError.resourceLimit("file bytes: \(path)") }
@@ -156,7 +178,7 @@ public final class SpiceKernelSet: @unchecked Sendable {
         }
         try visit(url, parent: nil, stack: [])
         let id = SpiceKernelLoadID(rawValue: UUID())
-        let candidate = SpiceLoadedGroup(metadata: SpiceKernelLoad(id: id, rootPath: url.standardizedFileURL.path, sources: sources), assignments: assignments)
+        let candidate = SpiceLoadedGroup(metadata: SpiceKernelLoad(id: id, rootPath: url.standardizedFileURL.path, sources: sources), assignments: assignments, binaries: binaries)
         let proposed = groups + [candidate]
         guard proposed.reduce(0, { $0 + $1.metadata.sources.count }) <= limits.maximumFiles,
               proposed.reduce(0, { $0 + $1.assignments.count }) <= limits.maximumAssignments,
@@ -219,7 +241,7 @@ private struct SpiceTextParser {
         }
         let rows = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n").components(separatedBy: "\n")
         let header = rows[0].trimmingCharacters(in: .whitespaces)
-        guard ["KPL/PCK", "KPL/FK", "KPL/LSK", "KPL/MK"].contains(header) else { throw SpiceKernelError.unsupportedFormat(header) }
+        guard ["KPL/PCK", "KPL/FK", "KPL/LSK", "KPL/SCLK", "KPL/MK"].contains(header) else { throw SpiceKernelError.unsupportedFormat(header) }
         kind = String(header.dropFirst(4))
         var active = false
         for (line, row) in rows.enumerated().dropFirst() {
@@ -271,11 +293,15 @@ private struct SpiceTextParser {
                     let start = index
                     while index < bytes.count, ![9,10,32,44,40,41].contains(bytes[index]) { index += 1 }
                     let token = String(decoding: bytes[start..<index], as: UTF8.self)
-                    guard !token.hasPrefix("@") else { throw error("@ date literals are not supported yet") }
-                    let normalized = token.replacingOccurrences(of: "D", with: "E").replacingOccurrences(of: "d", with: "e")
-                    guard normalized.range(of: #"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression) != nil,
-                          let number = Double(normalized), number.isFinite else { throw error("invalid finite number") }
-                    numbers.append(number)
+                    if token.hasPrefix("@") {
+                        do { numbers.append(try spiceDateSeconds(token)) }
+                        catch { throw self.error("unsupported or invalid @ date literal") }
+                    } else {
+                        let normalized = token.replacingOccurrences(of: "D", with: "E").replacingOccurrences(of: "d", with: "e")
+                        guard normalized.range(of: #"^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression) != nil,
+                              let number = Double(normalized), number.isFinite else { throw error("invalid finite number") }
+                        numbers.append(number)
+                    }
                 }
                 count += 1
                 guard count <= limits.maximumValues else { throw SpiceKernelError.resourceLimit("parsed values") }

@@ -60,14 +60,14 @@ import Testing
     }
     @Test func malformedUnsupportedAndBoundedWork() throws {
         let dir = try directory(); defer { try? FileManager.default.removeItem(at: dir) }
-        let badValues = ["A=(1 'two')", "A=(1", "A='unterminated", "A=nan", "A=inf", "A=@2000-JAN-1", "A=()", "A=(1(2))", "A=(1'bad')"]
+        let badValues = ["A=(1 'two')", "A=(1", "A='unterminated", "A=nan", "A=inf", "A=@2000-FEB-30", "A=()", "A=(1(2))", "A=(1'bad')"]
         let set = try SpiceKernelSet()
         for (i, value) in badValues.enumerated() {
             let file = try write("KPL/PCK\n\\begindata\n" + value, "bad\(i).tpc", in: dir)
             #expect(throws: SpiceKernelError.self) { try set.load(file) }
         }
         let binary = try write("DAF/SPK ", "x.bsp", in: dir)
-        #expect(throws: SpiceKernelError.self) { try set.load(binary) }
+        #expect(throws: SpiceDAFError.self) { try set.load(binary) }
         let cycle = try write("KPL/MK\n\\begindata\nKERNELS_TO_LOAD='cycle.tm'", "cycle.tm", in: dir)
         #expect(throws: SpiceKernelError.self) { try set.load(cycle) }
         let symbols = try write("KPL/MK\n\\begindata\nKERNELS_TO_LOAD='$UNKNOWN/a'", "symbol.tm", in: dir)

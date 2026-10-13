@@ -381,3 +381,17 @@ returned only if every tier supplies it, so its availability stays consistent
 when switching sources. Selection is deterministic and independent of query
 order. Switching models can introduce a jump; this policy does not blend states
 or assert that the tiers agree at their boundaries.
+
+
+## Native SPK geometric providers
+
+`SpiceSPKStateProvider` adapts a retained `SpiceKernelSnapshot` to the common SI
+interface using exact NAIF target/origin identifiers, an explicit `TDBTimeModel`
+and provenance-backed `SpiceFrameBindings`. Its frame tree converts each relative
+link's axes and rotation rates; origin translation is already resolved by the SPK
+chain. It evaluates full type 2/3 coefficients, returns atomic-second velocity and
+leaves acceleration unavailable. Non-SSB origins require an explicitly centred
+output frame. Endpoint validation does not certify interior chain coverage; gaps
+and corrupt/unsupported selected segments propagate without automatic fallback.
+See [SPICE_KERNELS.md](SPICE_KERNELS.md) for construction, dataset-specific J2000/ICRF
+interpretation, retained snapshot ownership, frame-tree lifetime and provenance.
