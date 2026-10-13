@@ -1093,7 +1093,7 @@ acceleration*, including compensation for background gravity, against that cone
 at derivative stages. No thrust means no direction restriction. Cone checks are
 sampled, like the engine limits, and do not certify between-stage compliance.
 These are prescribed attitude constraints; rigid-body attitude and slew dynamics
-belong to Milestone 7.
+belong to Milestone 8.
 
 A `WaypointThermalEnvelope` explicitly defines stored heat in joules, a maximum,
 heating watts per newton of thrust, and a linear cooling rate per second:
@@ -1141,3 +1141,249 @@ constraint planning for prescribed cubic routes remains the separate route API.
 Milestone 6 provides bounded planning and numerical simulation with explicit
 limits. General optimal control, automatic avoidance geometry and formal
 continuous-constraint certification are future extensions.
+
+### Circular-target Hohmann rendezvous
+
+`CircularHohmannOrbit` supplies an explicit circular two-body model with its own
+reference epoch, radius, radial/prograde directions, central body, native frame
+and GM. Directions are normalized; a perpendicularity tolerance of 1e-12 is
+checked and tiny residual nonorthogonality is removed. The model provides
+analytic position, velocity and acceleration. Its direction-based initializer
+does not infer orbital shape; checked state/provider adapters are described below.
+
+`HohmannRendezvousPlanner.search` accepts departure and target circular models
+and an inclusive departure window. It requires exact frame identity, the same
+central body, matching GM value/convention and coplanar orbital normals agreeing
+within 1e-12. Opposite orbital directions are rejected; global clockwise or
+counterclockwise motion is otherwise supported by the supplied axes. The caller
+guarantees the physical frame origin.
+
+The target's required departure phase is
+`phi = pi - nTarget * transferDuration`, reduced to [0, 2*pi), positive in the
+departure orbit's direction of motion. Relative phase evolves at
+`nTarget - nDeparture`; the planner computes the first analytic opportunity in
+the window and subsequent synodic opportunities, rather than sampling an epoch
+grid. A stable mean-motion difference is used for nearly equal radii. This is
+the circular interplanetary phase construction described in the
+[FreeFlyer University Guide](https://ai-solutions.com/wp-content/uploads/2023/04/FreeFlyerUniversityGuide.pdf).
+
+Every evaluated opportunity builds the existing two-impulse propagated plan and
+compares its post-arrival-burn position and velocity against the target at the
+same exact arrival epoch. Results retain departure phase error and actual
+position/velocity residuals. The earliest verified opportunity is returned;
+arrival may lie after the departure window. Work is bounded by an explicit
+opportunity evaluation limit, with distinct window-exhausted and evaluation-limit
+statuses. Propagation, epoch and unrepresentable-motion errors remain explicit.
+
+Equal radii have no relative phase drift in this model. Coincident position and
+velocity within the requested tolerances return `alreadyRendezvoused` at the
+window's lower bound with no artificial transfer plan. Separated co-orbital
+targets return `sameOrbitPhasingRequired`; waiting or the existing zero-burn
+half-period coast cannot resolve their separation.
+
+```swift
+let departure = try CircularHohmannOrbit(
+    referenceEpoch: .j2000, frame: frame, centralBody: .earth,
+    radiusMetres: 7_000_000,
+    radialDirection: SIMD3(1, 0, 0), progradeDirection: SIMD3(0, 1, 0),
+    gravitationalParameter: gm)
+let target = try CircularHohmannOrbit(
+    referenceEpoch: .j2000, frame: frame, centralBody: .earth,
+    radiusMetres: 42_164_000,
+    radialDirection: SIMD3(1, 0, 0), progradeDirection: SIMD3(0, 1, 0),
+    gravitationalParameter: gm)
+let result = try HohmannRendezvousPlanner.search(
+    departureOrbit: departure, targetOrbit: target,
+    departureWindow: Epoch.j2000...Epoch.j2000.advanced(by: Duration(seconds: 100_000)))
+if let plan = result.plan {
+    let rendezvous = try plan.trajectory.state(at: plan.arrivalEpoch)
+}
+```
+
+This is rendezvous for explicit circular two-body models, with caller-selected
+position/velocity tolerances; it is not a planetary capture plan or numerical
+multi-body targeting solution. Large epoch offsets and poorly conditioned
+near-equal-radius opportunities can lose floating phase precision. Residual
+checks protect against accepting a model opportunity that fails the requested
+tolerances, but do not certify fidelity to real ephemerides. Checked circular
+state/provider adapters are available below; parking-orbit escape/capture and
+general transfers remain separate backlog items. The original `HohmannTransfer.plan` continues to
+provide an orbit transfer without requiring a target.
+
+### Checked circular states and providers
+
+`CircularHohmannOrbit(referenceState:centralBody:gravitationalParameter:validationOptions:)`
+validates a local circular approximation. `CircularHohmannValidationOptions`
+specifies relative circular-speed error, radial-speed fraction of circular speed
+and the permitted difference between unit plane normals. Defaults are 1e-8,
+1e-8 and 1e-10 respectively; all must be finite, nonnegative and below one.
+Circular speed is evaluated from the supplied central-body GM and sampled radius.
+Accepted radial velocity and circular-speed error are projected out of the
+model explicitly; eccentric or inclined input beyond the selected tolerances
+is rejected rather than automatically redirected or silently approximated.
+
+The provider initializer samples a checked `MovingWaypointRouteTarget` at an
+explicit epoch and requires its physical origin to equal the central body.
+The existing ephemeris initializer on that wrapper supplies native metadata and
+coverage checks. No frame conversion or origin inference is performed.
+
+`CheckedHohmannTransferPlanner.plan` takes departure and target states at the
+same epoch, with exact frame identity and an explicit central body/GM. It checks
+circularity, coplanarity and co-directional motion before constructing a transfer.
+Its trajectory starts from the **actual sampled departure position and velocity**.
+The first impulse removes the accepted radial/circular-speed residual and inserts
+the spacecraft into the circular-fit Hohmann transfer; the arrival impulse
+circularizes in the transfer plane. It does not substitute a remote target's
+velocity when its physical position has been missed.
+
+The result exposes each velocity projection error, the actual burn vectors and
+their summed norms, plus target position/velocity residuals and
+`rendezvousSatisfied`. Scalar delta-v on the underlying `HohmannTransfer`
+describes the ideal circular model; the checked plan's impulse norms include
+the accepted departure-state corrections. Approximation tolerances and
+rendezvous tolerances are independent. A relaxed input tolerance does not make
+a missed target feasible. With state-only inputs, the arrival target is the
+fitted circular model; this is explicitly a model prediction.
+
+`CheckedHohmannTransferPlanner.search` instead accepts checked departure/target
+providers and a bounded list of candidate departure epochs. It sorts and
+deduplicates dates, samples both providers afresh at each date and queries the
+target again at the exact transfer arrival. The arrival state must also meet
+circularity and plane checks, and actual arrival residuals decide feasibility.
+The earliest feasible supplied date wins. Failed attempts retain available plans
+and residuals, with distinct coverage, unsupported-geometry and rendezvous failures.
+Provider contract/data errors and numerical propagation errors propagate.
+
+For equal sampled radii, already-coincident states return
+`alreadyRendezvoused` with no transfer and no requirement for future provider
+coverage. Separated states record `sameOrbitPhasingRequired` for that date;
+the search may continue because a provider is not assumed to obey one circular
+model throughout its coverage. Candidate-set and evaluation-limit exhaustion
+are distinct and do not prove global infeasibility.
+
+Use the analytic circular rendezvous planner to obtain launch-date initial guesses
+from checked circular models, then pass selected dates to the provider-backed
+search for verification. This does not continuously refine provider-backed
+launch dates or validate their full trajectories as circular. Lambert targeting,
+noncoplanar transfers and numerical refinement remain separate extensions.
+
+### Parking-orbit escape and capture
+
+`ParkingOrbitTransfer` computes a local periapsis impulse between a circular
+parking orbit and a body-relative hyperbola, using explicit parking radius,
+body radius, minimum periapsis altitude, excess speed and body GM. Radii are
+centre-relative metres; the parking radius must exceed the body radius and
+meet the inclusive minimum-altitude bound. A positive body radius and a
+Newtonian or TT-compatible GM are required.
+
+For circular speed `vc = sqrt(mu/rp)`, escape speed `vesc = sqrt(2)*vc`
+and specified excess speed `vinf`, the hyperbolic periapsis speed is
+`vp = hypot(vinf, vesc)`. The impulse magnitude is `vp-vc` for either
+injection or capture; its direction is opposite for the two maneuvers.
+The result also exposes characteristic energy `C3 = vinf²`, eccentricity
+`e = 1 + rp*vinf²/mu` and the acute asymptote/apse-line angle
+`beta = acos(1/e)`, evaluated without cancellation near the parabolic limit.
+These are the local escape/capture energy relations in the
+[FreeFlyer patched-conics tutorial](https://freeflyer.com/_freeflyeruniversityguide/patched_conics_transfer.htm).
+
+`plan(kind:periapsisEpoch:frame:centralBody:hyperbolicExcessVelocityMetresPerSecond:orbitalNormal:)`
+constructs an explicit impulse and sampleable body-relative trajectory.
+The excess vector is the **velocity direction**, incoming for capture and
+outgoing for escape; it is not a position vector or a heliocentric velocity.
+Its magnitude must match the scalar excess speed within the selected relative
+tolerance (default 1e-12). The normal supplies the right-handed orbital plane
+and sense of motion, with perpendicularity checked within 1e-12.
+
+For unit periapsis radial/prograde directions `rhat, that`, the asymptotic
+velocity directions are `-rhat/e + sqrt(1-1/e²)*that` on the outgoing
+branch and `+rhat/e + sqrt(1-1/e²)*that` on the incoming branch.
+The planner solves for those periapsis axes from the supplied vector and normal,
+so the local burn is generally not parallel to the excess vector.
+
+Escape accelerates from the circular parking state to the hyperbolic periapsis
+state; capture brakes from the hyperbolic periapsis state to the circular state.
+The result contains pre/post-burn states, periapsis axes, an `ImpulsiveManeuver`
+and a `ManeuveredTwoBodyPropagator`. Its queries before and after the impulse
+follow the corresponding circular/hyperbolic branches, including backward
+queries into an incoming capture approach. The frame must be pseudo-inertial
+and physically centred on the explicitly supplied body; names do not establish
+that origin.
+
+A zero excess speed is supported by scalar calculations as the parabolic escape
+limit, but has no nonzero velocity direction at infinity. Vector-defined plans
+reject it explicitly. Unrepresentable ranges, inconsistent vector magnitude,
+unsafe radius and invalid plane/direction inputs fail explicitly.
+
+These costs belong to the local body-relative maneuver budget. They must not
+be substituted for, or blindly added to, heliocentric transfer impulses whose
+role is already represented by the departure/arrival excess velocities.
+The plan assumes a spherical clearance boundary, an impulsive tangential burn
+and a circular parking orbit in the selected encounter plane. It does not solve
+parking-orbit phasing, finite-burn losses, atmospheric clearance, encounter
+boundary handovers or a full interplanetary trajectory.
+
+### Plane changes and combined impulses
+
+`PlaneChangeImpulse` specifies before/after tangential speeds and a velocity-plane
+rotation angle in [0, pi] radians at a common node. Its cost is
+`hypot(vAfter-vBefore, 2*sqrt(vBefore*vAfter)*sin(angle/2))`, evaluated with
+scaled factors to avoid unnecessary overflow and cancellation. Equal speeds
+give the pure plane-change result; unequal speeds combine speed and plane
+changes in one impulse. This is the vector relation described in
+[ASU's orbital-maneuver lecture](https://control.asu.edu/Classes/MAE462/462Lecture09.pdf).
+
+The `maneuver` method returns an explicit-epoch/native-frame impulse from an
+outward radial direction and initial prograde direction. Positive sense uses
+the right-hand rule about that outward radius; negative sense reverses the
+rotation. The directions must be perpendicular within 1e-12 and the frame
+pseudo-inertial. The method subtracts the actual before/after velocity vectors;
+costs of separate burns are not added to approximate a combined burn.
+Both velocities are tangential. General radial-velocity changes and choosing
+the appropriate intersection/node epoch remain caller responsibilities.
+
+### Bi-elliptic transfers
+
+`BiEllipticTransfer` joins two half-ellipses through a finite, explicitly selected
+intermediate apoapsis strictly above both circular endpoint radii. The first
+impulse raises apoapsis, the second changes periapsis at that apoapsis and the
+third circularizes at the destination. Inward and outward endpoint transfers
+are supported; the signed intermediate speed change reverses with their order.
+The model exposes each half-ellipse's semi-major axis and exact `Duration`,
+signed endpoint speed changes, the middle impulse and total absolute delta-v.
+See the [FreeFlyer bi-elliptic tutorial](https://freeflyer.com/_freeflyeruniversityguide/bi_elliptic_transfer.htm)
+for the vis-viva construction.
+
+An optional `planeChangeRadians` combines a plane rotation with the intermediate
+speed change. `plan` chooses its sense and emits three explicit impulses plus a
+`ManeuveredTwoBodyPropagator`, intermediate/arrival epochs and expected arrival
+state. The plane rotates about the **outward apoapsis radius**, opposite the
+initial departure radius. Position is continuous at the node, and the final
+circular orbit lies in the rotated plane. No destination body rendezvous or
+parking-orbit capture is implied.
+
+A rationalized difference preserves the small signed middle speed change for
+nearly equal endpoint radii. `intermediateDeltaVelocityMetresPerSecond` supplies
+the middle cost used in total accounting; for zero plane rotation it uses that
+stable difference. The middle helper's separately rounded before/after speeds
+may lose such a tiny difference when inspected independently. Equal endpoint
+radii describe a raised-apoapsis excursion, not a zero-duration identity.
+Invalid intermediate radii, non-inertial frames, unsupported GM conventions,
+unrepresentable ranges and epoch/propagation failures remain explicit.
+
+### Comparing circular transfer strategies
+
+`CircularTransferComparison` ranks the existing coplanar Hohmann transfer and
+bi-elliptic transfers at caller-supplied intermediate radii. It deduplicates and
+sorts those radii, accepts at most 10,000 entries and supports
+`minimumDeltaVelocity` or `minimumDuration`. Optional inclusive duration and
+delta-v bounds filter candidates; results retain ranked and rejected candidates.
+`best` is nil when none meets the bounds. Ties use the other objective, then
+deterministic input strategy order. Invalid model inputs throw rather than
+being mistaken for a budget rejection.
+
+This comparison uses ideal two-body, coplanar circular costs with no plane
+change. Compare combined noncoplanar maneuver costs explicitly using the helpers;
+a coplanar Hohmann plan is not silently promoted to a plane-changing strategy.
+The comparison does not certify target phasing, body clearance, perturbations,
+finite-burn losses or propellant feasibility. Its best result is best among the
+supplied radii and strategies, not a global optimum over all transfer families.

@@ -731,3 +731,18 @@ circular central-gravity orbit in spinning axes, forward/backward unforced motio
 under combined accelerating translation and angular acceleration, and fuel cutoff
 followed by coast with coordinate recovery into inertial axes. These exercise Euler
 and translating-origin terms as well as mass-aware frame adaptation.
+
+Prescribed waypoint execution additionally accepts `WaypointRoutePhysicalConstraints`:
+a native-axis thrust cone and an explicit stored-heat/cooling envelope. Engine
+limits can be zero for a forced coast; exhaust velocity remains positive.
+Heat bounds carry across spatial and timed engine boundaries and appear in
+execution-segment diagnostics. Cone checks use the gravity-compensating engine
+command at RK stages; heat uses conservative engine ceilings and does not
+estimate actual temperature. All waypoint timing planners apply these constraints.
+See [ORBITAL_MECHANICS.md](ORBITAL_MECHANICS.md) for model equations and limits.
+
+`CommandedBurnPlanner` instead searches explicit finite-thrust schedules with
+checked passage and rendezvous targets. It propagates supplied directions under
+background forces, preserving fuel and fly-through state, and retains residuals
+from rejected candidates. Its finite search is separate from prescribed cubic
+execution and does not inherit its obstacle/cone/thermal checks.
