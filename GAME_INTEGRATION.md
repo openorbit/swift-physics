@@ -82,3 +82,9 @@ version. For replacement wrappers sharing bounded memory storage, old entries ca
 remain until eviction; retain and invalidate the old wrappers when prompt release
 is required, or clear the scene's shared storage after old jobs finish. Independent
 scenes should generally use separate storage when their lifetimes differ.
+
+Representative release workloads and measured tradeoffs are documented in
+[GAME_PERFORMANCE.md](GAME_PERFORMANCE.md).
+
+For component synchronization, frame/asset lifetimes and actor isolation, see
+[THREAD_SAFETY.md](THREAD_SAFETY.md).

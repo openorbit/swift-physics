@@ -1020,3 +1020,6 @@ Do not infer `.bsp` support from the DE number: inspect the SPK's actual segment
 The checked-in [black-box validation fixtures](Tests/CelMekTests/Fixtures/spice-oracle/README.md)
 and public-format tests verify the supported subset offline; shipping a different
 production dataset remains subject to its actual types, axes, time data and coverage.
+
+For component synchronization, frame/asset lifetimes and actor isolation, see
+[THREAD_SAFETY.md](THREAD_SAFETY.md).

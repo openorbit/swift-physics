@@ -46,6 +46,10 @@ let package = Package(
             path: "Examples/Voyager2GameDemo",
             exclude: ["README.md"]),
         .executableTarget(
+            name: "GameIntegrationBenchmark",
+            dependencies: ["CelMek", "Math"],
+            path: "Tools/GameIntegrationBenchmark"),
+        .executableTarget(
             name: "VSOP87Characterization",
             dependencies: ["CelMek", "Math"],
             path: "Tools/VSOP87Characterization"),

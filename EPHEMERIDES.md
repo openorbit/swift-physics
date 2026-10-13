@@ -431,3 +431,6 @@ output frame. Endpoint validation does not certify interior chain coverage; gaps
 and corrupt/unsupported selected segments propagate without automatic fallback.
 See [SPICE_KERNELS.md](SPICE_KERNELS.md) for construction, dataset-specific J2000/ICRF
 interpretation, retained snapshot ownership, frame-tree lifetime and provenance.
+
+For component synchronization, frame/asset lifetimes and actor isolation, see
+[THREAD_SAFETY.md](THREAD_SAFETY.md).
