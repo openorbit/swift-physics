@@ -88,3 +88,6 @@ Representative release workloads and measured tradeoffs are documented in
 
 For component synchronization, frame/asset lifetimes and actor isolation, see
 [THREAD_SAFETY.md](THREAD_SAFETY.md).
+
+For repeatability assumptions, platform limits and replay/comparison policy, see
+[REPRODUCIBILITY.md](REPRODUCIBILITY.md).

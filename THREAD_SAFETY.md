@@ -106,3 +106,6 @@ They do not certify arbitrary custom providers, callbacks, tree mutation or ever
 possible race. No new broad Sendable promises or locking are introduced by this
 policy. Runtime read-only behavior is not a substitute for Swift's static isolation
 requirements; keep non-Sendable provider graphs inside their owner.
+
+For repeatability assumptions, platform limits and replay/comparison policy, see
+[REPRODUCIBILITY.md](REPRODUCIBILITY.md).
