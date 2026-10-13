@@ -24,22 +24,34 @@ public struct SpiceSPKState: Sendable {
     public let recordIndex: Int
 }
 
-/// Validated type 2/3 directory and bounded on-demand record evaluation.
+/// Validated type 2/3/21 directory and bounded on-demand record evaluation.
 /// This value retains its reader; the underlying binary asset must remain unchanged.
 public struct SpiceSPKSegment: Sendable {
     public let file: SpiceDAFFile
     public let arrayIndex: Int
     public let descriptor: SpiceSPKDescriptor
     public let initialSecondsTDB: Double
+    /// Zero for variable-interval type 21 records.
     public let intervalSeconds: Double
     public let recordSizeWords: Int
     public let recordCount: Int
+    /// Chebyshev degree for types 2/3; -1 for type 21 difference lines.
     public let polynomialDegree: Int
+    private let type21: SpiceSPKType21Directory?
 
     public init(file: SpiceDAFFile, array index: Int) throws {
         guard file.metadata.kind == "SPK", file.metadata.arrays.indices.contains(index),
               let descriptor = file.metadata.arrays[index].spk else { throw SpiceSPKError.invalidSegment }
-        guard descriptor.dataType == 2 || descriptor.dataType == 3 else { throw SpiceSPKError.unsupportedType(descriptor.dataType) }
+        guard [2, 3, 21].contains(descriptor.dataType) else { throw SpiceSPKError.unsupportedType(descriptor.dataType) }
+        if descriptor.dataType == 21 {
+            let directory = try file.spk21Directory(array: index)
+            self.file = file; self.arrayIndex = index; self.descriptor = descriptor
+            self.initialSecondsTDB = descriptor.startSecondsTDB; self.intervalSeconds = 0
+            self.recordSizeWords = directory.size; self.recordCount = directory.count
+            self.polynomialDegree = -1; self.type21 = directory
+            return
+        }
+        self.type21 = nil
         let array = file.metadata.arrays[index], words = array.finalAddress - array.initialAddress + 1
         func malformed(_ reason: String) -> SpiceSPKError { .malformedSegment(path: file.url.path, array: index, reason: reason) }
         guard words >= 4 else { throw malformed("missing directory") }
@@ -69,12 +81,19 @@ public struct SpiceSPKSegment: Sendable {
         self.recordSizeWords = size; self.recordCount = count; self.polynomialDegree = (size - 2)/components - 1
     }
 
-    /// Later record wins at an internal boundary; the final endpoint uses the last record.
+    /// Types 2/3 select the later record at an internal boundary; type 21 selects the earlier.
+    /// The final endpoint uses the last covering record.
     /// Only the selected record is read/validated. No extrapolation beyond descriptor coverage.
     public func state(atSecondsTDB seconds: Double) throws -> SpiceSPKState {
         guard seconds.isFinite else { throw SpiceSPKError.invalidEpoch }
         guard seconds >= descriptor.startSecondsTDB, seconds <= descriptor.endSecondsTDB else { throw SpiceSPKError.outOfCoverage }
         func malformed(_ reason: String) -> SpiceSPKError { .malformedSegment(path: file.url.path, array: arrayIndex, reason: reason) }
+        if let directory = type21 {
+            let (record, position, velocity) = try directory.evaluate(file: file, array: arrayIndex, seconds: seconds)
+            return SpiceSPKState(secondsTDB: seconds, positionKilometres: position, velocityKilometresPerTDBSecond: velocity,
+                descriptor: descriptor, sourcePath: file.url.path, segmentName: file.metadata.arrays[arrayIndex].name,
+                arrayIndex: arrayIndex, recordIndex: record)
+        }
         let ratio = (seconds - initialSecondsTDB)/intervalSeconds
         guard ratio.isFinite else { throw SpiceSPKError.numericalRangeExceeded }
         var record = Int(max(0, min(Double(recordCount - 1), floor(ratio))))

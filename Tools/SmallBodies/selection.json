@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "mandatory_asteroids": [
+    {"designation": "1", "reason": "Dwarf planet Ceres"},
+    {"designation": "134340", "reason": "Dwarf planet Pluto; retain existing provider when selected"},
+    {"designation": "136108", "reason": "Dwarf planet Haumea"},
+    {"designation": "136199", "reason": "Dwarf planet Eris"},
+    {"designation": "136472", "reason": "Dwarf planet Makemake"}
+  ],
+  "comet_seeds": [
+    {"designation": "1P", "reason": "Historical prominence: Halley"},
+    {"designation": "2P", "reason": "Short-period archetype: Encke"},
+    {"designation": "9P", "reason": "Spacecraft target: Tempel 1"},
+    {"designation": "19P", "reason": "Spacecraft target: Borrelly"},
+    {"designation": "21P", "reason": "Meteor-stream association: Giacobini-Zinner"},
+    {"designation": "26P", "reason": "Unusual activity: Grigg-Skjellerup; spacecraft target"},
+    {"designation": "29P", "reason": "Outbursting distant comet: Schwassmann-Wachmann 1"},
+    {"designation": "55P", "reason": "Meteor-stream association: Tempel-Tuttle"},
+    {"designation": "67P", "reason": "Spacecraft target: Churyumov-Gerasimenko"},
+    {"designation": "73P", "reason": "Fragmentation: Schwassmann-Wachmann 3; parent only"},
+    {"designation": "81P", "reason": "Spacecraft target: Wild 2"},
+    {"designation": "103P", "reason": "Spacecraft target: Hartley 2"},
+    {"designation": "109P", "reason": "Meteor-stream association: Swift-Tuttle"},
+    {"designation": "153P", "reason": "Bright apparition: Ikeya-Zhang"},
+    {"designation": "1995 O1", "reason": "Bright historical apparition: Hale-Bopp"},
+    {"designation": "1996 B2", "reason": "Bright historical apparition: Hyakutake"},
+    {"designation": "2006 P1", "reason": "Bright historical apparition: McNaught"},
+    {"designation": "2011 W3", "reason": "Sungrazing survivor: Lovejoy"},
+    {"designation": "2012 S1", "reason": "Sungrazing disruption: ISON"},
+    {"designation": "2014 Q2", "reason": "Bright apparition: Lovejoy"},
+    {"designation": "2020 F3", "reason": "Bright apparition: NEOWISE"},
+    {"designation": "2023 A3", "reason": "Bright apparition: Tsuchinshan-ATLAS"},
+    {"designation": "2019 Q4", "alias": "2I/Borisov", "reason": "Interstellar comet: Borisov"}
+  ]
+}

@@ -96,7 +96,7 @@ public final class SpiceSPKStateProvider: AccuracyAwareEphemerisProvider {
         let axes = frameBindings.bindings.map { "\($0.frameID): \($0.provenance.source) [\($0.provenance.version)]" }.joined(separator: "; ")
         metadata = try EphemerisMetadata(body: body,origin: origin,frame: output,coverage: coverage,
             coverageBasis: .callerSelected,modelTimeScale: .tdb,
-            velocityMethod: .supplied(description: "SPK type 2 position derivative / type 3 supplied velocity; TDB rate and explicit frame kinematics"),
+            velocityMethod: .supplied(description: "SPK type 2 position derivative / type 3 supplied velocity / type 21 integrated acceleration; TDB rate and explicit frame kinematics"),
             accelerationMethod: .unavailable,
             provenance: PhysicalDataProvenance(source: "\(dataProvenance.source); SPK snapshot assets: \(assets); axes: \(axes); TDB: \(tdbModel.provenance)",
                 version: dataProvenance.version,reference: dataProvenance.reference),

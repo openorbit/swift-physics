@@ -80,6 +80,8 @@ public final class SpiceDAFFile: @unchecked Sendable {
     public let metadata: SpiceDAFMetadata
     private let handle: FileHandle
     private let lock = NSLock()
+    private let spkDirectoryLock = NSLock()
+    private var spk21Directories: [Int: SpiceSPKType21Directory] = [:]
     public init(url: URL, limits: SpiceDAFLimits? = nil) throws {
         let options = try limits ?? SpiceDAFLimits()
         let opened: FileHandle
@@ -92,6 +94,15 @@ public final class SpiceDAFFile: @unchecked Sendable {
         } catch { try? opened.close(); throw error }
     }
     deinit { try? handle.close() }
+    /// Binary assets are immutable for this reader's lifetime. Cache validated variable
+    /// epoch directories so snapshot queries do not rescan every record on every call.
+    func spk21Directory(array: Int) throws -> SpiceSPKType21Directory {
+        spkDirectoryLock.lock(); defer { spkDirectoryLock.unlock() }
+        if let directory = spk21Directories[array] { return directory }
+        let directory = try SpiceSPKType21Directory(file: self, array: array)
+        spk21Directories[array] = directory
+        return directory
+    }
     /// Zero-based array index and element offset; addresses in metadata are one-based DAF words.
     public func readWords(array index: Int, offset: Int = 0, count: Int) throws -> [Double] {
         guard metadata.arrays.indices.contains(index), offset >= 0, count > 0 else { throw SpiceDAFError.invalidRange }

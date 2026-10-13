@@ -15,6 +15,7 @@ generation. All application state outputs use metres and elapsed atomic seconds.
 | Text PCK (`KPL/PCK`) | Sourced radii/GM, supported polynomial/periodic orientation | Explicit body/system, base axes, coverage and TDB model | Analytic angular velocity and acceleration |
 | FK (`KPL/FK`) class 4 | Fixed MATRIX/ANGLES/QUATERNION definitions and providers | Explicit relative axes and centre state provider | Fixed relative angular derivatives; centre acceleration policy explicit |
 | SPK DAF type 2 | Chebyshev position and differentiated velocity; centre chains | TDB model, exact NAIF identities and native axes bindings | Velocity converted to atomic seconds; acceleration unavailable |
+| SPK DAF type 21 | Extended modified difference lines, variable intervals; centre chains | Same explicit TDB/axes/origin contract as types 2/3 | Integrated position/velocity; acceleration unavailable in SI adapter |
 | SPK DAF type 3 | Separate position/velocity polynomials; centre chains | Same as type 2; supplied velocity need not equal position derivative | Acceleration unavailable |
 | Binary PCK DAF type 2 | Euler polynomials and continuous orientation provider | Explicit frame class ID, inertial base axes, coverage and TDB model | Analytic atomic-time angular velocity and acceleration |
 | SCLK (`KPL/SCLK`) type 1 | Partitions, canonical fields, fractional ticks, TT/TDB correlation | Explicit spacecraft ID, tick coverage and TDB model when needed | Piecewise local clock rate; jumps/gaps/ambiguity diagnosed |
@@ -63,7 +64,7 @@ numeric/string assignments in identified `KPL/PCK`, `KPL/FK`, `KPL/LSK`, `KPL/SC
 `KPL/MK` files. Explicit snapshot adapters supply leap-second tables, sourced
 constants, PCK orientations, fixed FK frame providers and type-1 clock correlation. Modern IEEE DAF/SPK, DAF/PCK and DAF/CK
 files can also be loaded for inspection and bounded array reads.
-Geometric SPK types 2/3, binary PCK type 2 and CK types 1/2/3 have evaluation
+Geometric SPK types 2/3/21, binary PCK type 2 and CK types 1/2/3 have evaluation
 adapters described below; other architectures are rejected by the kernel set.
 
 ```swift
@@ -178,7 +179,7 @@ target and centre IDs, native frame ID, segment type and inclusive coverage in T
 seconds past J2000. Body centres and barycentres retain distinct integer identifiers.
 Every positive segment type remains visible, including those not evaluable.
 Inspection does not select or evaluate a segment, validate its type-specific payload,
-or convert units/time/frames. Primitive type 2/3 evaluation is a separate layer below.
+or convert units/time/frames. Primitive type 2/3/21 evaluation is a separate layer below.
 
 Array data is read on demand through `readWords(array:offset:count:)`. Array indices
 and offsets are zero based; metadata addresses remain one based, inclusive DAF
@@ -1023,3 +1024,43 @@ production dataset remains subject to its actual types, axes, time data and cove
 
 For component synchronization, frame/asset lifetimes and actor isolation, see
 [THREAD_SAFETY.md](THREAD_SAFETY.md).
+
+
+## SPK type 21 small-body states
+
+Horizons small-body SPKs can be evaluated through the same primitive, centre-chain
+and `SpiceSPKStateProvider` interfaces as types 2/3. Extended difference lines store
+an acceleration polynomial in a variable-step Newton basis, with reference position
+and velocity. The independent Swift evaluator integrates that polynomial using
+Gauss-Legendre quadrature of sufficient order to integrate the polynomial exactly
+in real arithmetic; evaluation stays in the Newton basis. It does not inspect or
+translate toolkit implementation source. Numerical results remain subject to
+floating-point rounding and source ephemeris accuracy.
+
+The trailing binary words are MAXDIM and record count; each difference line has
+`4*MAXDIM+11` words. The Required Reading diagram labels the penultimate word as
+line size, but public binary SPKW21 writer output stores MAXDIM. Synthetic writer
+fixtures and a real Horizons Ceres export pin this distinction. Supported dimensions
+are 15...25, matching N0067. Epochs must be finite and strictly increasing; every
+hundredth directory entry must agree with its epoch. Record and epoch-table sizes
+are bounded by the DAF reader's `maximumReadWords`. The validated epoch directory
+is cached per array under a lock for the immutable reader's lifetime. Records and
+query results are not cached; only the selected difference line is validated.
+
+Type 21 selects the **first record ending at or after the query**, so the earlier
+record wins a shared endpoint. Descriptor coverage remains inclusive; there is no
+extrapolation. Invalid orders, zero required steps, nonfinite payloads, malformed
+layouts and numerical overflow fail explicitly without falling back to older data.
+For type 21, `intervalSeconds` is zero (variable intervals), `polynomialDegree` is
+-1 (not a Chebyshev series), and `initialSecondsTDB` is the descriptor start.
+
+`SpiceSPKType21Tests` covers both byte orders, analytic constant acceleration,
+high integration orders, boundaries surrounding hundred-record directories,
+malformed inputs, resource limits, centre resolution and the SI adapter. Pinned
+CSPICE_N0067 output includes dimension-15/25 synthetic kernels and a two-day
+Horizons Ceres kernel. See `Tests/CelMekTests/Fixtures/spk21/README.md` and
+`Tools/SmallBodies/README.md` for fixture regeneration and catalog/kernel extraction.
+
+Public references: [SPKW21](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/FORTRAN/spicelib/spkw21.html),
+[SPKE21](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/FORTRAN/spicelib/spke21.html),
+[SPK Required Reading](https://naif.jpl.nasa.gov/pub/naif/toolkit_docs/C/req/spk.html#Type%2021:%20Extended%20Modified%20Difference%20Arrays).
