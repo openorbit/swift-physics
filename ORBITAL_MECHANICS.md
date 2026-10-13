@@ -1703,3 +1703,89 @@ Fuel uses the [ideal rocket equation](https://www1.grc.nasa.gov/beginners-guide-
 Tests exercise an analytic unit-impact-parameter hyperbola, unequal-speed powered
 asymptotes, fuel depletion, mixed commands, bounded refinement, and translation /
 rotation patch round trips.
+
+### Encounter sequences and numerical verification
+
+`EncounterSequenceVisit` specifies a moving body, geometric or target-relative
+position provider, an independent arrival window, and an explicit passage or
+velocity-match condition. Velocity matching is an endpoint boundary condition;
+it does not infer atmospheric descent, surface touchdown or a parking orbit.
+Passages preserve their incoming velocity. `additionalPassages` adds independent
+physical position requirements inside a connector or local flyby without adding a
+stop, segment break or burn at that passage.
+
+`EncounterSequencePlanner.candidates` constructs a bounded Cartesian grid of
+encounter dates, Lambert roots and independent impulsive DSM command sets. Grid
+cardinality is checked before allocation. `search` records visited candidate
+failures and ranks successful **seeds** by flight time, delta-v or ideal propellant
+cost. It reports whether the supplied candidate set was exhausted or the work
+budget ended. Provider contract failures propagate rather than being hidden as
+bad transfer dates. A ranked seed is not a numerically verified feasible route.
+
+`seed` connects encounters with central-body Lambert arcs. For an unpowered assist,
+it propagates a finite local hyperbola before and after periapsis and converts
+those states with the supplied frame tree. The declared moving-body centre must
+agree with that tree at entry, periapsis and exit. Entry velocity corrections and
+exit connector injections are explicit fuel-consuming impulses, not free flyby
+turns. The propagated entry position residual remains carried through the local
+arc; it is not reset to the template. Patch residuals and arc provenance remain
+available. These are fixed-duration, caller-selected patch surfaces, not automatic
+sphere-of-influence boundaries. Optional DSMs perturb the nominal seed arcs and
+must subsequently be checked numerically. Lambert and local propagation tolerances
+are explicit caller settings.
+
+`NumericalEncounterTrajectory` replays the entire command sequence from one
+`SpacecraftState`, preserving position, velocity and mass across encounters.
+Queries during a finite burn use the appropriate partial burn. Commands are
+right-continuous at impulses, and burn intervals cannot overlap. Gravity is supplied
+explicitly through force models: central gravity, differential third-body gravity,
+and other supported models can be composed in one physical origin. No encounter
+state is replaced by a target or local hyperbola during numerical replay.
+
+`NumericalEncounterSequence.evaluate` reports moving-target position/velocity
+residuals at the selected epochs and localizes body-relative closest approaches
+from zeros of `(spacecraftPosition-bodyPosition)·(spacecraftVelocity-bodyVelocity)`.
+Localization splits at command boundaries and samples the actual propagated
+trajectory. Endpoints are also checked. The event check spacing is explicit;
+as with the underlying event API, multiple extrema within one check interval are
+not guaranteed to be found. Passage speed limits, explicit endpoint velocity
+matching, fuel reserve, finite engine ceilings, prescribed thrust cones and the
+Milestone 6 stored-heat envelope are supported. Heat carries through burns and
+coasts. Attitude/thermal/engine feasibility requires finite commands; an impulse's
+engine duration and heating cannot be inferred from delta-v alone.
+
+Clearance uses moving spherical body/obstacle envelopes on the **numerical** arc.
+A sampled violation is reported as violated. Sampled safe positions alone remain
+unresolved. With an explicit caller-guaranteed global relative-speed envelope V,
+each interval can be conservatively resolved when
+`min(endpointDistances) - V*intervalDuration/2 >= minimumDistance`.
+Observed speed-envelope violations invalidate that check. This certificate is
+conditional on the supplied envelope and numerical trajectory; it is not inferred
+from observed velocities or a geometric cubic route certificate.
+
+`finiteSeed` converts an impulsive sequence to engine-duration seeds in explicit
+burn windows with sequential rocket-equation mass accounting. `refine` independently
+varies encounter epochs and impulse epochs/vectors or finite ignition/duration/
+direction, retaining all respective windows. It performs bounded local coordinate
+shooting under the supplied forces and constraints. Reports distinguish evaluation
+and proposal exhaustion, step termination, unresolved clearance, and failed
+numerical consistency. Successful routes are replayed with tighter local tolerances
+and a smaller maximum step by default. Differences in encounter/arrival positions,
+velocities and masses, plus closest-approach epoch/distance changes, are reported.
+This is convergence evidence at those checkpoints, not a global physical accuracy
+certificate. Work bounds include proposal/evaluation counts, state-query budgets,
+event localization limits, and numerical limits per replay segment.
+
+`NumericalEncounterSequence.search` checks/refines a bounded set of seeds and ranks
+only converged, constraint-resolved results. Failed, unresolved, unconverged and
+work-limited rows stay visible. Delta-v ranking includes ideal rocket-equivalent
+finite-burn costs assuming mass changes come from the commands; use propellant
+ranking for models with other reservoir flows. Neither search nor refinement
+claims a global minimum-time, minimum-delta-v or minimum-propellant solution.
+
+Swift Testing fixtures cover a direct transfer at interplanetary distances with
+central and third-body gravity; an analytic hyperbolic assist with an independent
+physical passage inside its local arc; continuous mass and nonzero passage speed;
+impulse and finite-burn refinement; independent epoch adjustment; safe, unresolved
+and violated clearance; attitude, thermal, engine and fuel rejection; and grid,
+query, proposal and evaluation exhaustion.
