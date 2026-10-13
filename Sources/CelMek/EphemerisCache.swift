@@ -146,6 +146,8 @@ public final class CachedEphemerisProvider: EphemerisProvider {
   }
   /// Rotate generation before clearing storage. In-flight queries can complete with
   /// their original result; subsequent queries always use the new generation.
+  /// Even if storage cleanup throws, the generation remains changed. Serialize
+  /// dependency updates and discard old in-flight results at the application boundary.
   public func invalidate() throws {
     lock.lock(); let old = scope; scope = EphemerisCacheScope(); lock.unlock()
     try cache.removeAll(in: old)

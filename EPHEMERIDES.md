@@ -316,6 +316,9 @@ automatically. Tests check ordered and reversed batches, duplicate and subnanose
 keys, LRU eviction, scope isolation, generation changes during evaluation, failures,
 invalid cache hits, and mixed-body fail-fast queries.
 
+Application-level dependency changes, snapshot replacement and downstream buffer
+invalidation are covered in [game integration](GAME_INTEGRATION.md#cache-invalidation).
+
 ## Native JPL DE441
 
 `DE441StateProvider` adapts a URL-opened `DE441Ephemeris` to the shared SI

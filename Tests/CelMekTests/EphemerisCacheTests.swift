@@ -83,6 +83,25 @@ import Testing
     _ = try first.state(at: .j2000)
     #expect(a.calls == 4 && cache.count == 2)
   }
+  private final class CleanupFailingCache: EphemerisStateCache {
+    let storage = try! MemoryEphemerisCache(capacity: 10)
+    func state(for key: EphemerisCacheKey) throws -> CartesianState? { storage.state(for: key) }
+    func store(_ state: CartesianState, for key: EphemerisCacheKey) { storage.store(state, for: key) }
+    func removeAll(in scope: EphemerisCacheScope) throws { throw TestError.cacheFailure }
+  }
+  @Test func failedCleanupStillSeparatesNewGeneration() throws {
+    let model = try Model(frame: Frame(name: "reference", pseudoInertial: true))
+    let cache = CleanupFailingCache()
+    let cached = try CachedEphemerisProvider(provider: model, cache: cache)
+    #expect(try cached.state(at: .j2000).position.x == 0)
+    model.base = 42
+    #expect(throws: TestError.cacheFailure) { try cached.invalidate() }
+    #expect(cache.storage.count == 1) // Old entries remain, but cannot be reused.
+    #expect(try cached.state(at: .j2000).position.x == 42)
+    #expect(try cached.state(at: .j2000).position.x == 42)
+    #expect(model.calls == 2 && cache.storage.count == 2)
+    cache.storage.removeAll()
+  }
   private final class BadCache: EphemerisStateCache {
     var hit: CartesianState?
     var fails = false
