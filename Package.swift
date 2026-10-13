@@ -53,6 +53,8 @@ let package = Package(
             name: "VSOP87Characterization",
             dependencies: ["CelMek", "Math"],
             path: "Tools/VSOP87Characterization"),
+        .executableTarget(name: "MPCCullingExperiment", dependencies: ["CelMek", "Math"],
+                          path: "Experiments/MPCCulling", exclude: ["README.md", "results"]),
         .testTarget(
             name: "CelMekTests",
             dependencies: ["CelMek"],
