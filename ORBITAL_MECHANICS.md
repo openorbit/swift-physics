@@ -1387,3 +1387,38 @@ a coplanar Hohmann plan is not silently promoted to a plane-changing strategy.
 The comparison does not certify target phasing, body clearance, perturbations,
 finite-burn losses or propellant feasibility. Its best result is best among the
 supplied radii and strategies, not a global optimum over all transfer families.
+
+### Finite-burn transfer realization
+
+`FiniteTransferPlanner.initialGuess` accepts the impulses from Hohmann,
+bi-elliptic, parking-orbit or other plans, together with an actual spacecraft
+state, arrival epoch, thrust and effective exhaust velocity. It computes each
+constant-thrust duration from `mConsumed = mBefore * -expm1(-deltaV / ve)` and
+`duration = mConsumed * ve / thrust`, carrying mass between burns. Zero impulses
+are omitted. Burns are centered on their impulse epochs, shifted inside the
+flight at its endpoints; overlapping burns, inadequate fuel and burns that do
+not fit are rejected. Frames must match exactly. The input state is the physical
+pre-burn state; the context origin must describe the same physical origin as the
+transfer and target.
+
+`FiniteTransferPlanner.refine` performs bounded local coordinate shooting against
+an explicit Cartesian arrival state at a fixed epoch. It adjusts ignition,
+duration and inertial direction while keeping each engine's thrust/exhaust
+velocity fixed, preserving burn order and non-overlap. Supply `CentralGravity`
+and any other background forces explicitly. Each trial numerically propagates
+actual commands and evolving mass, accounting for finite-burn motion under those
+forces. Position and velocity errors are scaled by caller tolerances; convergence
+requires both tolerances separately. Results retain the initial and best schedules,
+actual arrival states, endpoint errors, fuel consumed, evaluation count and
+rejected trial count, even when the evaluation or step limit is reached. Remaining
+fuel is available in each arrival state's mass; a caller reserve is checked.
+Initial propagation failures throw; numerical/fuel failures in trial schedules
+are rejected, while other force-model errors propagate to the caller.
+
+This is a local refinement of a seed, with no global optimum or feasibility
+certificate for collision clearance, attitude, thermal limits or intervening
+waypoints. Evaluation limits bound propagation calls; integrator budgets apply
+per scheduled segment. A positive fuel margin is required to avoid firing exactly
+through depletion. Rocket-equation seeds do not imply impulsive endpoint
+equivalence: tests compare actual Hohmann realizations under central gravity and
+verify that progressively shorter burns approach the impulsive result.
