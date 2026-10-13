@@ -1615,3 +1615,91 @@ multi-revolution failures and provider-error propagation. An end-to-end search
 uses explicitly idealized heliocentric Earth/Mars-sized circular Kepler ephemerides
 and evaluates departure dates and flight durations in SI units, checking each
 propagated endpoint against the destination ephemeris sampled at arrival.
+
+### Unpowered gravity-assist encounter geometry
+
+`FlybyEncounterRequest` declares a body, a periapsis epoch, body-centred inertial
+axes, compatible body GM, spherical body radius, minimum periapsis altitude and
+incoming/requested outgoing hyperbolic excess velocities. Vectors describe actual
+velocity directions at infinity, not position directions along asymptotes. The
+caller guarantees that both vectors and the frame use the declared body's origin.
+A rotating frame is rejected. No heliocentric-to-body transformation is inferred.
+
+`UnpoweredFlyby.solve` checks equality of excess speeds using the caller's relative
+speed tolerance. Accepted small discrepancies are projected onto the incoming
+speed; the original request, signed speed difference and outgoing vector residual
+remain available. Significant differences require a powered encounter and are
+rejected. No impulse, velocity reset or propellant consumption occurs in this
+unpowered model.
+
+The model uses `delta = 2*asin(1/e)` and
+`rp = (mu/vInf^2)*(1/sin(delta/2)-1)`, with stable half-angle evaluation and a
+rationalized expression near a pi turn. These unpowered relations follow the
+equal-speed case of the documented [NASA flyby turning equations](https://ntrs.nasa.gov/api/citations/20140011510/downloads/20140011510.pdf).
+Periapsis must lie strictly above the spherical surface and at or above the
+specified minimum altitude; this is not atmospheric or terrain clearance.
+
+The outgoing vector together with the incoming vector determines the right-handed
+orbital normal. The periapsis radial direction follows their normalized-direction
+difference; the prograde tangent follows their sum. The better-conditioned bisector
+is retained and its orthogonal partner is constructed from the normal, avoiding
+spurious radial velocity for small turns. Exactly/nearly parallel or opposite
+vectors (sum/difference norm at or below `1e-12`) are explicitly rejected rather
+than assigning an arbitrary plane or claiming a finite zero-turn encounter.
+Numerical range limitations also produce explicit errors.
+
+`UnpoweredFlybyResult` exposes the turning angle, required radius/altitude,
+eccentricity, periapsis speed, encounter axes, periapsis state and an immutable
+body-relative `TwoBodyPropagator`. The encounter epoch is closest approach in this
+local model; it does not establish the timing or physical state of a patch onto
+an existing central-body Lambert arc. Finite-distance velocities differ from the
+asymptotic excess vectors. B-plane targeting, explicit patch boundaries and powered
+encounters remain subsequent steps.
+
+Independent tests use an exact reference hyperbola with `mu=vInf=p=1`,
+`e=sqrt(2)`, `rp=sqrt(2)-1` and `vp=sqrt(2)+1`, including finite states calculated
+from hyperbolic anomaly equations. Forward/backward asymptotes, inclined planes,
+time reversal, small turns, altitude boundaries and accepted/rejected speed
+mismatches are checked. Body-relative speed conservation coexists with different
+central-frame speeds when the moving body's velocity is added.
+
+### B-plane, powered encounters and deep-space nodes
+
+`FlybyBPlane` uses incoming **velocity** direction S, T = unit(S × referencePole),
+R = S × T, and B × S in the angular-momentum direction. B components are metres
+in the request's body-centred axes. A parallel pole is rejected; supply another
+explicit pole. Conversion uses b = rp vp / v∞ and the rationalized inverse
+rp = b² / (hypot(μ/v∞², b) + μ/v∞²). `solve` replaces the request's outgoing
+velocity with its prediction and enforces the same altitude limits.
+
+`PoweredFlyby.solve` takes a common periapsis radius and radial direction. Each
+asymptote must satisfy uIn·radial = 1/eIn and uOut·radial = −1/eOut. The two
+hyperbolas meet at that position; their periapsis velocity difference is an
+explicit impulse, including a plane change if requested. This permits unequal
+excess speeds. Supplied mass and exhaust velocity determine ideal rocket-equation
+fuel consumption; insufficient propellant and inconsistent geometry fail.
+The two propagators represent the incoming and outgoing branches respectively;
+use the incoming branch before periapsis and outgoing branch afterwards.
+
+`DeepSpaceManeuverNode` associates an impulse or constant inertial engine burn
+with an inclusive timing window. Execution orders commands, rejects overlapping
+command intervals, coasts with explicit background forces, and carries mass and
+velocity through each command. `finiteBurnSeed` places an impulse's rocket-equation
+engine seed inside its window; zero impulses have no finite seed. `refine` delegates
+to bounded numerical shooting with a window per burn. Seeds are approximations;
+refinement reports residuals and convergence status, not a global optimum.
+
+`EncounterPatchBoundary` defines an explicit epoch boundary and source/destination
+force contexts. `handover` uses the frame tree's full kinematic transform, including
+moving-origin velocity and rotating-axis terms, while preserving mass and epoch.
+The caller must register providers that represent the declared physical origins;
+frames themselves do not certify origin metadata. Switching the dominant gravity
+model at this epoch is an explicit patched-conic approximation. This API does not
+find sphere-of-influence crossings or reset the state to a flyby template.
+
+Geometry follows the public [JPL B-plane definition](https://cneos.jpl.nasa.gov/glossary/b_plane.html)
+and [NASA flyby equations](https://ntrs.nasa.gov/api/citations/20140011510/downloads/20140011510.pdf).
+Fuel uses the [ideal rocket equation](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/ideal-rocket-equation/).
+Tests exercise an analytic unit-impact-parameter hyperbola, unequal-speed powered
+asymptotes, fuel depletion, mixed commands, bounded refinement, and translation /
+rotation patch round trips.

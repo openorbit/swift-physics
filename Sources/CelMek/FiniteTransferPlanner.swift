@@ -72,11 +72,14 @@ public enum FiniteTransferPlanner {
 
     /// Fixed arrival epoch/state; thrust and exhaust velocity remain fixed per burn.
     /// Varies ignition, duration and inertial direction, preserving burn order and
-    /// non-overlap. No global optimum, collision clearance or attitude feasibility is implied.
+    /// non-overlap. Optional inclusive windows correspond to chronological burn
+    /// order and constrain both ignition and cutoff on every trial.
+    /// No global optimum, collision clearance or attitude feasibility is implied.
     public static func refine(initialState: SpacecraftState, initialSchedule: ScheduledThrust,
         target: CartesianState, context: ForceEvaluationContext, backgroundModels: [any ForceModel] = [],
         positionToleranceMetres: Double = 1, velocityToleranceMetresPerSecond: Double = 0.001,
         minimumRemainingPropellantKilograms: Double = 0, maximumEvaluations: Int = 500,
+        burnWindows: [ClosedRange<Epoch>]? = nil,
         numericalOptions: NumericalPropagationOptions = try! NumericalPropagationOptions()) throws -> FiniteTransferRefinementResult {
         guard target.epoch > initialState.epoch, !initialSchedule.burns.isEmpty, initialSchedule.burns.count <= 100,
               (1...10_000).contains(maximumEvaluations),
@@ -86,8 +89,12 @@ public enum FiniteTransferPlanner {
         }
         guard target.frame === initialState.frame, initialSchedule.frame === initialState.frame,
               context.frame === initialState.frame else { throw SpacecraftDynamicsError.frameMismatch }
+        guard burnWindows == nil || burnWindows!.count == initialSchedule.burns.count else {
+            throw FiniteTransferPlanningError.invalidInput
+        }
         func valid(_ burns: [FiniteBurn]) -> Bool {
-            burns.allSatisfy { $0.start >= initialState.epoch && $0.end <= target.epoch } &&
+            if let windows = burnWindows, !zip(burns,windows).allSatisfy({ $1.contains($0.start) && $1.contains($0.end) }) { return false }
+            return burns.allSatisfy { $0.start >= initialState.epoch && $0.end <= target.epoch } &&
             zip(burns, burns.dropFirst()).allSatisfy { $0.end <= $1.start }
         }
         guard valid(initialSchedule.burns) else { throw FiniteTransferPlanningError.burnsDoNotFit }
