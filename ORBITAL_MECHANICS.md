@@ -1555,3 +1555,63 @@ sources to verify arrival sampling, actual impulses, mode-dependent costs and
 velocity retention. They also check ephemeris metadata integration, both
 multi-revolution roots, stationary rendezvous, residual preservation, bounded
 trajectory queries and coverage/frame/origin errors.
+
+### Bounded Lambert transfer-window tables
+
+`LambertTransferWindowSearch.search` explores caller-supplied departure epochs,
+positive flight durations and explicit `LambertWindowBranch` choices. Each branch
+contains direction, revolution count and (for positive counts) the required root.
+It accepts checked moving sources or ephemerides and retains their origin/frame
+contracts. Departure dates and durations are deduplicated and sorted; duplicate
+branch choices are removed while preserving input order. Evaluation order is date,
+duration, then branch. The input grid is limited to 100,000 entries before
+normalization and the candidate budget to 1–10,000. Source states are sampled at
+their actual departure/arrival epochs and reused across branches for that pair.
+Providers must remain pure throughout the search.
+
+The result's `rows` form a comparison table, including failures. Each row contains
+date, flight duration, direction/revolution/root choice, arrival epoch, optional
+plan and optional failure. Successful and constraint-rejected plans retain all
+Lambert/propagation diagnostics, impulses, velocity vectors and residuals. Row
+conveniences expose total delta-v and departure/arrival relative speeds. For
+body-centre sources these speeds are patched-conic excess-velocity estimates;
+for arbitrary spacecraft/offset sources they are relative velocities. Local
+parking-orbit costs are not inferred. Use these columns when presenting rows:
+
+| Column | Source |
+| --- | --- |
+| Departure / arrival | `candidate.departureEpoch` / `arrivalEpoch` |
+| Flight time | `candidate.flightTime` |
+| Direction / revolutions / root | `candidate.branch` |
+| Short / long way | `plan.solution.branch`, when available |
+| Delta-v | `totalDeltaVelocityMetresPerSecond` |
+| Departure / arrival relative speeds | `departureRelativeSpeedMetresPerSecond` / `arrivalRelativeSpeedMetresPerSecond` |
+| Relative velocity vectors / endpoint errors | `plan`, when available |
+| Rejection or solver failure | `failure` |
+
+Optional delta-v and incoming arrival-relative-speed limits are inclusive. The
+arrival-speed constraint uses the velocity *before* a rendezvous burn. A zero
+post-burn relative velocity cannot hide excessive incoming speed. Endpoint
+residuals are checked using the requested intercept/flyby/rendezvous condition.
+`rankedFeasibleRows` orders accepted samples by minimum delta-v or minimum flight
+time, then the other objective, departure epoch and stable row order. `best` is
+nil if no visited candidate passes. Rejected rows retain their plans when planning
+succeeded. Only the first applicable constraint failure is reported per row.
+
+Coverage misses, time arithmetic/range failures, Lambert geometry/minimum-time/
+work failures, propagation failures and endpoint/constraint rejections are retained
+per candidate. Configuration and source contract/data errors throw; they are not
+silently treated as bad transfer geometry. Every visited grid entry consumes one
+candidate evaluation, including entries rejected before solving. The result
+reports total normalized candidates, visited rows and `gridExhausted` or
+`evaluationLimitReached`, preserving the best evaluated sample at the limit.
+Exactly exhausting the grid at the budget reports `gridExhausted`. Solver and
+propagation budgets apply per candidate. This sampled comparison does not imply a
+continuous optimum or a fully explored transfer window when the budget is reached.
+
+Tests cover ordering/deduplication, both objectives, partial budgets, retained
+rejections, inclusive constraints, incoming-speed semantics, coverage/geometry/
+multi-revolution failures and provider-error propagation. An end-to-end search
+uses explicitly idealized heliocentric Earth/Mars-sized circular Kepler ephemerides
+and evaluates departure dates and flight durations in SI units, checking each
+propagated endpoint against the destination ephemeris sampled at arrival.
