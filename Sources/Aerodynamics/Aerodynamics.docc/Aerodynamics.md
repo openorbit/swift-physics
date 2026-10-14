@@ -63,6 +63,15 @@ Aerodynamics re-exports for compatibility.
 - ``ModifiedNewtonianPressure``
 - ``SurfacePressureAerodynamics``
 - ``SurfacePressureResult``
+- <doc:RarefiedFlow>
+- ``SurfaceTraction``
+- ``SurfaceTractionModel``
+- ``SurfaceTractionAerodynamics``
+- ``SurfaceTractionResult``
+- ``PressureOnlyTraction``
+- ``FreeMolecularGas``
+- ``GasSurfaceReflection``
+- ``MaxwellianFreeMolecularTraction``
 
 ### Aerothermal physics
 - <doc:Aerothermal>

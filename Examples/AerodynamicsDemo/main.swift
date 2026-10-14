@@ -119,3 +119,15 @@ let balloon = BalloonAerodynamics(buoyancy: try Buoyancy(displacedVolumeCubicMet
 let balloonLoads = try balloon.evaluate(flow: descentFlow,
     field: .hydrostaticGravityMetresPerSecondSquared(SIMD3(0,0,9.80665)))
 print("Balloon gross buoyancy plus drag (weight external): \(balloonLoads.forceNewtons) N")
+
+let molecularGas = try FreeMolecularGas(identifier: "Synthetic single-species example",
+    specificGasConstantJoulesPerKilogramKelvin: 300,source: "Demonstration assumptions")
+let molecularModel = try MaxwellianFreeMolecularTraction(gas: molecularGas,
+    surface: GasSurfaceReflection(specularFraction: 0.2,wallTemperatureKelvin: 300))
+let molecularPanel = try AerodynamicSurfacePanel(areaSquareMetres: 1,
+    centreMetres: SIMD3(1,0,0),outwardNormal: SIMD3(1,0,0))
+let molecularFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(7000,0,0),
+    densityKilogramsPerCubicMetre: 1e-8,temperatureKelvin: 200,meanFreePathMetres: 20)
+let molecularLoads = try SurfaceTractionAerodynamics(panels: [molecularPanel],referenceLengthMetres: 1,
+    model: molecularModel).evaluate(flow: molecularFlow).loads
+print("Free-molecular example panel force: \(molecularLoads.forceNewtons) N")
