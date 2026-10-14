@@ -109,11 +109,11 @@ omitted instead of extrapolating the itinerary. Segment selection uses the follo
 coast at an exact patch epoch, so velocity jumps remain explicit. Orbital display
 samples use `TrajectorySampler` rather than hidden interpolation.
 
-See [TIME.md](../../TIME.md) for clock semantics, bounds and floating-point limits.
+See [time guide](../../Sources/CelMek/CelMek.docc/TimeGuide.md) for clock semantics, bounds and floating-point limits.
 Renderer adapters, persistence and the remaining release-readiness work are separate
 Milestone 9 items.
 
 Playback also exports `spacecraftCentredPlanetPositionsRenderUnits`: five planet
 positions relative to the spacecraft, converted to `Float` after subtracting in
 `Double`, at 1e9 metres per render unit. Axes remain right-handed heliocentric
-axes; the spacecraft renders at zero. See [rendering contracts](../../GAME_INTEGRATION.md).
+axes; the spacecraft renders at zero. See [rendering contracts](../../Sources/CelMek/CelMek.docc/GAME_INTEGRATION.md).

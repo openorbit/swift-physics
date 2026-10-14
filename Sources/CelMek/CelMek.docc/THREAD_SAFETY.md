@@ -52,7 +52,7 @@ Cache entries retain states and frame identities until eviction or clearing. SPI
 snapshots retain binary readers after unload. Release old jobs, providers, snapshots
 and scene storage when retiring an asset version. Replace assets using new immutable
 files/readers rather than editing a live reader's file in place. For invalidation
-and old jobs, see [game integration](GAME_INTEGRATION.md#cache-invalidation).
+and old jobs, see <doc:GAME_INTEGRATION#Cache-invalidation>.
 
 ## A single-owner actor
 
@@ -108,4 +108,4 @@ policy. Runtime read-only behavior is not a substitute for Swift's static isolat
 requirements; keep non-Sendable provider graphs inside their owner.
 
 For repeatability assumptions, platform limits and replay/comparison policy, see
-[REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+<doc:REPRODUCIBILITY>.

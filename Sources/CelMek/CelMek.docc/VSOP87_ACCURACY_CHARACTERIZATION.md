@@ -70,4 +70,4 @@ python3 Tools/summarize_vsop_characterization.py VSOP87_CHARACTERIZATION.json
 
 The optional final argument controls positive integer sample spacing in days. Keep the release configuration and supply --compiler-description and --architecture to the summarizer when publishing a new report. The executable writes a report only at the supplied path, performs no network access and does not modify coefficient tables.
 
-Machine-readable results: [VSOP87_CHARACTERIZATION.json](VSOP87_CHARACTERIZATION.json). Policy and selection rules: [ACCURACY.md](ACCURACY.md).
+Machine-readable results: `VSOP87_CHARACTERIZATION.json`. Policy and selection rules: <doc:ACCURACY>.

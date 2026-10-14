@@ -1,6 +1,6 @@
 # Frame transforms
 
-The shared coordinate, rotation and error contract is in [CONVENTIONS.md](CONVENTIONS.md).
+The shared coordinate, rotation and error contract is in <doc:CONVENTIONS>.
 
 `FrameTree` connects `Math.Frame` identities with time-dependent `TransformProvider` edges. Each edge maps parent coordinates into child coordinates. A tree can adopt a frame such as `CelestialFrames.vsop87E` as its local root, excluding its external ancestors. `CelestialFrames.makeTree()` registers the connected astronomical frames under ICRF. Queries to frames outside the registered tree throw `disconnectedFrames`.
 
@@ -65,7 +65,7 @@ let relative = try tree.convert(earth.state(at: .j2000), to: body)
 // Position and velocity are zero, since the queried object is the origin.
 ```
 
-The example's axes are prescribed in the VSOP87 ecliptic frame; they do not represent Earth's geographic orientation or ITRF. Real planetary orientations must declare their reference axes and be transformed into the origin provider's frame before combination. The IAU tables and evaluator have been updated and checked against independent CSPICE fixtures; see [IAU_ROTATION_AUDIT.md](IAU_ROTATION_AUDIT.md). `IAUOrientationProvider` now exposes those orientations in ICRF axes with explicit caller-selected coverage, as described below.
+The example's axes are prescribed in the VSOP87 ecliptic frame; they do not represent Earth's geographic orientation or ITRF. Real planetary orientations must declare their reference axes and be transformed into the origin provider's frame before combination. The IAU tables and evaluator have been updated and checked against independent CSPICE fixtures; see `IAU_ROTATION_AUDIT.md`. `IAUOrientationProvider` now exposes those orientations in ICRF axes with explicit caller-selected coverage, as described below.
 
 Origin acceleration defaults to `requireProvided`. When it is absent, the query throws `accelerationUnavailable`. Callers may explicitly choose `assumeZero` or `estimate(step:)`; the latter centrally differences velocities at neighbouring epochs using a positive elapsed-second interval. Supplied acceleration always takes precedence. Estimation introduces numerical error and requires coverage at both neighbouring epochs; its interval is caller-selected rather than an accuracy guarantee. Provider errors propagate, and returned epochs and frame identities are validated at every sample. Unknown acceleration in the input state remains unknown after conversion, even if origin acceleration was estimated.
 
@@ -122,7 +122,7 @@ let bodyState = try mars.state(at: start, in: marsFixed, using: tree)
 
 Coverage is required and caller-selected; it is not a certified physical-validity interval. Origin acceleration estimation also needs neighbouring ephemeris samples. `availableBodies` lists the existing 73 models. Earth and Moon require `allowLegacyModel: true` to expose the labelled older approximations; this does not provide ITRF or a precision lunar attitude.
 
-The provider converts TDB angular derivatives using both first and second derivatives of the provisional `Epoch` time adapter. Public-provider regression tests use all 511 CSPICE samples, including rotation rate and acceleration; the physical accuracy limits of that time adapter remain documented in [TIME.md](TIME.md).
+The provider converts TDB angular derivatives using both first and second derivatives of the provisional `Epoch` time adapter. Public-provider regression tests use all 511 CSPICE samples, including rotation rate and acceleration; the physical accuracy limits of that time adapter remain documented in <doc:TimeGuide>.
 
 ## Earth frames
 

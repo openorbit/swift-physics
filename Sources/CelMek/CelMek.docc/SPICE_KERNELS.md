@@ -55,7 +55,7 @@ currently require pseudo-inertial reference/base axes; their explicit frame-tree
 do not imply unrestricted non-inertial base support. Keep a supplied FrameTree alive
 externally: providers hold it weakly to avoid reference cycles. A body-fixed centre state
 without acceleration requires the caller to select an explicit acceleration policy.
-See [frame API](Sources/CelMek/FrameTransform.swift) and the provider sections below.
+See [frame API](https://github.com/lorrden/swift-celmek/blob/master/Sources/CelMek/FrameTransform.swift) and the provider sections below.
 
 ## Supported kernel loading
 
@@ -160,7 +160,7 @@ search are outside this implementation. Half-turn CK interpolation and branch-bo
 derivatives follow the explicit library policies below. A derivative-consistent opt-in
 CK type-3 orientation provider would need a separate contract from stored-rate interpolation.
 
-The native DE441 reader is a separate supported format; see [DE441.md](DE441.md).
+The native DE441 reader is a separate supported format; see <doc:DE441>.
 Fallback order between DE441 and SPK is explicit, followed by analytic/fitted and Kepler
 sources. Future additions should keep the documented-source implementation constraint
 and add pinned independent references rather than silently expanding compatibility.
@@ -877,7 +877,7 @@ contract errors always propagate. DE441/model/Kepler query failures retain their
 strict behavior. Results report the selected source and skipped sources/reasons; if no
 backup succeeds, the last SPK availability error is preserved.
 
-See [EPHEMERIDES.md](EPHEMERIDES.md) for the API and provenance/coverage contracts.
+See <doc:EPHEMERIDES> for the API and provenance/coverage contracts.
 Swift Testing covers explicit file priority, absent sources, gap diagnostics, strict
 error handling and real synthetic SPK interior gaps, including retained snapshots and
 a selected unsupported segment. No optional large asset or CSPICE installation is needed.
@@ -890,8 +890,8 @@ PCK type-2 orientation, leap labels and fractional SCLK correlations. The normal
 Testing suite needs neither CSPICE nor network access. Existing independent public-format
 fixtures retain coverage of byte orders, malformed inputs, precedence, gaps and unload/reload.
 
-See [fixture provenance and tolerances](Tests/CelMekTests/Fixtures/spice-oracle/README.md)
-and [optional generator](Scripts/generate_spice_oracle.py). Toolkit/wrapper versions,
+See [fixture provenance and tolerances](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/Fixtures/spice-oracle/README.md)
+and [optional generator](https://github.com/lorrden/swift-celmek/blob/master/Scripts/generate_spice_oracle.py). Toolkit/wrapper versions,
 asset hashes and a reference-output hash are pinned. The optional generator uses only
 public writer/query APIs with a binary oracle; no toolkit implementation source was used.
 These tests validate supported synthetic formats and conventions, not deferred types or
@@ -920,7 +920,7 @@ The binary PCK type-3 layout and decoded DAF comment delimiters are documented g
 for this implementation, not invitations to recover details from toolkit source.
 The public `pckw02`, `scencd`, quaternion and writer/query API contracts used for
 clarification or black-box generation are linked in their sections and the
-[oracle fixture provenance](Tests/CelMekTests/Fixtures/spice-oracle/README.md).
+[oracle fixture provenance](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/Fixtures/spice-oracle/README.md).
 
 ## Asset provenance and attribution
 
@@ -1001,7 +1001,7 @@ Recommended application flow:
    invalid files or dependencies fail instead of publishing a partial pool.
 3. Inspect the retained snapshot, construct explicit time/frame/body providers and
    constrain coverage to their dependencies. An LSK table can replace the built-in
-   history through the explicit [UTC APIs](TIME.md).
+   history through the explicit <doc:TimeGuide>.
 4. Compose `FallbackEphemeris` with the selected DE441/SPK priority, then analytic/fitted
    defaults where applicable and caller-seeded Kepler. If a pack is absent, omit that
    provider. If a present pack is invalid, report the error; do not treat it as absent.
@@ -1016,14 +1016,14 @@ only after their users release them. Binary IO is serialized and reads are bound
 provider evaluation can still depend on externally owned frame/time providers whose
 concurrency contracts the application must respect.
 
-The existing [DE441 packaging guidance](DE441.md) remains applicable to native DE assets.
+The existing <doc:DE441> remains applicable to native DE assets.
 Do not infer `.bsp` support from the DE number: inspect the SPK's actual segment types.
-The checked-in [black-box validation fixtures](Tests/CelMekTests/Fixtures/spice-oracle/README.md)
+The checked-in [black-box validation fixtures](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/Fixtures/spice-oracle/README.md)
 and public-format tests verify the supported subset offline; shipping a different
 production dataset remains subject to its actual types, axes, time data and coverage.
 
 For component synchronization, frame/asset lifetimes and actor isolation, see
-[THREAD_SAFETY.md](THREAD_SAFETY.md).
+<doc:THREAD_SAFETY>.
 
 
 ## SPK type 21 small-body states

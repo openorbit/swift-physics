@@ -34,7 +34,7 @@ work are excluded from those conversion workloads. Reported cost is per state/sa
 not per entire batch.
 
 For broader model truncation comparisons, see the existing
-[1950–2050 VSOP characterization](VSOP87_ACCURACY_CHARACTERIZATION.md), including
+<doc:VSOP87_ACCURACY_CHARACTERIZATION>, including
 per-body sampled differences and coefficient bounds. Those timings used a different
 run and configuration and should not be compared directly with this report.
 
@@ -51,7 +51,7 @@ one playback instant. Continuously changing epochs generally miss; caching does 
 provide interpolation. A shared cache also has capacity and synchronization costs.
 Orbit samples are independent queries, so path resolution directly changes workload;
 reuse sampled buffers until their inputs change under the
-[cache invalidation policy](GAME_INTEGRATION.md#cache-invalidation).
+<doc:GAME_INTEGRATION#Cache-invalidation>.
 
 Keep native states in Double and convert at the render boundary. Frame and renderer
 benchmarks measure CPU conversion only, not draw calls, uploads or application
@@ -69,7 +69,7 @@ Recorded 2026-10-13 on this host: arm64, eight logical processors,
 macOS version 27.0.1 (build 26A434), Apple Swift 6.4
 (swiftlang-6.4.0.34.1). The optimized binary was linked successfully; the sandbox
 blocked the subsequent dSYM generation, so this run invoked the linked release
-binary directly. Raw results are in [GAME_PERFORMANCE.json](GAME_PERFORMANCE.json).
+binary directly. Raw results are in `GAME_PERFORMANCE.json`.
 The hardware CPU model was unavailable in the sandbox. No claim is made that this
 host represents a supported target platform.
 
@@ -104,4 +104,4 @@ The renderer workload lasts only microseconds per batch and is especially sensit
 to timer overhead and optimizer effects; use it as a small-operation baseline.
 
 For repeatability assumptions, platform limits and replay/comparison policy, see
-[REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+<doc:REPRODUCIBILITY>.

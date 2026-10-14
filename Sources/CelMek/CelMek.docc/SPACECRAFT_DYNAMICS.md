@@ -177,7 +177,7 @@ Shared accuracy hints can select local-error presets via
 `NumericalSpacecraftPropagator(initialState:dynamics:accuracy:options:)`.
 Explicit options override the preset; the original direct-options initializer
 remains available. The selected settings and requested/preset metadata are
-inspectable. See [accuracy policy](ACCURACY.md) for the versioned preset table
+inspectable. See <doc:ACCURACY> for the versioned preset table
 and its interpretation; force/environment fidelity stays independently selected.
 
 ## Point-mass gravity
@@ -739,7 +739,7 @@ Heat bounds carry across spatial and timed engine boundaries and appear in
 execution-segment diagnostics. Cone checks use the gravity-compensating engine
 command at RK stages; heat uses conservative engine ceilings and does not
 estimate actual temperature. All waypoint timing planners apply these constraints.
-See [ORBITAL_MECHANICS.md](ORBITAL_MECHANICS.md) for model equations and limits.
+See <doc:ORBITAL_MECHANICS> for model equations and limits.
 
 `CommandedBurnPlanner` instead searches explicit finite-thrust schedules with
 checked passage and rendezvous targets. It propagates supplied directions under

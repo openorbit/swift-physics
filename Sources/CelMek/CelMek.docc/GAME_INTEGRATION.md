@@ -31,7 +31,7 @@ frame or epoch metadata and must remain presentation data, rather than inputs to
 physical propagation. Scale errors and nonfinite differences, scaling results,
 or Float overflow throw; small values may round or underflow to zero.
 
-The [Voyager example](Examples/Voyager2GameDemo/README.md) exports five planet
+The [Voyager example](https://github.com/lorrden/swift-celmek/blob/master/Examples/Voyager2GameDemo/README.md) exports five planet
 positions per playback snapshot using the spacecraft as a moving origin and
 one billion metres per render unit. No graphics framework is required.
 
@@ -42,7 +42,7 @@ no automatic detection of dependency edits. Treat configured providers and asset
 as immutable snapshots; replace a snapshot when changing its configuration.
 `CachedEphemerisProvider` supplies exact-epoch native-state caching, with private
 scopes that separate wrappers even when metadata looks identical. See
-[ephemeris cache contracts](EPHEMERIDES.md#batch-queries-and-explicit-caches).
+<doc:EPHEMERIDES#Batch-queries-and-explicit-caches>.
 
 | Change | Required action |
 | --- | --- |
@@ -84,13 +84,13 @@ is required, or clear the scene's shared storage after old jobs finish. Independ
 scenes should generally use separate storage when their lifetimes differ.
 
 Representative release workloads and measured tradeoffs are documented in
-[GAME_PERFORMANCE.md](GAME_PERFORMANCE.md).
+<doc:GAME_PERFORMANCE>.
 
 For component synchronization, frame/asset lifetimes and actor isolation, see
-[THREAD_SAFETY.md](THREAD_SAFETY.md).
+<doc:THREAD_SAFETY>.
 
 For repeatability assumptions, platform limits and replay/comparison policy, see
-[REPRODUCIBILITY.md](REPRODUCIBILITY.md).
+<doc:REPRODUCIBILITY>.
 
 Versioned saved states and reconstruction policy are documented in
-[SERIALIZATION.md](SERIALIZATION.md).
+<doc:SERIALIZATION>.

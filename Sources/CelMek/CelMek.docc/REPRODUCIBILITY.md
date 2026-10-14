@@ -100,7 +100,7 @@ A reproducibility report or saved input description should capture:
   event/termination statuses and comparison tolerances.
 
 This is a capture policy, not a serialization schema or a guarantee that arbitrary
-custom providers can be serialized. The [serialization schema](SERIALIZATION.md) defines versioned saved
+custom providers can be serialized. The <doc:SERIALIZATION> defines versioned saved
 inputs. Published benchmark reports are measurements of their stated build and
 workloads, not reproducibility promises for other hardware.
 
@@ -128,10 +128,10 @@ query-order checks, but no multi-platform bitwise certification. A platform chan
 should rerun those checks and inspect meaningful residuals, especially at model and
 event boundaries.
 
-See [accuracy contracts](ACCURACY.md), [time contracts](TIME.md),
-[concurrency and ownership](THREAD_SAFETY.md),
-[cache invalidation](GAME_INTEGRATION.md#cache-invalidation) and
-[measured performance](GAME_PERFORMANCE.md) for related limitations.
+See <doc:ACCURACY>, <doc:TimeGuide>,
+<doc:THREAD_SAFETY>,
+<doc:GAME_INTEGRATION#Cache-invalidation> and
+<doc:GAME_PERFORMANCE> for related limitations.
 
 Versioned saved states and reconstruction policy are documented in
-[SERIALIZATION.md](SERIALIZATION.md).
+<doc:SERIALIZATION>.

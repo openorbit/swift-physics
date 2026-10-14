@@ -241,7 +241,7 @@ FrameConvertedStateProviders still hold their tree weakly. Retain the tree for
 later conversion. Tests check all derivatives, frame round trips, mixed time metadata,
 coverage and identity rejection, missing acceleration, and scale-independent weights.
 
-Analytic adapters accept an explicit shared accuracy level; supported levels and their meaning are documented in [ACCURACY.md](ACCURACY.md).
+Analytic adapters accept an explicit shared accuracy level; supported levels and their meaning are documented in <doc:ACCURACY>.
 
 ## Batch queries and explicit caches
 
@@ -317,7 +317,7 @@ keys, LRU eviction, scope isolation, generation changes during evaluation, failu
 invalid cache hits, and mixed-body fail-fast queries.
 
 Application-level dependency changes, snapshot replacement and downstream buffer
-invalidation are covered in [game integration](GAME_INTEGRATION.md#cache-invalidation).
+invalidation are covered in <doc:GAME_INTEGRATION#Cache-invalidation>.
 
 ## Native JPL DE441
 
@@ -326,7 +326,7 @@ ephemeris contract with explicit target/centre, coverage, frame and TDB model.
 It evaluates complete file coefficients for all accuracy hints and supplies
 analytic velocity converted to atomic seconds. The reader has a configurable
 bounded record cache and internally serialized random-access IO. See
-[DE441.md](DE441.md) for supported binary profiles, split-date interpolation,
+<doc:DE441> for supported binary profiles, split-date interpolation,
 time-model limits and optional local-data tests.
 
 ## Explicit fallback tiers
@@ -429,8 +429,8 @@ chain. It evaluates full type 2/3 coefficients, returns atomic-second velocity a
 leaves acceleration unavailable. Non-SSB origins require an explicitly centred
 output frame. Endpoint validation does not certify interior chain coverage; gaps
 and corrupt/unsupported selected segments propagate without automatic fallback.
-See [SPICE_KERNELS.md](SPICE_KERNELS.md) for construction, dataset-specific J2000/ICRF
+See <doc:SPICE_KERNELS> for construction, dataset-specific J2000/ICRF
 interpretation, retained snapshot ownership, frame-tree lifetime and provenance.
 
 For component synchronization, frame/asset lifetimes and actor isolation, see
-[THREAD_SAFETY.md](THREAD_SAFETY.md).
+<doc:THREAD_SAFETY>.

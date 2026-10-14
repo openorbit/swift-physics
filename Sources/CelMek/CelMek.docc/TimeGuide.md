@@ -88,7 +88,7 @@ that numerical approximation and are not analytic error bounds. The analytic
 Swift derivatives remain consistent with the implemented two-term model. TDB round
 trips check numerical inversion, separately from physical accuracy.
 
-[Survey results](TDB_CHARACTERIZATION.json) record sample counts and worst TT Julian
+`TDB_CHARACTERIZATION.json` record sample counts and worst TT Julian
 dates. `Tools/characterize_tdb_adapter.py` regenerates the survey and fixtures using
 an external ERFA shared library. This developer reference adds no C target or runtime
 dependency to the package.
@@ -202,7 +202,7 @@ UT1−TT = DUT1 − (TAI−UTC) − 32.184 seconds. `sample.dut1(using:)` revers
 conversion, including inside a labelled leap second. The tabulated EOP provider
 interpolates UT1−TT rather than the discontinuous DUT1. `epoch.ut1JulianDate(using:)`
 returns distinct two-part UT1 components; UT1 is not a model-free `TimeScale` value.
-See [FRAMES.md](FRAMES.md) for measured file ingestion and interpolation policies.
+See <doc:FRAMES> for measured file ingestion and interpolation policies.
 
 ## Gregorian calendar readings
 
@@ -239,7 +239,7 @@ ISO string parsing, timezones and historical-calendar presentation remain separa
 
 ## Validation
 
-[EpochTests](Tests/CelMekTests/EpochTests.swift) uses a normal `import CelMek`, exercising public construction and result access. It covers normalization, arithmetic, comparisons/hashing, nonfinite inputs, range errors, J2000 scale offsets, fine steps at distant epochs, split-date precision, conversion round trips, and the millisecond scale of the TDB approximation.
+[EpochTests](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/EpochTests.swift) uses a normal `import CelMek`, exercising public construction and result access. It covers normalization, arithmetic, comparisons/hashing, nonfinite inputs, range errors, J2000 scale offsets, fine steps at distant epochs, split-date precision, conversion round trips, and the millisecond scale of the TDB approximation.
 
 ```sh
 swift test --filter EpochTests
@@ -286,7 +286,7 @@ suitable for analytical stored trajectories; it is not an instruction to reverse
 irreversible numerical integrator or replay external side effects. Time warp does not
 choose integration step size or handle event crossings automatically.
 
-The [Voyager game demo](Examples/Voyager2GameDemo/README.md) combines simulation-clock
+The [Voyager game demo](https://github.com/lorrden/swift-celmek/blob/master/Examples/Voyager2GameDemo/README.md) combines simulation-clock
 playback, independent prediction, explicit bounded coast selection, `TrajectorySampler`
 and prescribed moving planets. Its reported encounter patch discontinuities remain
 visible; changing the clock does not resolve the mission's connector residuals.

@@ -18,7 +18,7 @@ These are empirical differences on a daily grid. They do not bound intermediate 
 
 ## Regression budgets and reproduction
 
-[FastNutationAccuracyTests](Tests/CelMekTests/FastNutationAccuracyTests.swift) repeats the daily sweep, measures maxima and RMS, and checks these budgets:
+[FastNutationAccuracyTests](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/FastNutationAccuracyTests.swift) repeats the daily sweep, measures maxima and RMS, and checks these budgets:
 
 | Quantity | Maximum budget (arcseconds) | RMS budget (arcseconds) |
 | --- | ---: | ---: |

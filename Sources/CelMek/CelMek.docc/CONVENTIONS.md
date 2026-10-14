@@ -2,8 +2,8 @@
 
 This contract applies to the epoch-aware `CelMek` states, orientations and frame
 transforms. Legacy astronomical routines retain their individually documented units
-and coordinate conventions. See [states](STATES.md), [frames](FRAMES.md) and
-[time representations](TIME.md) for model-specific details.
+and coordinate conventions. See <doc:STATES>, <doc:FRAMES> and
+<doc:TimeGuide> for model-specific details.
 
 ## Coordinates, matrices and units
 
@@ -149,8 +149,8 @@ rotations. There is no universal library-wide tolerance.
 
 ## Existing verification
 
-[RotationAndScalingTests](Tests/MathTests/RotationAndScalingTests.swift) checks the +z
-quarter-turn, axis normalization and conjugate inverse. [FrameTransformTests](Tests/CelMekTests/FrameTransformTests.swift)
+[RotationAndScalingTests](https://github.com/lorrden/swift-celmek/blob/master/Tests/MathTests/RotationAndScalingTests.swift) checks the +z
+quarter-turn, axis normalization and conjugate inverse. [FrameTransformTests](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/FrameTransformTests.swift)
 checks rotating signs, derivative terms, composition/inversion, identity and provider
 errors. Time, calendar, body-fixed and Earth-frame suites check their own boundary and
 reference cases. These checks support the implemented conventions rather than a claim

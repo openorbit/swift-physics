@@ -79,7 +79,7 @@ fallback order, constants and provenance. Extend an application-owned envelope w
 typed records for numerical forces, torque/guidance callbacks, maneuvers, waypoint
 plans and mission state. Do not claim a Cartesian snapshot alone reproduces those
 models. Custom executable callbacks require application-defined reconstruction code.
-See [reproducibility capture policy](REPRODUCIBILITY.md#record-enough-context).
+See <doc:REPRODUCIBILITY#Record-enough-context>.
 
 This first library schema directly reconstructs Cartesian/mass states, clocks and
 two-body inputs. It establishes the envelope/versioning policy for broader saves,
@@ -114,13 +114,13 @@ as a portable model identity without a separately specified canonical format.
 Bound input file size and application object counts before decoding untrusted saves;
 the Codable decoder is not a resource-limited asset loader. Stage validation and all
 bindings before replacing the live scene. Publish a new scene revision and invalidate
-old derived buffers under the [cache policy](GAME_INTEGRATION.md#cache-invalidation).
+old derived buffers under the <doc:GAME_INTEGRATION#Cache-invalidation>.
 Write saves atomically using the application's storage layer. Do not persist runtime
 cache entries, UUID scopes or frame object addresses.
 
 Swift Testing covers round trips, precise distant epochs, missing acceleration/mass,
 clock continuation, invalid payloads, duplicate IDs, unknown versions, binding failures
 and non-inertial two-body frame rejection. A hand-written
-[version-1 fixture](Tests/CelMekTests/Fixtures/simulation-save-v1.json) pins the wire
+[version-1 fixture](https://github.com/lorrden/swift-celmek/blob/master/Tests/CelMekTests/Fixtures/simulation-save-v1.json) pins the wire
 format independently of encoder round trips. This is not a promise of bitwise numerical
 compatibility across library/compiler/platform versions.

@@ -1,6 +1,6 @@
 # Cartesian states and providers
 
-The shared coordinate, rotation and error contract is in [CONVENTIONS.md](CONVENTIONS.md).
+The shared coordinate, rotation and error contract is in <doc:CONVENTIONS>.
 
 `CartesianState` carries an `Epoch`, a `Math.Frame` identity, Cartesian position in metres, velocity in metres per elapsed atomic second, and optional acceleration in metres per second squared. Missing acceleration means unavailable; it does not mean zero.
 
@@ -28,7 +28,7 @@ The initializer normalizes units once at the boundary:
 
 Here AU is exactly 149,597,870,700 metres and a day is 86,400 seconds. Nonfinite components and conversion overflow throw `CartesianStateError`. Input vectors must already be Cartesian coordinates in the supplied frame; units do not convert spherical coordinates or time scales.
 
-Frame equality uses object identity, so two frames with the same name are distinct. A frame defines both origin and axes. [FrameTree](FRAMES.md) supplies transformations between connected frames; changing a frame label cannot convert coordinates. These types do not promise concurrent mutation or Sendable conformance.
+Frame equality uses object identity, so two frames with the same name are distinct. A frame defines both origin and axes. <doc:FRAMES> supplies transformations between connected frames; changing a frame label cannot convert coordinates. These types do not promise concurrent mutation or Sendable conformance.
 
 ## VSOP87 provider
 
@@ -36,13 +36,13 @@ Frame equality uses object identity, so two frames with the same name are distin
 
 The native convention is barycentric Cartesian coordinates with dynamical ecliptic and equinox J2000 axes. The original [VSOP87 evaluator](https://github.com/ctdk/vsop87/blob/master/vsop87.f) documents the E variant and its TDB input, AU positions, and AU/day velocities. This frame is distinct from an equatorial ICRF frame.
 
-The adapter evaluates the complete implemented series using split TDB date components, converts output to SI, and applies the TDB-to-atomic time rate so velocity follows `Epoch` intervals. It returns no acceleration. The provisional TDB approximation and its limits are described in [TIME.md](TIME.md); its sampled time-conversion errors are characterized over 1950–2050; VSOP87 scientific coverage bounds remain separate work. Precise epoch storage does not establish model accuracy or preserve arbitrarily small changes through every floating-point evaluation.
+The adapter evaluates the complete implemented series using split TDB date components, converts output to SI, and applies the TDB-to-atomic time rate so velocity follows `Epoch` intervals. It returns no acceleration. The provisional TDB approximation and its limits are described in <doc:TimeGuide>; its sampled time-conversion errors are characterized over 1950–2050; VSOP87 scientific coverage bounds remain separate work. Precise epoch storage does not establish model accuracy or preserve arbitrarily small changes through every floating-point evaluation.
 
 Legacy `position(jd:)` retains its TDB Julian-date input and AU/AU-day outputs for compatibility. Other legacy ephemerides retain their documented units: the lunar model and spherical outputs require their own coordinate and derivative adapters, and DE441 integration remains separate work. SI normalization currently applies to the new shared state boundary, not every legacy API.
 
 `VSOP87StateProvider(body:tdbModel:)` configures a provider with a selected time model
 for normal frame-tree queries. Direct `state(at:using:)` queries also accept a model.
 The selected correction determines both the TDB epoch and velocity chain rule; its
-coverage errors propagate. Defaults retain the two-term adapter. See [TIME.md](TIME.md).
+coverage errors propagate. Defaults retain the two-term adapter. See <doc:TimeGuide>.
 
 Public-import Swift Testing checks cover input normalization, missing acceleration, frame identity, invalid components and overflow, a planetary reference sample, and all nine VSOP87 bodies' velocities against position differences over elapsed seconds.

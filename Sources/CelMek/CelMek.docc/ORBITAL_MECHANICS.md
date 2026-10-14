@@ -292,7 +292,7 @@ Run the complete checkpoint with:
 swift run --disable-sandbox TwoBodyGameDemo
 ```
 
-[Examples/TwoBodyGameDemo/main.swift](Examples/TwoBodyGameDemo/main.swift) queries
+[Examples/TwoBodyGameDemo/main.swift](https://github.com/lorrden/swift-celmek/blob/master/Examples/TwoBodyGameDemo/main.swift) queries
 VSOP87 Earth, creates an Earth-centred inertial frame, propagates a spacecraft,
 applies a scheduled impulse, and emits JSON samples in a prescribed rotating
 Earth frame. The spin is a game model rather than observed Earth orientation.
@@ -1792,4 +1792,4 @@ query, proposal and evaluation exhaustion.
 
 ### Attitude and rotational dynamics
 
-See [ATTITUDE_DYNAMICS.md](ATTITUDE_DYNAMICS.md) for prescribed attitude providers, physical body rates and frame adapters, constant-inertia Euler dynamics, torque/control/environmental models, and coupled translation/fuel/rotation propagation. `AttitudeDynamicsDemo` is a runnable off-centre body-engine example. All rotations remain right handed; torque and thrust are evaluated in explicit axes at the current epoch.
+See <doc:ATTITUDE_DYNAMICS> for prescribed attitude providers, physical body rates and frame adapters, constant-inertia Euler dynamics, torque/control/environmental models, and coupled translation/fuel/rotation propagation. `AttitudeDynamicsDemo` is a runnable off-centre body-engine example. All rotations remain right handed; torque and thrust are evaluated in explicit axes at the current epoch.

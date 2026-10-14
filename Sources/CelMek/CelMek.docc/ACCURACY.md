@@ -55,7 +55,7 @@ If selection removes no terms, effective accuracy is full even for a lower hint.
 Velocity analytically differentiates exactly the selected terms and uses the same
 TDB-to-atomic rate conversion as full evaluation. The position bound is not a
 velocity error bound: small, fast oscillating terms can have larger derivatives.
-[Measured results](VSOP87_ACCURACY_CHARACTERIZATION.md) cover all nine bodies at
+<doc:VSOP87_ACCURACY_CHARACTERIZATION> cover all nine bodies at
 4,567 epochs from 1950 to 2050 (eight-day spacing plus the endpoint), using the
 same Fairhead TDB model in every mode. These are sampled maxima relative to full
 VSOP87E and local release-build timings, not independent physical error bounds.
@@ -156,7 +156,7 @@ bounds. Acceptance scales each component by absolute tolerance plus relative
 tolerance times its state magnitude. Coordinate origin, trip duration, model
 smoothness and supplied forces all matter. Tightening tolerances can increase
 cost or fail at work/step/precision limits; there is no automatic downgrade to a
-looser preset. See [spacecraft dynamics](SPACECRAFT_DYNAMICS.md) for the error norm,
+looser preset. See <doc:SPACECRAFT_DYNAMICS> for the error norm,
 propellant handling and numerical limits.
 
 Tests verify every preset's values tighten in order, unchanged defaults/work
