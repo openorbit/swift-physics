@@ -71,3 +71,15 @@ Aerodynamics re-exports for compatibility.
 - ``HydrogenHeliumHeatingMixture``
 - ``HydrogenHeliumColdWallHeating``
 - ``HydrogenHeliumHeatingResult``
+
+### Parachutes and balloons
+- <doc:ParachutesAndBalloons>
+- ``DragCoefficientQuery``
+- ``DragCoefficientModel``
+- ``DragCoefficientSample``
+- ``TabulatedDragCoefficients``
+- ``DragAreaAerodynamics``
+- ``ParachuteAerodynamics``
+- ``BuoyancyField``
+- ``Buoyancy``
+- ``BalloonAerodynamics``

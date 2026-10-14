@@ -66,3 +66,20 @@ let giantResult = try giantHeating.evaluate(StagnationHeatingQuery(flow: giantFl
     gasIdentifier: giantMixture.gasIdentifier, noseRadiusMetres: 0.4, surfacePositionMetres: SIMD3(1,0,0),
     wall: AerothermalWallState(temperatureKelvin: 300)))
 print("H₂/He reference mixture: \(giantResult.heatFlux.wattsPerSquareMetre) W/m²")
+
+// Supplied-state parachute and balloon examples; coefficients are synthetic.
+func demoDragTable(_ coefficient: Double) throws -> TabulatedDragCoefficients {
+    try TabulatedDragCoefficients(samples: [0.0,0.5].flatMap { mach in
+        [1e4,1e8].map { DragCoefficientSample(machNumber: mach,reynoldsNumber: $0,dragCoefficient: coefficient) }
+    },source: "Synthetic steady drag",version: "1")
+}
+let descentFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(0,0,10),
+                                     properties: ISAAtmosphere().properties(at: 0))
+let parachute = ParachuteAerodynamics(drag: try DragAreaAerodynamics(areaSquareMetres: 20,
+    referenceLengthMetres: 5,forceApplicationPointMetres: SIMD3(0,0,-2),model: demoDragTable(1.5)))
+print("Steady parachute force: \(try parachute.evaluate(flow: descentFlow).forceNewtons) N")
+let balloon = BalloonAerodynamics(buoyancy: try Buoyancy(displacedVolumeCubicMetres: 100),
+    drag: try DragAreaAerodynamics(areaSquareMetres: 5,referenceLengthMetres: 5,model: demoDragTable(0.5)))
+let balloonLoads = try balloon.evaluate(flow: descentFlow,
+    field: .hydrostaticGravityMetresPerSecondSquared(SIMD3(0,0,9.80665)))
+print("Balloon gross buoyancy plus drag (weight external): \(balloonLoads.forceNewtons) N")
