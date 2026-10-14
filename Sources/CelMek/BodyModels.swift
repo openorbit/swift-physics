@@ -145,7 +145,7 @@ public struct PointMassBodyGravity: BodyGravityProvider {
   }
 }
 
-/// Optional independent models selected for one body. Missing models stay absent;
+/// Optional independent models selected for one body, including magnetic fields. Missing models stay absent;
 /// GM/radii in metadata never silently create gravity or shape providers.
 /// Identity validation does not certify consistency of model versions or axis descriptions.
 public struct CelestialBodyModels {
@@ -154,12 +154,15 @@ public struct CelestialBodyModels {
   public let orientation: (any BodyOrientationProvider)?
   public let shape: (any BodyShapeProvider)?
   public let gravity: (any BodyGravityProvider)?
+  public let magneticField: (any BodyMagneticProvider)?
   public init(body: CelestialBody, ephemeris: (any EphemerisProvider)? = nil,
               orientation: (any BodyOrientationProvider)? = nil,
-              shape: (any BodyShapeProvider)? = nil, gravity: (any BodyGravityProvider)? = nil) throws {
-    let ids = [ephemeris?.metadata.body,orientation?.bodyIdentifier,shape?.bodyIdentifier,gravity?.bodyIdentifier]
+              shape: (any BodyShapeProvider)? = nil, gravity: (any BodyGravityProvider)? = nil,
+              magneticField: (any BodyMagneticProvider)? = nil) throws {
+    let ids = [ephemeris?.metadata.body,orientation?.bodyIdentifier,shape?.bodyIdentifier,gravity?.bodyIdentifier,magneticField?.bodyIdentifier]
     guard ids.compactMap({ $0 }).allSatisfy({ $0 == body.identifier }) else { throw BodyModelError.bodyMismatch }
     self.body = body; self.ephemeris = ephemeris; self.orientation = orientation; self.shape = shape; self.gravity = gravity
+    self.magneticField = magneticField
   }
 }
 

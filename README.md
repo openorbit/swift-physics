@@ -65,3 +65,12 @@ The common ephemeris contract, validating state-provider adapter, and body-query
 Shared accuracy intent and each adapter's supported levels are documented in [ACCURACY.md](ACCURACY.md).
 
 Reduced VSOP87 error and query-cost measurements, with a reproducible release tool, are in [VSOP87_ACCURACY_CHARACTERIZATION.md](VSOP87_ACCURACY_CHARACTERIZATION.md).
+
+Atmospheric profiles are provided by the [Atmospheres target](Documentation/Atmospheres.md),
+shared by CelMek and Aerodynamics. It includes Earth ISA, nominal planetary/moon
+profiles, and gas-giant pressure during descent below the 1-bar level.
+
+The [MagneticFields target](Documentation/MagneticFields.md) supplies
+pluggable magnetic-field models, ideal dipoles and CelMek body/orientation adapters.
+It also includes Swift WMM/IGRF evaluators, coefficient-file loaders and bundled
+WMM2025/IGRF-14 datasets with explicit date coverage.

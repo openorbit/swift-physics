@@ -9,8 +9,10 @@ let package = Package(
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
             name: "Physics",
-            targets: ["CelMek", "Aerodynamics", "Math"]),
+            targets: ["CelMek", "Aerodynamics", "Math", "Atmospheres", "MagneticFields"]),
         .library(name: "CelMek", targets: ["CelMek"]),
+        .library(name: "Atmospheres", targets: ["Atmospheres"]),
+        .library(name: "MagneticFields", targets: ["MagneticFields"]),
         .library(name: "Math", targets: ["Math"]),
         .library(name: "Aerodynamics", targets: ["Aerodynamics"]),
     ],
@@ -25,13 +27,16 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "CelMek",
-            dependencies: ["Math"]),
+            dependencies: ["Math", "Atmospheres",
+                           "MagneticFields"]),
+        .target(name: "MagneticFields", resources: [.process("Resources")]),
+        .target(name: "Atmospheres"),
         .target(
             name: "Math",
             dependencies: []),
         .target(
             name: "Aerodynamics",
-            dependencies: ["Yams"]),
+            dependencies: ["Yams", "Atmospheres"]),
         .executableTarget(
             name: "TwoBodyGameDemo",
             dependencies: ["CelMek"],
@@ -62,6 +67,8 @@ let package = Package(
         .testTarget(
             name: "AerodynamicsTests",
             dependencies: ["Aerodynamics"]),
+        .testTarget(name: "AtmospheresTests", dependencies: ["Atmospheres"]),
+        .testTarget(name: "MagneticFieldsTests", dependencies: ["MagneticFields"], resources: [.copy("Fixtures")]),
         .testTarget(
             name: "MathTests",
             dependencies: ["Math"]),

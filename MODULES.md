@@ -1,20 +1,25 @@
 # Module boundaries
 
-Keep the current three Swift modules and package name. Add focused library products
+Keep the main package name. Atmospheric models live in the
+`Sources/Atmospheres` target and are shared by CelMek and Aerodynamics. Magnetic
+field evaluators live in `Sources/MagneticFields` and are consumed by CelMek. Add focused library products
 for selective consumption, while retaining the existing `Physics` product. Module
-responsibilities are defined below; existing public types stay in their current modules.
+responsibilities are defined below. Legacy atmosphere types are re-exported by
+Aerodynamics after extraction.
 
 ## Package products and imports
 
 | SwiftPM library product | Included module targets | Target dependencies |
 | --- | --- | --- |
-| `CelMek` | `CelMek` | `Math` |
+| `CelMek` | `CelMek` | `Math`, `Atmospheres`, `MagneticFields` |
 | `Math` | `Math` | None |
-| `Aerodynamics` | `Aerodynamics` | `Yams` |
-| `Physics` (existing bundle) | `CelMek`, `Aerodynamics`, `Math` | Dependencies of those targets |
+| `Aerodynamics` | `Aerodynamics` | `Yams`, `Atmospheres` |
+| `Atmospheres` | `Atmospheres` | None |
+| `MagneticFields` | `MagneticFields` | None |
+| `Physics` (existing bundle) | `CelMek`, `Aerodynamics`, `Math`, `Atmospheres`, `MagneticFields` | Dependencies of those targets |
 
 `Physics` is a product name, not a Swift module: there is no `import Physics`.
-Imports remain `import CelMek`, `import Math`, and `import Aerodynamics`. Applications
+Imports include `import CelMek`, `import Math`, `import Aerodynamics`, `import Atmospheres`, and `import MagneticFields`. Applications
 that directly use Math types should declare the Math product explicitly as well.
 Existing consumers selecting Physics can keep their manifest and imports.
 
@@ -65,11 +70,18 @@ require a particular DE reader or analytic series. Ephemerides must not depend o
 spacecraft integrator. Frames consume origin/orientation providers without owning a
 simulation clock. Data loading remains separate from evaluating a provider.
 
-**Aerodynamics** owns airfoil and atmosphere models, including its current YAML input.
-It remains independently usable and does not depend on CelMek. When spacecraft drag
-is implemented, an optional adapter can translate atmosphere results into CelMek force
-inputs after Aerodynamics units and validity have been reviewed. CelMek should not
-acquire a Yams dependency merely to expose a drag-force interface.
+**Atmospheres** owns atmospheric profiles, body lookup, units and coverage. It is a
+dependency-free target exposed through the `Atmospheres` product.
+
+**MagneticFields** owns magnetic-field queries, vectors, coverage, provenance,
+dipole models and nominal body-centre lookup. It is a target without
+dependencies. WMM/IGRF coefficient loaders and Swift harmonic evaluators implement the same provider interface.
+CelMek adds body identity, epoch-to-calendar injection and orientation adapters;
+magnetic evaluators do not depend on ephemerides or spacecraft integration.
+
+**Aerodynamics** owns airfoils and YAML input, and re-exports Atmospheres for existing
+callers. It does not depend on CelMek. CelMek depends directly on Atmospheres for body
+lookup and a spherical rotating-medium drag adapter, without acquiring Yams.
 
 **Game/renderer adapters** belong in consumer applications or future optional targets.
 They consume CelMek and optionally Aerodynamics. Engine clocks, rendering axes,
