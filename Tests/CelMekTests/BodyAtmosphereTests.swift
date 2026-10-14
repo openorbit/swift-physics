@@ -4,6 +4,24 @@ import Math
 import Atmospheres
 @testable import CelMek
 @Suite struct BodyAtmosphereTests {
+    @Test func coRotatingVehicleHasNoDrag() throws {
+        let frame = Frame(name: "Co-rotation inertial", pseudoInertial: true)
+        let atmosphere = try SphericalBodyAtmosphere(bodyIdentifier: .earth,
+            profile: ISAAtmosphere(), referenceRadiusMetres: 6371000, frame: frame,
+            angularVelocityRadiansPerSecond: SIMD3(0, 0, 1e-4))
+        let context = try ForceEvaluationContext(frame: frame, origin: .earth)
+        let drag = try AtmosphericDrag(referenceAreaSquareMetres: 1, dragCoefficient: 2,
+                                       atmosphere: atmosphere)
+        for position in [SIMD3<Double>(6371000, 0, 0), SIMD3(0, 6371000, 0), SIMD3(0, 0, 6371000)] {
+            let velocity = SIMD3(-1e-4 * position.y, 1e-4 * position.x, 0)
+            let state = SpacecraftState(cartesian: try CartesianState(epoch: .j2000, frame: frame,
+                position: position, velocity: velocity),
+                mass: try SpacecraftMassProperties(dryMassKilograms: 100))
+            let medium = try atmosphere.sample(for: state, in: context)
+            #expect(medium.velocityMetresPerSecond == velocity)
+            #expect(try drag.contribution(for: state, in: context).accelerationMetresPerSecondSquared == .zero)
+        }
+    }
     @Test func lookupRotationAndDrag() throws {
         let frame = Frame(name: "Atmosphere inertial", pseudoInertial: true)
         let earth = try #require(BodyIdentifier.earth.atmosphericModel)

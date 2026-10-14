@@ -5,6 +5,9 @@ import Atmospheres
 /// Pure local flow in caller-selected right-handed body/section axes:
 /// +X forward, +Y right, +Z down. Velocity is body motion relative to the medium,
 /// not the opposite air-on-body velocity. All vectors in a query must use the same axes.
+/// Subtract atmosphere velocity from body velocity in a common frame before rotating
+/// the difference into these axes. A co-rotating atmosphere is at rest in the planet's
+/// rotating frame, but has velocity Ω×r in a planet-centred inertial frame.
 public struct AerodynamicFlow: Sendable {
     public let relativeVelocityMetresPerSecond: SIMD3<Double>
     public let densityKilogramsPerCubicMetre: Double
@@ -64,12 +67,18 @@ public struct AerodynamicFlow: Sendable {
         guard result.isFinite else { throw AerodynamicError.nonFiniteResult }
         return result
     }
-    /// Local body velocity v + ω×r in a spatially uniform medium. Offset is from
-    /// this flow's velocity reference point; atmosphere gradients/winds are sampled by callers.
-    public func atLocalPoint(offsetMetres: SIMD3<Double>, angularVelocityRadiansPerSecond: SIMD3<Double>) throws -> Self {
-        guard aeroFinite(offsetMetres), aeroFinite(angularVelocityRadiansPerSecond) else { throw AerodynamicError.invalidFlow }
+    /// Local relative velocity v + (ωBody − ωMedium)×r for a rigidly rotating
+    /// medium. Both angular velocities must be measured relative to the same frame
+    /// and expressed in these axes. The default medium rate describes uniform air.
+    /// Offset is from this flow's velocity reference point. Callers sample additional
+    /// wind gradients separately. In planet-fixed coordinates, co-rotating air has
+    /// zero medium rate; in inertial coordinates, supply the planet's rotation rate.
+    public func atLocalPoint(offsetMetres: SIMD3<Double>, angularVelocityRadiansPerSecond: SIMD3<Double>,
+                             mediumAngularVelocityRadiansPerSecond: SIMD3<Double> = .zero) throws -> Self {
+        guard aeroFinite(offsetMetres), aeroFinite(angularVelocityRadiansPerSecond),
+              aeroFinite(mediumAngularVelocityRadiansPerSecond) else { throw AerodynamicError.invalidFlow }
         return try Self(relativeVelocityMetresPerSecond: relativeVelocityMetresPerSecond
-            + aeroCross(angularVelocityRadiansPerSecond,offsetMetres),
+            + aeroCross(angularVelocityRadiansPerSecond-mediumAngularVelocityRadiansPerSecond,offsetMetres),
             densityKilogramsPerCubicMetre: densityKilogramsPerCubicMetre,pressurePascals: pressurePascals,
             temperatureKelvin: temperatureKelvin,speedOfSoundMetresPerSecond: speedOfSoundMetresPerSecond,
             dynamicViscosityPascalSeconds: dynamicViscosityPascalSeconds,meanFreePathMetres: meanFreePathMetres)

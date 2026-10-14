@@ -151,15 +151,17 @@ public struct SegmentedWing: Sendable {
         }
         return SegmentedWingResult(segments: results,loads: total)
     }
-    /// Uniform medium convenience. Flow's linear velocity is measured at the stated
-    /// velocity reference point; ω and positions use the same body axes and origin.
+    /// Uniform or rigidly rotating medium convenience. Flow's linear velocity is measured at the stated
+    /// velocity reference point; both rates use the same reference frame and body axes.
     public func evaluate(flow: AerodynamicFlow, angularVelocityRadiansPerSecond: SIMD3<Double> = .zero,
+                mediumAngularVelocityRadiansPerSecond: SIMD3<Double> = .zero,
                 velocityReferencePointMetres: SIMD3<Double> = .zero,
                 momentReferencePointMetres: SIMD3<Double> = .zero) throws -> SegmentedWingResult {
         guard aeroFinite(angularVelocityRadiansPerSecond), aeroFinite(velocityReferencePointMetres) else { throw AerodynamicError.invalidFlow }
         return try evaluate(momentReferencePointMetres: momentReferencePointMetres) {
             try flow.atLocalPoint(offsetMetres: $0.positionMetres-velocityReferencePointMetres,
-                                 angularVelocityRadiansPerSecond: angularVelocityRadiansPerSecond)
+                                 angularVelocityRadiansPerSecond: angularVelocityRadiansPerSecond,
+                                 mediumAngularVelocityRadiansPerSecond: mediumAngularVelocityRadiansPerSecond)
         }
     }
 }

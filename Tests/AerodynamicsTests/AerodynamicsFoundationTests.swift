@@ -134,6 +134,24 @@ import Aerodynamics
         }
         #expect(throws:AerodynamicError.invalidGeometry) { try flow.reynoldsNumber(referenceLengthMetres:0) }
     }
+    @Test func rotatingMediumLocalVelocityIsFrameIndependent() throws {
+        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(100, 2, 3),
+                                       densityKilogramsPerCubicMetre: 1)
+        let offset = SIMD3<Double>(4, -3, 2)
+        let planetRate = SIMD3<Double>(0.01, -0.02, 0.03)
+        let vehicleRelativeRate = SIMD3<Double>(0.2, 0.1, -0.3)
+        let inertial = try flow.atLocalPoint(offsetMetres: offset,
+            angularVelocityRadiansPerSecond: planetRate + vehicleRelativeRate,
+            mediumAngularVelocityRadiansPerSecond: planetRate)
+        let rotating = try flow.atLocalPoint(offsetMetres: offset,
+            angularVelocityRadiansPerSecond: vehicleRelativeRate)
+        let difference = inertial.relativeVelocityMetresPerSecond - rotating.relativeVelocityMetresPerSecond
+        #expect(abs(difference.x) + abs(difference.y) + abs(difference.z) < 1e-12)
+        let coRotating = try flow.atLocalPoint(offsetMetres: offset,
+            angularVelocityRadiansPerSecond: planetRate,
+            mediumAngularVelocityRadiansPerSecond: planetRate)
+        #expect(coRotating.relativeVelocityMetresPerSecond == flow.relativeVelocityMetresPerSecond)
+    }
     @Test func coefficientScalingMomentTransferAndAddition() throws {
         let geometry = try AerodynamicReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(4,3,4),
             momentReferencePointMetres:SIMD3(2,0,0))

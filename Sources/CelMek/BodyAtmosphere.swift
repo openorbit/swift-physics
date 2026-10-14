@@ -12,7 +12,8 @@ public extension BodyIdentifier {
 }
 
 /// Spherical altitude adapter for drag. Caller supplies the radius of the profile's
-/// datum and angular velocity in the state's inertial axes. No winds are inferred.
+/// datum and angular velocity in the state's inertial axes. Atmospheric co-rotation
+/// is included as Ω×r; no additional meteorological winds are inferred.
 /// Origin must be the body's centre; no implicit ephemeris or orientation transform.
 public struct SphericalBodyAtmosphere: AtmosphereProvider {
     public let bodyIdentifier: BodyIdentifier
