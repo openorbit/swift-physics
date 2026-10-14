@@ -43,6 +43,10 @@ Aerodynamics re-exports for compatibility.
 - ``BodyAerodynamicRateDerivativeModel``
 - ``ConstantBodyRateDerivatives``
 - ``LinearBodyRateAerodynamics``
+- <doc:ControlSurfaces>
+- ``ControlSurfaceSetting``
+- ``TabulatedControlSurface``
+- ``ControlSurfaceTableLoader``
 
 ### Airfoil models
 - ``Airfoil``

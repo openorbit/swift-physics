@@ -149,12 +149,12 @@ public enum AirfoilTableLoader {
     }
 }
 
-private func boundedCoefficientCoordinate(_ value: Double, range: ClosedRange<Double>, policy: CoefficientBoundaryPolicy) throws -> Double {
+internal func boundedCoefficientCoordinate(_ value: Double, range: ClosedRange<Double>, policy: CoefficientBoundaryPolicy) throws -> Double {
     guard value.isFinite else { throw AerodynamicError.invalidParameter }
     guard policy == .clamp || range.contains(value) else { throw AerodynamicError.outsideCoverage }
     return min(range.upperBound,max(range.lowerBound,value))
 }
-private func blendCoefficients(_ first: AirfoilCoefficients, _ last: AirfoilCoefficients, weight: Double) throws -> AirfoilCoefficients {
+internal func blendCoefficients(_ first: AirfoilCoefficients, _ last: AirfoilCoefficients, weight: Double) throws -> AirfoilCoefficients {
     let result = AirfoilCoefficients(lift: first.lift*(1-weight)+last.lift*weight,
         drag: first.drag*(1-weight)+last.drag*weight,moment: first.moment*(1-weight)+last.moment*weight)
     guard result.isFinite else { throw AerodynamicError.nonFiniteResult }
