@@ -45,3 +45,11 @@ Aerodynamics re-exports for compatibility.
 - ``ThinSymetricAirfoil``
 - ``ThinCamberedAirfoil``
 - ``NACA4``
+
+### Hypersonic surface pressure
+- <doc:SurfacePressure>
+- ``AerodynamicSurfacePanel``
+- ``SurfacePressureCoefficientModel``
+- ``ModifiedNewtonianPressure``
+- ``SurfacePressureAerodynamics``
+- ``SurfacePressureResult``
