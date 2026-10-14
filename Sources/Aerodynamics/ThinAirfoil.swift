@@ -19,6 +19,7 @@
 import Foundation
 
 public struct ThinSymetricAirfoil : Airfoil {
+  public init() {}
   public func liftCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
     return 2 * .pi * alpha
   }
@@ -54,7 +55,7 @@ public struct ThinCamberedAirfoil : Airfoil {
     return 0
   }
   public func coefficients(at alpha: Double, for reynoldsNumber: Double) -> AirfoilCoefficients {
-    return AirfoilCoefficients(lift: 2 * .pi * alpha, drag: 0, moment: 0)
+    return AirfoilCoefficients(lift: cl0 + 2 * .pi * alpha, drag: 0, moment: 0)
   }
 
 }

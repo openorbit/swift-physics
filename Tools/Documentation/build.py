@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import shlex
 import subprocess
+import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--disable-sandbox", action="store_true", help="Disable SwiftPM's nested plugin sandbox when running inside an existing sandbox.")
@@ -38,8 +39,17 @@ for module in modules:
         raise SystemExit(f"{module} documentation failed; see {output / (module + '.log')}")
     archives.append(str(archive))
 combined = output / "Physics.doccarchive"
-subprocess.run([docc, "merge", *archives, "--output-path", str(combined),
-                "--synthesized-landing-page-name", "Physics", "--synthesized-landing-page-kind", "Package"], check=True, cwd=root)
+# Merge into staging so rebuilding an existing archive is supported, and a
+# failed merge leaves the last successful package archive intact.
+with tempfile.TemporaryDirectory(prefix="docc-merge-", dir=output) as staging:
+    merged = Path(staging) / "Physics.doccarchive"
+    subprocess.run([docc, "merge", *archives, "--output-path", str(merged),
+                    "--synthesized-landing-page-name", "Physics", "--synthesized-landing-page-kind", "Package"], check=True, cwd=root)
+    if combined.exists():
+        if not (combined / "metadata.json").is_file():
+            raise SystemExit(f"Refusing to replace a non-archive directory: {combined}")
+        shutil.rmtree(combined)
+    shutil.move(str(merged), str(combined))
 print(f"Combined documentation: {combined}", flush=True)
 
 print(f"Browser preview: python3 Tools/Documentation/preview.py --archive {shlex.quote(str(combined))}", flush=True)

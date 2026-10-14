@@ -79,8 +79,11 @@ dependencies. WMM/IGRF coefficient loaders and Swift harmonic evaluators impleme
 CelMek adds body identity, epoch-to-calendar injection and orientation adapters;
 magnetic evaluators do not depend on ephemerides or spacecraft integration.
 
-**Aerodynamics** owns airfoils and YAML input, and re-exports Atmospheres for existing
-callers. It does not depend on CelMek. CelMek depends directly on Atmospheres for body
+**Aerodynamics** owns aerodynamic physics: validated coefficient data, airfoil/wing
+geometry, local flow, physical forces/moments and heat-flux contracts. It re-exports
+Atmospheres for existing callers and does not depend on CelMek. Vehicle assembly,
+deployment/reefing sequences, actuators, gas management and coupled subsystem state
+evolution belong to a separate systems-modeling package. CelMek depends directly on Atmospheres for body
 lookup and a spherical rotating-medium drag adapter, without acquiring Yams.
 
 **Game/renderer adapters** belong in consumer applications or future optional targets.
