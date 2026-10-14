@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 import Foundation
 
+/// Rates must match the convention used to identify the coefficient derivatives.
+public enum BodyAerodynamicRateReference: Sendable, Equatable {
+    case inertialReference
+    case rigidlyRotatingMedium
+}
+
 /// Whole-body inputs in X-forward/Y-right/Z-down axes. Angular rates are carried
 /// for providers with calibrated damping; no damping coefficient is invented.
 public struct BodyAerodynamicQuery: Sendable {
@@ -8,6 +14,7 @@ public struct BodyAerodynamicQuery: Sendable {
     public let reynoldsReferenceLengthMetres: Double
     public let momentLengthsMetres: SIMD3<Double>
     public let angularVelocityRadiansPerSecond: SIMD3<Double>
+    public let angularRateReference: BodyAerodynamicRateReference
     public var angleOfAttackRadians: Double? { flow.angleOfAttackRadians }
     public var sideslipRadians: Double? { flow.sideslipRadians }
     public var machNumber: Double? { flow.machNumber }
@@ -17,12 +24,14 @@ public struct BodyAerodynamicQuery: Sendable {
         return ((angularVelocityRadiansPerSecond*momentLengthsMetres)/flow.speedMetresPerSecond)*0.5
     }
     public init(flow: AerodynamicFlow, reynoldsReferenceLengthMetres: Double,
-                momentLengthsMetres: SIMD3<Double>, angularVelocityRadiansPerSecond: SIMD3<Double> = .zero) throws {
+                momentLengthsMetres: SIMD3<Double>, angularVelocityRadiansPerSecond: SIMD3<Double> = .zero,
+                angularRateReference: BodyAerodynamicRateReference = .inertialReference) throws {
         guard reynoldsReferenceLengthMetres.isFinite, reynoldsReferenceLengthMetres > 0,
               [momentLengthsMetres.x,momentLengthsMetres.y,momentLengthsMetres.z].allSatisfy({ $0.isFinite && $0 > 0 }),
               aeroFinite(angularVelocityRadiansPerSecond) else { throw AerodynamicError.invalidParameter }
         self.flow = flow; self.reynoldsReferenceLengthMetres = reynoldsReferenceLengthMetres
         self.momentLengthsMetres = momentLengthsMetres; self.angularVelocityRadiansPerSecond = angularVelocityRadiansPerSecond
+        self.angularRateReference = angularRateReference
         guard nondimensionalAngularRates.map(aeroFinite) ?? true else { throw AerodynamicError.nonFiniteResult }
     }
 }
@@ -80,9 +89,11 @@ public struct WholeBodyAerodynamics: Sendable {
         self.geometry = geometry; self.reynoldsReferenceLengthMetres = reynoldsReferenceLengthMetres; self.model = model
     }
     public func evaluate(flow: AerodynamicFlow, angularVelocityRadiansPerSecond: SIMD3<Double> = .zero,
+                         angularRateReference: BodyAerodynamicRateReference = .inertialReference,
                          momentReferencePointMetres: SIMD3<Double>? = nil) throws -> AerodynamicLoads {
         let query = try BodyAerodynamicQuery(flow: flow,reynoldsReferenceLengthMetres: reynoldsReferenceLengthMetres,
-            momentLengthsMetres: geometry.momentLengthsMetres,angularVelocityRadiansPerSecond: angularVelocityRadiansPerSecond)
+            momentLengthsMetres: geometry.momentLengthsMetres,angularVelocityRadiansPerSecond: angularVelocityRadiansPerSecond,
+            angularRateReference: angularRateReference)
         let loads: AerodynamicLoads
         if flow.dynamicPressurePascals == 0 {
             loads = try AerodynamicLoads(forceNewtons: .zero,momentNewtonMetres: .zero,

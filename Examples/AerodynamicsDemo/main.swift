@@ -33,6 +33,20 @@ let capsuleFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(6000
 let capsuleLoads = try capsule.evaluate(flow:capsuleFlow)
 print("Capsule: Mach = \(capsuleFlow.machNumber!); force N = \(capsuleLoads.forceNewtons); moment N m = \(capsuleLoads.momentNewtonMetres)")
 
+let zeroRateColumn = try AerodynamicCoefficients(force: .zero,moment: .zero)
+let capsuleRateDerivatives = BodyAerodynamicRateDerivatives(rollRate: zeroRateColumn,
+    pitchRate: try AerodynamicCoefficients(force: .zero,moment: SIMD3(0,-10,0)),yawRate: zeroRateColumn)
+let capsuleDamping = try ConstantBodyRateDerivatives(value: capsuleRateDerivatives,
+    source: "Synthetic capsule damping example",version: "1",machRange: 0...25,
+    reynoldsRange: 1e5...1e9,incidenceRangeRadians: -0.2...0.2,sideslipRangeRadians: -0.1...0.1,
+    momentLengthsMetres: SIMD3(repeating: 3),reynoldsReferenceLengthMetres: 3)
+let dampedCapsule = try WholeBodyAerodynamics(geometry: geometry,reynoldsReferenceLengthMetres: 3,
+    model: LinearBodyRateAerodynamics(staticModel: capsuleData,derivativeModel: capsuleDamping,
+        rateReference: .inertialReference,minimumSpeedMetresPerSecond: 100,
+        maximumAbsoluteNondimensionalRates: SIMD3(repeating: 0.1)))
+let dampedLoads = try dampedCapsule.evaluate(flow: capsuleFlow,angularVelocityRadiansPerSecond: SIMD3(0,0.2,0))
+print("Synthetic capsule rate-damping increment: \(dampedLoads.momentNewtonMetres-capsuleLoads.momentNewtonMetres) N m")
+
 // Independent NASA TFAWS reference inputs; mean free path and coverage are supplied
 // demonstration assumptions, not an upper-atmosphere/transport model.
 let heatingCoverage = try StagnationHeatingCoverage(speedMetresPerSecond: 1000...8000,

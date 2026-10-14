@@ -37,6 +37,12 @@ Aerodynamics re-exports for compatibility.
 - ``BodyAerodynamicCoefficientModel``
 - ``TabulatedBodyCoefficients``
 - ``WindForceCoefficients``
+- <doc:BodyRates>
+- ``BodyAerodynamicRateReference``
+- ``BodyAerodynamicRateDerivatives``
+- ``BodyAerodynamicRateDerivativeModel``
+- ``ConstantBodyRateDerivatives``
+- ``LinearBodyRateAerodynamics``
 
 ### Airfoil models
 - ``Airfoil``
