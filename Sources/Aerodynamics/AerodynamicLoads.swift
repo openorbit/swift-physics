@@ -19,12 +19,17 @@ public struct AerodynamicReferenceGeometry: Sendable {
 
 /// Six signed Cartesian coefficients, including all moments about the supplied
 /// geometry's reference point. Axes must match geometry and the returned loads.
-public struct AerodynamicCoefficients: Sendable {
+public struct AerodynamicCoefficients: Sendable, Codable {
     public let force: SIMD3<Double>
     public let moment: SIMD3<Double>
     public init(force: SIMD3<Double>, moment: SIMD3<Double>) throws {
         guard aeroFinite(force), aeroFinite(moment) else { throw AerodynamicError.invalidCoefficients }
         self.force = force; self.moment = moment
+    }
+    private enum CodingKeys: String, CodingKey { case force, moment }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(force: c.decode(SIMD3<Double>.self,forKey: .force),moment: c.decode(SIMD3<Double>.self,forKey: .moment))
     }
     /// F=q S Cforce, M=q S L Cmoment. No separate centre-of-pressure moment is added.
     public func loads(dynamicPressurePascals q: Double, geometry: AerodynamicReferenceGeometry) throws -> AerodynamicLoads {

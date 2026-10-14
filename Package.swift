@@ -37,6 +37,8 @@ let package = Package(
         .target(
             name: "Aerodynamics",
             dependencies: ["Yams", "Atmospheres"]),
+        .executableTarget(name: "AerodynamicsDemo", dependencies: ["Aerodynamics", "Atmospheres"],
+                          path: "Examples/AerodynamicsDemo"),
         .executableTarget(
             name: "TwoBodyGameDemo",
             dependencies: ["CelMek"],

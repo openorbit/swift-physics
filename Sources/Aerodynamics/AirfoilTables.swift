@@ -5,6 +5,7 @@ import Yams
 public enum AerodynamicError: Error, Equatable {
     case invalidParameter, invalidGeometry, invalidFlow, invalidCoefficients
     case malformedData, duplicateCondition, incompleteGrid, outsideCoverage, nonFiniteResult
+    case missingFlowProperty, unsupportedQuery
 }
 
 /// Explicit boundary behavior; no automatic physical extrapolation beyond measured samples.

@@ -23,6 +23,18 @@ Aerodynamics re-exports for compatibility.
 - ``AirfoilTableLoader``
 - ``CoefficientBoundaryPolicy``
 
+### Wing and whole-body evaluation
+- <doc:WingsAndBodies>
+- ``SegmentedWing``
+- ``WingSegment``
+- ``WingSectionAxes``
+- ``WingSectionCoefficientModel``
+- ``AirfoilWingSectionModel``
+- ``WholeBodyAerodynamics``
+- ``BodyAerodynamicCoefficientModel``
+- ``TabulatedBodyCoefficients``
+- ``WindForceCoefficients``
+
 ### Airfoil models
 - ``Airfoil``
 - ``AirfoilCoefficients``
