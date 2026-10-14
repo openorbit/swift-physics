@@ -118,8 +118,9 @@ Reference points and force/moment vectors must use the same origin and axes;
 the types do not perform frame transforms or certify coordinate compatibility.
 
 ``AerodynamicHeatFlux`` provides a surface position and positive inward heat flux in
-W/m² for future correlations and external thermal integration. It does not compute
-heating, evolve temperature or manage ablation.
+W/m² for correlations and external thermal integration. See <doc:Aerothermal> for
+the initial stagnation-point evaluator. The value itself does not evolve temperature
+or manage ablation.
 
 ## NACA geometry
 

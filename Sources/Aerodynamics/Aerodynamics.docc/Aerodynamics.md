@@ -53,3 +53,21 @@ Aerodynamics re-exports for compatibility.
 - ``ModifiedNewtonianPressure``
 - ``SurfacePressureAerodynamics``
 - ``SurfacePressureResult``
+
+### Aerothermal physics
+- <doc:Aerothermal>
+- ``StagnationHeatingQuery``
+- ``AerothermalWallState``
+- ``ConvectiveHeatingModel``
+- ``RadiativeHeatingModel``
+- ``SuttonGravesParameters``
+- ``StagnationHeatingCoverage``
+- ``SuttonGravesHeating``
+- <doc:PlanetaryHeating>
+- ``StagnationGasState``
+- ``SuttonGravesBaseGas``
+- ``SuttonGravesMixtureParameters``
+- ``SuttonGravesMixtureHeating``
+- ``HydrogenHeliumHeatingMixture``
+- ``HydrogenHeliumColdWallHeating``
+- ``HydrogenHeliumHeatingResult``

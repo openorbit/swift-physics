@@ -68,7 +68,7 @@ let package = Package(
             resources: [.copy("Fixtures")]),
         .testTarget(
             name: "AerodynamicsTests",
-            dependencies: ["Aerodynamics"]),
+            dependencies: ["Aerodynamics"], resources: [.process("Resources")]),
         .testTarget(name: "AtmospheresTests", dependencies: ["Atmospheres"]),
         .testTarget(name: "MagneticFieldsTests", dependencies: ["MagneticFields"], resources: [.copy("Fixtures")]),
         .testTarget(

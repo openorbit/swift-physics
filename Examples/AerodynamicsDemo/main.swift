@@ -32,3 +32,37 @@ let capsule = try WholeBodyAerodynamics(geometry:geometry,reynoldsReferenceLengt
 let capsuleFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(6000,0,600),properties:ISAAtmosphere().properties(at:50_000))
 let capsuleLoads = try capsule.evaluate(flow:capsuleFlow)
 print("Capsule: Mach = \(capsuleFlow.machNumber!); force N = \(capsuleLoads.forceNewtons); moment N m = \(capsuleLoads.momentNewtonMetres)")
+
+// Independent NASA TFAWS reference inputs; mean free path and coverage are supplied
+// demonstration assumptions, not an upper-atmosphere/transport model.
+let heatingCoverage = try StagnationHeatingCoverage(speedMetresPerSecond: 1000...8000,
+    densityKilogramsPerCubicMetre: 1e-6...0.01, noseRadiusMetres: 0.1...5, machNumber: 5...40)
+let heating = SuttonGravesHeating(parameters: .earthAirColdWall, coverage: heatingCoverage)
+let heatingFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(3535,0,0),
+    densityKilogramsPerCubicMetre: 3.1459e-4, speedOfSoundMetresPerSecond: 300, meanFreePathMetres: 1e-4)
+let heat = try heating.heatFlux(for: StagnationHeatingQuery(flow: heatingFlow,
+    gasIdentifier: "earth-air", noseRadiusMetres: 1, surfacePositionMetres: SIMD3(1,0,0)))
+print("NASA reference cold-wall convective heat flux: \(heat.wattsPerSquareMetre) W/m²")
+
+let marsHeating = SuttonGravesHeating(parameters: .marsCarbonDioxideNitrogenColdWall,
+                                      coverage: heatingCoverage)
+let marsHeat = try marsHeating.heatFlux(for: StagnationHeatingQuery(flow: heatingFlow,
+    gasIdentifier: marsHeating.parameters.gasIdentifier, noseRadiusMetres: 1, surfacePositionMetres: SIMD3(1,0,0)))
+print("Mars mixture, same supplied flow: \(marsHeat.wattsPerSquareMetre) W/m²")
+
+let venusParameters = SuttonGravesMixtureParameters.venusCarbonDioxideNitrogen
+let venusHeating = SuttonGravesMixtureHeating(parameters: venusParameters, coverage: heatingCoverage)
+let venusHeat = try venusHeating.heatFlux(for: StagnationHeatingQuery(flow: heatingFlow,
+    gasIdentifier: venusParameters.gasIdentifier, noseRadiusMetres: 1, surfacePositionMetres: SIMD3(1,0,0),
+    gasState: StagnationGasState(pressurePascals: 101325, edgeSpecificEnthalpyJoulesPerKilogram: 10e6)))
+print("Venus mixture, supplied shock-layer state: \(venusHeat.wattsPerSquareMetre) W/m²")
+
+let giantMixture = HydrogenHeliumHeatingMixture.neptuneReference
+let giantHeating = HydrogenHeliumColdWallHeating(mixture: giantMixture)
+let giantFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(19000,0,0),
+    densityKilogramsPerCubicMetre: 1e-4, temperatureKelvin: 141.2,
+    speedOfSoundMetresPerSecond: 1000, meanFreePathMetres: 1e-5)
+let giantResult = try giantHeating.evaluate(StagnationHeatingQuery(flow: giantFlow,
+    gasIdentifier: giantMixture.gasIdentifier, noseRadiusMetres: 0.4, surfacePositionMetres: SIMD3(1,0,0),
+    wall: AerothermalWallState(temperatureKelvin: 300)))
+print("H₂/He reference mixture: \(giantResult.heatFlux.wattsPerSquareMetre) W/m²")
