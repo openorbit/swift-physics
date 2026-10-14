@@ -27,7 +27,7 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "CelMek",
-            dependencies: ["Math", "Atmospheres",
+            dependencies: ["Math", "Atmospheres", "Aerodynamics",
                            "MagneticFields"]),
         .target(name: "MagneticFields", resources: [.process("Resources")]),
         .target(name: "Atmospheres"),

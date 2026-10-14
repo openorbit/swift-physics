@@ -35,6 +35,8 @@ needs, or the `Physics` product to include all five modules.
 - <doc:GAME_INTEGRATION>
 - ``BodyMagneticProvider``
 - ``SphericalBodyAtmosphere``
+- <doc:AerodynamicIntegration>
+- ``AerodynamicWrench``
 
 ### Accuracy, performance and reproducibility
 - <doc:VSOP87_ACCURACY_CHARACTERIZATION>

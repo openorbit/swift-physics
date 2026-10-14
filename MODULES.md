@@ -11,12 +11,12 @@ Aerodynamics after extraction.
 
 | SwiftPM library product | Included module targets | Target dependencies |
 | --- | --- | --- |
-| `CelMek` | `CelMek` | `Math`, `Atmospheres`, `MagneticFields` |
+| `CelMek` | `CelMek` | `Math`, `Atmospheres`, `MagneticFields`, `Aerodynamics` |
 | `Math` | `Math` | None |
 | `Aerodynamics` | `Aerodynamics` | `Yams`, `Atmospheres` |
 | `Atmospheres` | `Atmospheres` | None |
 | `MagneticFields` | `MagneticFields` | None |
-| `Physics` (existing bundle) | `CelMek`, `Aerodynamics`, `Math`, `Atmospheres`, `MagneticFields` | Dependencies of those targets |
+| `Physics` (existing bundle) | `CelMek`, `Aerodynamics`, `Math`, `Atmospheres`, `MagneticFields`, `Aerodynamics` | Dependencies of those targets |
 
 `Physics` is a product name, not a Swift module: there is no `import Physics`.
 Imports include `import CelMek`, `import Math`, `import Aerodynamics`, `import Atmospheres`, and `import MagneticFields`. Applications
@@ -34,9 +34,9 @@ For a local development dependency:
 .product(name: "Math", package: "swift-celmek")
 ```
 
-Selecting CelMek avoids linking the Aerodynamics/Yams targets. The package manifest
-still declares Yams and the documentation plugin, so SwiftPM may resolve or fetch
-those package dependencies even when only CelMek is selected. Product selection is
+CelMek consumes Aerodynamics through its aerodynamic wrench adapter, so selecting
+CelMek also brings in Aerodynamics and Yams. Aerodynamics remains independent of
+CelMek. The package manifest also declares the documentation plugin. Product selection is
 not a promise of offline resolution or separately downloadable packages. CelMek still
 compiles its built-in coefficient tables; optional model packaging is future work.
 
