@@ -36,6 +36,7 @@ public struct ParametricAirfoil : Airfoil, Codable {
   let reynoldsNumber: Double
   let coefficients: [AirfoilCoefficients]
 
+  /// Coefficients at one-degree intervals from −180° through +180°, inclusive.
   public init(reynoldsNumber: Double, coefficients: [AirfoilCoefficients]) {
     self.reynoldsNumber = reynoldsNumber
     self.coefficients = coefficients
@@ -75,7 +76,7 @@ public struct ParametricAirfoil : Airfoil, Codable {
       return nil
     }
 
-    var preFill = -181.0
+    var preFill = -180.0
     while preFill < firstCoeef[0] {
       coefficients.append(AirfoilCoefficients(lift: firstCoeef[1],
                                               drag: firstCoeef[2],
@@ -90,7 +91,7 @@ public struct ParametricAirfoil : Airfoil, Codable {
       return nil
     }
     var postFill = lastCoef[0] + 1
-    while postFill < 181.0 {
+    while postFill <= 180.0 {
       coefficients.append(AirfoilCoefficients(lift: lastCoef[1],
                                               drag: lastCoef[2],
                                               moment: lastCoef[4]))
@@ -110,49 +111,37 @@ public struct ParametricAirfoil : Airfoil, Codable {
 
 
   public func liftCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 180]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 180 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    return c0.lift * fraction + c1.lift * (1-fraction)
-  }
-  public func dragCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 180]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 180 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    return c0.drag * fraction + c1.drag * (1-fraction)
-  }
-  public func momentCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 180]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 180 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    return c0.moment * fraction + c1.moment * (1-fraction)
+    return interpolatedCoefficients(at: alpha).lift
   }
 
-  public func coefficients(at alpha: Double, for reynoldsNumber: Double) -> AirfoilCoefficients
-  {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 181]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 181 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    let resultingCoefficient = AirfoilCoefficients(
-      lift: c0.lift * fraction + c1.lift * (1-fraction),
-      drag: c0.drag * fraction + c1.drag * (1-fraction),
-      moment: c0.moment * fraction + c1.moment * (1-fraction))
-    return resultingCoefficient
+  public func dragCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
+    return interpolatedCoefficients(at: alpha).drag
+  }
+
+  public func momentCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
+    return interpolatedCoefficients(at: alpha).moment
+  }
+
+  public func coefficients(at alpha: Double, for reynoldsNumber: Double) -> AirfoilCoefficients {
+    return interpolatedCoefficients(at: alpha)
+  }
+
+  private func interpolatedCoefficients(at alpha: Double) -> AirfoilCoefficients {
+    precondition(alpha.isFinite && (-Double.pi...Double.pi).contains(alpha),
+                 "Angle of attack must be finite and within −π...π radians")
+    precondition(coefficients.count == 361,
+                 "Coefficient table must contain one sample per degree from −180° through +180°")
+    let alphaDeg = min(180, max(-180, alpha * 180 / .pi))
+    let lowerDegree = floor(alphaDeg)
+    let lowerIndex = Int(lowerDegree) + 180
+    let c0 = coefficients[lowerIndex]
+    // +180° is the last sample, with no following interval.
+    guard lowerIndex < coefficients.count - 1 else { return c0 }
+    let c1 = coefficients[lowerIndex + 1]
+    let fraction = alphaDeg - lowerDegree
+    return AirfoilCoefficients(
+      lift: c0.lift * (1 - fraction) + c1.lift * fraction,
+      drag: c0.drag * (1 - fraction) + c1.drag * fraction,
+      moment: c0.moment * (1 - fraction) + c1.moment * fraction)
   }
 }

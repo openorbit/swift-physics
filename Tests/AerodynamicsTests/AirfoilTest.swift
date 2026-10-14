@@ -57,7 +57,35 @@ data:
   - [ 19.000,   1.4942,   0.08893,  0.08508,  -0.0189]
 """
       let airfoil = try #require(ParametricAirfoil(withString: airfoilString))
-      print("\(airfoil.liftCoefficient(at: 0.0, for: 1e6))")
       #expect(0.2442 == airfoil.liftCoefficient(at: 0.0, for: 1e6))
+      let half = airfoil.coefficients(at: 0.5 * .pi / 180, for: 1e6)
+      #expect(abs(half.lift - (0.2442 + 0.3469) / 2) < 1e-12)
+      #expect(abs(half.drag - (0.00568 + 0.00547) / 2) < 1e-12)
+      #expect(abs(half.moment - (-0.0525 - 0.0499) / 2) < 1e-12)
+      #expect(airfoil.liftCoefficient(at: -.pi, for: 1e6) == -1.2296)
+      #expect(airfoil.liftCoefficient(at: .pi, for: 1e6) == 1.4942)
+
+    }
+}
+
+@Suite struct AirfoilInterpolationTests {
+    private var airfoil: ParametricAirfoil {
+        ParametricAirfoil(reynoldsNumber: 1e6, coefficients: (-180...180).map { degree in
+            let a = Double(degree)
+            return AirfoilCoefficients(lift: a, drag: 200 + 2*a, moment: -3*a)
+        })
+    }
+
+    @Test(arguments: [-180.0, -179.75, -10.25, -1.0, -0.75, -0.25, 0.0, 0.25, 0.75, 1.0, 10.25, 179.75, 180.0])
+    func interpolatesInDegreesAndAgreesAcrossQueries(degrees: Double) {
+        let alpha = degrees * .pi / 180
+        let foil = airfoil
+        let combined = foil.coefficients(at: alpha, for: 1e6)
+        #expect(abs(combined.lift - degrees) < 1e-12)
+        #expect(abs(combined.drag - (200 + 2*degrees)) < 1e-12)
+        #expect(abs(combined.moment + 3*degrees) < 1e-12)
+        #expect(foil.liftCoefficient(at: alpha, for: 1e6) == combined.lift)
+        #expect(foil.dragCoefficient(at: alpha, for: 1e6) == combined.drag)
+        #expect(foil.momentCoefficient(at: alpha, for: 1e6) == combined.moment)
     }
 }
