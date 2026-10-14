@@ -12,8 +12,10 @@ for re in [100_000.0,10_000_000.0] {
     for mach in [0.0,0.8] { polars.append(try AirfoilPolar(reynoldsNumber:re,machNumber:mach,samples:sectionSamples)) }
 }
 let airfoil = try TabulatedAirfoil(polars:polars,source:"Synthetic demo polars",version:"1")
+let finiteWing = try FiniteWingAirfoil(airfoil:airfoil,aspectRatio:4,spanEfficiency:0.8,
+    effectiveAngleRangeRadians:-0.2...0.2,operatingAngleRangeRadians:-0.2...0.2)
 let wing = try SegmentedWing.rectangular(spanMetres:8,chordMetres:2,incidenceRadians:0.08,
-    model:AirfoilWingSectionModel(airfoil:airfoil))
+    model:AirfoilWingSectionModel(airfoil:finiteWing))
 let wingFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(40,0,0),properties:ISAAtmosphere().properties(at:0))
 let wingResult = try wing.evaluate(flow:wingFlow)
 print("Wing: \(wingResult.segments.count) strips; force N = \(wingResult.loads.forceNewtons); moment N m = \(wingResult.loads.momentNewtonMetres)")

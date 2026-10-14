@@ -25,6 +25,9 @@ Aerodynamics re-exports for compatibility.
 
 ### Wing and whole-body evaluation
 - <doc:WingsAndBodies>
+- <doc:FiniteWing>
+- ``FiniteWingAirfoil``
+- ``FiniteWingSolution``
 - ``SegmentedWing``
 - ``WingSegment``
 - ``WingSectionAxes``

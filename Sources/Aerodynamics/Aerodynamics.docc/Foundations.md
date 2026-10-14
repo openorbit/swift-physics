@@ -5,7 +5,7 @@ Evaluate aerodynamic physics from supplied local flow and geometry, independentl
 Aerodynamics owns coefficients, section geometry and physical loads. Vehicle assembly,
 actuator commands, deployment/reefing sequences, gas management and thermal/structural
 state evolution belong to external consumers. Wing strips and whole-body coefficient evaluators build on this foundation; see
-<doc:WingsAndBodies>. Finite-wing induced flow, vehicle-specific entry datasets and
+<doc:WingsAndBodies>. A bounded equivalent finite-wing correction is available; spanwise wake flow, vehicle-specific entry datasets and
 heating correlations remain follow-up work.
 
 ## Coefficient datasets

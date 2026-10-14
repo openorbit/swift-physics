@@ -48,7 +48,9 @@ without querying an undefined incidence/Reynolds number.
 surface deflection. A calibrated provider may use deflection to select/interpolate
 its aerodynamic data. ``AirfoilWingSectionModel`` adapts existing checked polars;
 it rejects nonzero deflection and missing Mach/Reynolds inputs instead of ignoring
-them. No generic flap effectiveness, stall, downwash or induced drag is invented.
+them. No generic flap effectiveness, stall or wake field is invented. The optional
+<doc:FiniteWing> correction supplies equivalent uniform-wing induced angle/drag
+under explicitly bounded conditions; it does not couple arbitrary strips.
 Use a provider and dataset appropriate to the flight regime; this API does not
 extend low-speed airfoil data to hypersonic entry automatically.
 
