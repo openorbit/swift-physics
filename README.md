@@ -23,6 +23,12 @@ A companion app for interactivelly working with this library is developed here:
 The package has grown beyond the original CelMek port. Shared fluid physics now
 lives in FluidDynamics, with dedicated Aerodynamics and Hydrodynamics modules.
 
+## Requirements
+
+Swift 6.4 or newer. Apple deployment targets are macOS 15, iOS 18, tvOS 18,
+watchOS 11, and visionOS 2 or newer, matching `Synchronization.Mutex` availability.
+Linux and Windows builds are covered by CI.
+
 ## Modules
 
 Use the `CelMek`, `Math`, `FluidDynamics`, `Aerodynamics`, `Hydrodynamics`,
@@ -52,7 +58,7 @@ error handling are documented in [CONVENTIONS.md](Sources/CelMek/CelMek.docc/CON
 
 ## Testing
 
-The tests use Swift Testing and require a Swift 6 or newer toolchain. Run all
+The tests use Swift Testing and require a Swift 6.4 or newer toolchain. Run all
 test targets with:
 
 ```sh

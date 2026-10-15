@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import Foundation
+import Synchronization
 import Math
 import Testing
 @testable import CelMek
@@ -122,21 +123,37 @@ import Testing
         #expect(throws: DE441Error.self) { try DE441Ephemeris(url: url, maximumCachedRecords: -1) }
     }
 
+    // Sendability of the reader relies on its internal file/cache lock; the
+    // failure collection is protected independently by Mutex.
+    private final class ConcurrentQueries: @unchecked Sendable {
+        let reader: DE441Ephemeris
+        private let failedIndices = Mutex<[Int]>([])
+
+        init(reader: DE441Ephemeris) { self.reader = reader }
+
+        func recordFailure(_ index: Int) {
+            failedIndices.withLock { $0.append(index) }
+        }
+
+        var failures: [Int] {
+            failedIndices.withLock { $0 }
+        }
+    }
+
     @Test func sharedReaderConcurrentQueriesAreRepeatable() throws {
         let url = try DE441EphemerisTests().fixture()
         defer { try? FileManager.default.removeItem(at: url) }
         let reader = try DE441Ephemeris(url: url, maximumCachedRecords: 1)
-        // Foundation's serialized result collection avoids a mutable captured test array.
-        let failures = NSMutableArray()
-        let lock = NSLock()
+        let queries = ConcurrentQueries(reader: reader)
+        let julianDate = jd
         DispatchQueue.concurrentPerform(iterations: 100) { index in
             do {
                 let offset = index % 2 == 0 ? 6.0 : 38.0
-                let value = try reader.vector(target: .mercury, center: .solarSystemBarycentre, at: jd+offset)
-                let expected = (index % 2 == 0 ? -0.5 : 999.5)/reader.metadata.astronomicalUnitKilometres
-                if abs(value.position.x-expected) > 1e-15 { lock.lock(); failures.add(index); lock.unlock() }
-            } catch { lock.lock(); failures.add(index); lock.unlock() }
+                let value = try queries.reader.vector(target: .mercury, center: .solarSystemBarycentre, at: julianDate+offset)
+                let expected = (index % 2 == 0 ? -0.5 : 999.5)/queries.reader.metadata.astronomicalUnitKilometres
+                if abs(value.position.x-expected) > 1e-15 { queries.recordFailure(index) }
+            } catch { queries.recordFailure(index) }
         }
-        #expect(failures.count == 0)
+        #expect(queries.failures.isEmpty)
     }
 }

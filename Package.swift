@@ -5,6 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "swift-physics",
+    platforms: [
+        .macOS(.v15), .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .visionOS(.v2),
+    ],
     products: [
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
