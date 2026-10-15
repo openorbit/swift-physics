@@ -16,7 +16,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-24.04, windows-latest]
+        include:
+          - os: macos-latest
+            build-system: swiftbuild
+          # Use the previous backend while investigating opaque Linux/Windows failures.
+          - os: ubuntu-24.04
+            build-system: native
+          - os: windows-latest
+            build-system: native
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -33,6 +40,23 @@ jobs:
       - name: Show Swift version
         run: swift --version
       - name: Build
-        run: swift build -v
+        shell: bash
+        run: |
+          set -o pipefail
+          swift build --build-system "${{ matrix.build-system }}" --very-verbose --no-color-diagnostics 2>&1 | tee swift-build.log
       - name: Run tests
-        run: swift test -v
+        shell: bash
+        run: |
+          set -o pipefail
+          swift test --build-system "${{ matrix.build-system }}" --very-verbose --no-color-diagnostics 2>&1 | tee swift-test.log
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-diagnostics-${{ runner.os }}
+          retention-days: 7
+          include-hidden-files: true
+          path: |
+            swift-build.log
+            swift-test.log
+            .build/**/*.dia
