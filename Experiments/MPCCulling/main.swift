@@ -56,6 +56,6 @@ do {
         throw ExperimentError.malformed("stale index accepted")
     } catch ExperimentError.outsideIndexWindow { print("Stale-index rejection PASS") }
 } catch {
-    fputs("MPCCullingExperiment: \(error)\n", stderr)
+    FileHandle.standardError.write(Data("MPCCullingExperiment: \(error)\n".utf8))
     exit(1)
 }
