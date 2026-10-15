@@ -128,8 +128,10 @@ The provider converts TDB angular derivatives using both first and second deriva
 
 `makeEarthFrames` adds both IAU 2006/2000A frame chains, using native Swift calculations. The algorithms and coefficient series are adapted
 from [ERFA 2.0.1](https://github.com/liberfa/erfa/tree/v2.0.1); attribution and BSD terms
-are retained in `Documentation/licenses/ERFA.txt`. There is no C target or ERFA
-runtime dependency. ERFA is used as an external reference for regression fixtures.
+are retained in `Sources/ERFASwift/LICENSE.txt`, with a documentation copy at
+`Documentation/licenses/ERFA.txt`. The adapted numerical routines and tables live
+in the internal BSD-licensed `ERFASwift` module; CelMek owns the frame adapters.
+There is no C target or external ERFA runtime dependency. ERFA is used as an external reference for regression fixtures.
 
 | Frame | Parent | Transform |
 | --- | --- | --- |

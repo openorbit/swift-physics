@@ -61,7 +61,10 @@ swift test
 
 ## License
 
-Apache 2.0
+Apache 2.0 for the package's original code. ERFA-derived Earth-orientation and
+Fairhead TDB numerical code is isolated in the internal `ERFASwift` module under
+its [BSD terms and attribution](Sources/ERFASwift/LICENSE.txt). See the
+[module README](Sources/ERFASwift/README.md) for its scope.
 
 Shared Cartesian states use metres and metres per second, with explicit unit conversion and a VSOP87 provider adapter. See [STATES.md](Sources/CelMek/CelMek.docc/STATES.md).
 

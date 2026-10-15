@@ -142,7 +142,10 @@ reference values; round trips also cover both coverage boundaries and a syntheti
 with a deliberately non-unit rate. The reference's nanosecond-level physical statement
 and its model limitations described above still apply. Coefficient extraction is reproducible
 with `Tools/generate_tdb_series.py`; BSD attribution is retained in
-`Documentation/licenses/ERFA.txt`. No C target or runtime dependency is added.
+`Sources/ERFASwift/LICENSE.txt` (also copied in `Documentation/licenses/ERFA.txt`).
+The evaluator and coefficient tables live in the internal BSD-licensed `ERFASwift`
+module; CelMek supplies the epoch and coverage adapter. No C target or external
+ERFA runtime dependency is added.
 
 UTC uses `UTCDate` with an integer modified Julian day (midnight) and split
 `secondOfDay`, plus an explicitly supplied `LeapSecondTable`. It is separate from

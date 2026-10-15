@@ -1,6 +1,6 @@
 # Module boundaries
 
-The package is `swift-physics`. Seven focused targets share physical contracts
+The package is `swift-physics`. Seven public modules share physical contracts
 without importing vehicle systems or rendering. There are no compatibility
 re-exports or old aerodynamic names for the shared fluid APIs.
 
@@ -11,7 +11,7 @@ re-exports or old aerodynamic names for the shared fluid APIs.
 | `FluidDynamics` | None |
 | `Hydrodynamics` | `FluidDynamics` |
 | `Aerodynamics` | `FluidDynamics`, `Atmospheres`, `Yams` |
-| `CelMek` | `Math`, `Atmospheres`, `MagneticFields`, `FluidDynamics` |
+| `CelMek` | `Math`, `ERFASwift` (internal), `Atmospheres`, `MagneticFields`, `FluidDynamics` |
 | `Math` | None |
 | `Atmospheres` | None |
 | `MagneticFields` | None |
@@ -41,6 +41,12 @@ primitive. It does not depend on CelMek or Aerodynamics. Astronomical frame name
 epochs, units of physical state, ephemerides, and orientation models belong above it.
 Existing astronomical coordinate structs and the legacy `Transformation` remain
 here for compatibility; that is not a requirement to place new astronomy models here.
+
+**ERFASwift** is an internal target, with no standalone product or public API.
+It isolates the ERFA-derived Earth-orientation and full Fairhead TDB routines and
+tables under their BSD terms, retained in `Sources/ERFASwift/LICENSE.txt`.
+It depends only on Math; CelMek adapts epochs, coverage, frames, and errors at the
+boundary using package-scoped entry points.
 
 **CelMek** owns astronomical time, shared physical states and conventions, the frame
 tree and epoch-dependent transforms, celestial properties, orientations, ephemerides,

@@ -1,5 +1,6 @@
+// Copyright (C) 2013-2023, NumFOCUS Foundation.
 // Full Fairhead–Bretagnon series adapted from ERFA 2.0.1 (NumFOCUS).
-// BSD terms and SOFA heritage: Documentation/licenses/ERFA.txt.
+// BSD terms and SOFA heritage: Sources/ERFASwift/LICENSE.txt.
 // Source SHA256: 228bd7c7c1c88dda44c29a076f289c968f64d77a2dc389138b03ab5d1d442105
 internal enum FairheadTDBSeries {
   static let terms: [[Double]] = [chunk0,chunk1,chunk2,chunk3,chunk4,chunk5,chunk6,chunk7,chunk8,chunk9,chunk10,chunk11,chunk12,chunk13,chunk14,chunk15,chunk16,chunk17,chunk18,chunk19,chunk20,chunk21,chunk22,chunk23,chunk24].flatMap { $0 }

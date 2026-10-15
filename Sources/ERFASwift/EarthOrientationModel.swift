@@ -1,10 +1,16 @@
 // Swift adaptation of ERFA 2.0.1: Copyright (C) 2013-2023 NumFOCUS.
-// BSD terms and SOFA heritage: Documentation/licenses/ERFA.txt.
+// BSD terms and SOFA heritage: Sources/ERFASwift/LICENSE.txt.
 import Foundation
 import Math
 
 /// Native Swift IAU 2006/2000A numerical model. All angles are radians.
-internal enum EarthOrientationModel {
+package enum EarthOrientationModel {
+  package enum Edge: Sendable {
+    case celestialIntermediate, earthRotation, polarMotion, trueOfDate, apparentSidereal
+  }
+  package enum PoleReference: Sendable { case iau2000A, iau2006A }
+  package enum EvaluationError: Error { case invalidParameters, correctionDidNotConverge }
+
   private static let arcsecond = Double.pi / (180 * 3600)
   private static let turn = 2 * Double.pi
   private static func polynomial(_ t: Double, _ coefficients: [Double]) -> Double {
@@ -104,10 +110,10 @@ internal enum EarthOrientationModel {
       * rotation(-n.longitude/(1+0.4697e-6+j2),axis: 2) * rotation(eps,axis: 0)
     return nut * precession * bias
   }
-  static func matrix(edge: EarthFrameTransformProvider.Edge, tt1: Double, tt2: Double,
+  package static func matrix(edge: Edge, tt1: Double, tt2: Double,
                      ut11: Double, ut12: Double, xp: Double, yp: Double,
                      dx: Double = 0, dy: Double = 0,
-                     poleReference: CelestialPoleReference = .iau2006A) throws -> [Double] {
+                     poleReference: PoleReference = .iau2006A) throws -> [Double] {
     let t = ((tt1-2451545)+tt2)/36525
     let r: Matrix3x3
     if edge == .polarMotion {
@@ -131,7 +137,7 @@ internal enum EarthOrientationModel {
         let old = precessionNutation2000(t, n: n)
         x = old[2,0] + dx; y = old[2,1] + dy
       }
-      guard x.isFinite, y.isFinite, x*x+y*y < 1 else { throw EarthOrientationError.invalidParameters }
+      guard x.isFinite, y.isFinite, x*x+y*y < 1 else { throw EvaluationError.invalidParameters }
       if dx != 0 || dy != 0 || poleReference == .iau2000A {
         // Recover nutation angles for the observed pole, preserving the P03 equinox convention.
         var p = psi, e = eps
@@ -145,10 +151,10 @@ internal enum EarthOrientationModel {
           let a = (pp[2,0]-pm[2,0])/(2*h), c = (pp[2,1]-pm[2,1])/(2*h)
           let bb = (ep[2,0]-em[2,0])/(2*h), d = (ep[2,1]-em[2,1])/(2*h)
           let determinant = a*d-bb*c
-          guard abs(determinant) > 1e-12 else { throw EarthOrientationError.correctionDidNotConverge }
+          guard abs(determinant) > 1e-12 else { throw EvaluationError.correctionDidNotConverge }
           p += (rx*d-bb*ry)/determinant; e += (a*ry-rx*c)/determinant
         }
-        guard converged else { throw EarthOrientationError.correctionDidNotConverge }
+        guard converged else { throw EvaluationError.correctionDidNotConverge }
       }
       if edge == .trueOfDate { r = b }
       else if edge == .celestialIntermediate {

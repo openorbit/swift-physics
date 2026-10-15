@@ -1,6 +1,8 @@
-// Fairhead evaluator adapted from ERFA 2.0.1: Copyright 2013-2023 NumFOCUS.
-// BSD terms and SOFA heritage: Documentation/licenses/ERFA.txt.
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Mattias Holm
+// ERFA-derived evaluation is implemented in the separate ERFASwift module.
 import Foundation
+import ERFASwift
 
 public enum TDBModelError: Error, Equatable, Sendable {
   case outsideCoverage, invalidCorrection, epochMismatch, noConvergence
@@ -102,35 +104,9 @@ public struct FairheadTDBModel: TDBTimeModel {
   public func correction(at epoch: Epoch) throws -> TDBCorrection {
     guard coverage.contains(epoch) else { throw TDBModelError.outsideCoverage }
     let tt = epoch.offsetFromJ2000
-    let secondsPerMillennium = 365250.0*86400
-    let t = Double(tt.wholeSeconds)/secondsPerMillennium + tt.fractionalSecond/secondsPerMillennium
-    // Store value and first/second derivatives with respect to Julian millennia.
-    var value = 0.0, first = 0.0, second = 0.0
-    let ranges = [0..<474,474..<679,679..<764,764..<784,784..<787]
-    for order in (0..<5).reversed() {
-      var v = 0.0, d = 0.0, dd = 0.0
-      for index in ranges[order].reversed() {
-        let row = FairheadTDBSeries.terms[index]
-        let amplitude = row[0], frequency = row[1], phase = frequency*t+row[2]
-        let harmonic = amplitude*sin(phase)
-        v += harmonic; d += amplitude*frequency*cos(phase); dd -= harmonic*frequency*frequency
-      }
-      // Differentiate Horner's rule, retaining the previous derivatives.
-      second = second*t + 2*first + dd
-      first = first*t + value + d
-      value = value*t + v
-    }
-    for row in [[0.00065e-6,6069.776754,4.021194],[0.00033e-6,213.299095,5.543132],
-                [-0.00196e-6,6208.294251,5.696701],[-0.00173e-6,74.781599,2.435900]] {
-      let harmonic = row[0]*sin(row[1]*t+row[2])
-      value += harmonic
-      first += row[0]*row[1]*cos(row[1]*t+row[2])
-      second -= harmonic*row[1]*row[1]
-    }
-    value += 0.03638e-6*t*t
-    first += 2*0.03638e-6*t
-    second += 2*0.03638e-6
-    return try TDBCorrection(epoch: epoch,tdbMinusTT: Duration(seconds: value),
-      rate: 1+first/secondsPerMillennium,acceleration: second/(secondsPerMillennium*secondsPerMillennium))
+    let sample = FairheadTDBEvaluator.correction(wholeSeconds: tt.wholeSeconds,
+                                               fractionalSecond: tt.fractionalSecond)
+    return try TDBCorrection(epoch: epoch, tdbMinusTT: Duration(seconds: sample.offsetSeconds),
+                             rate: sample.rate, acceleration: sample.acceleration)
   }
 }

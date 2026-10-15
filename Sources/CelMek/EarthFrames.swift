@@ -17,6 +17,7 @@
 //
 import Foundation
 import Math
+import ERFASwift
 
 public enum EarthOrientationError: Error, Equatable {
   case outsideCoverage, invalidParameters, invalidDerivativeStep, missingRealization
@@ -104,10 +105,30 @@ public struct EarthFrameTransformProvider: TransformProvider {
     let eop = try earthOrientation.sample(at: epoch)
     guard eop.epoch == epoch else { throw FrameTransformError.epochMismatch }
     // Preserve the split date; ERFA accepts arbitrary two-part Julian dates.
-    return try EarthOrientationModel.matrix(edge: edge, tt1: Double(tt.wholeDay), tt2: tt.fractionalDay,
-      ut11: Double(tt.wholeDay), ut12: tt.fractionalDay + eop.ut1MinusTT.seconds / 86400,
-      xp: eop.polarMotionX, yp: eop.polarMotionY,
-      dx: eop.celestialPoleX, dy: eop.celestialPoleY, poleReference: eop.poleReference)
+    let modelEdge: EarthOrientationModel.Edge
+    switch edge {
+    case .celestialIntermediate: modelEdge = .celestialIntermediate
+    case .earthRotation: modelEdge = .earthRotation
+    case .polarMotion: modelEdge = .polarMotion
+    case .trueOfDate: modelEdge = .trueOfDate
+    case .apparentSidereal: modelEdge = .apparentSidereal
+    }
+    let reference: EarthOrientationModel.PoleReference
+    switch eop.poleReference {
+    case .iau2000A: reference = .iau2000A
+    case .iau2006A: reference = .iau2006A
+    }
+    do {
+      return try EarthOrientationModel.matrix(edge: modelEdge, tt1: Double(tt.wholeDay), tt2: tt.fractionalDay,
+        ut11: Double(tt.wholeDay), ut12: tt.fractionalDay + eop.ut1MinusTT.seconds / 86400,
+        xp: eop.polarMotionX, yp: eop.polarMotionY,
+        dx: eop.celestialPoleX, dy: eop.celestialPoleY, poleReference: reference)
+    } catch let error as EarthOrientationModel.EvaluationError {
+      switch error {
+      case .invalidParameters: throw EarthOrientationError.invalidParameters
+      case .correctionDidNotConverge: throw EarthOrientationError.correctionDidNotConverge
+      }
+    }
   }
   public func transform(at epoch: Epoch) throws -> FrameTransform {
     let h = derivativeStep.seconds

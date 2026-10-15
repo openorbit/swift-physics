@@ -11,8 +11,9 @@ text=re.sub(r'/\*.*?\*/','',data.decode(),flags=re.S)
 body=re.search(r'fairhd\[787\]\[3\]\s*=\s*\{(.*?)\};',text,re.S).group(1)
 rows=re.findall(r'\{([^{}]+)\}',body)
 assert len(rows)==787
-out=['// Full Fairhead–Bretagnon series adapted from ERFA 2.0.1 (NumFOCUS).',
- '// BSD terms and SOFA heritage: Documentation/licenses/ERFA.txt.',
+out=['// Copyright (C) 2013-2023, NumFOCUS Foundation.',
+ '// Full Fairhead–Bretagnon series adapted from ERFA 2.0.1 (NumFOCUS).',
+ '// BSD terms and SOFA heritage: Sources/ERFASwift/LICENSE.txt.',
  '// Source SHA256: '+hashlib.sha256(data).hexdigest(),
  'internal enum FairheadTDBSeries {']
 chunks=[rows[i:i+32] for i in range(0,len(rows),32)]
@@ -22,4 +23,4 @@ for i,chunk in enumerate(chunks):
  out.extend('    ['+row.strip()+'],' for row in chunk)
  out.append('  ]')
 out.append('}')
-Path('Sources/CelMek/FairheadTDBSeries.swift').write_text('\n'.join(out)+'\n')
+Path('Sources/ERFASwift/FairheadTDBSeries.swift').write_text('\n'.join(out)+'\n')

@@ -1,5 +1,6 @@
+// Copyright (C) 2013-2023, NumFOCUS Foundation.
 // Swift coefficient data derived from ERFA 2.0.1 (NumFOCUS).
-// See Documentation/licenses/ERFA.txt for BSD terms and SOFA heritage.
+// See Sources/ERFASwift/LICENSE.txt for BSD terms and SOFA heritage.
 internal enum EarthOrientationSeries {
   static let xls: [[Double]] = [xls0,xls1,xls2,xls3,xls4,xls5,xls6,xls7,xls8,xls9,xls10,xls11,xls12,xls13,xls14,xls15,xls16,xls17,xls18,xls19,xls20,xls21].flatMap { $0 }
   private static let xls0: [[Double]] = [
