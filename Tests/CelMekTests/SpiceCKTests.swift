@@ -75,14 +75,14 @@ struct CKFixture {
             try files.withFile(CKFixture(times: [0,100]).daf.bytes) { newURL in
                 let set = try SpiceKernelSet(); try set.load(oldURL); let newest = try set.load(newURL)
                 let retained = set.snapshot()
-                #expect(try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 50).sourcePath == oldURL.path)
-                #expect(try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 100).sourcePath == newURL.path)
+                #expect(try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 50).sourcePath == resolvedSpiceTestPath(oldURL))
+                #expect(try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 100).sourcePath == resolvedSpiceTestPath(newURL))
                 #expect(throws: SpiceCKError.resourceLimit) {
                     try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 50,maximumDescriptorChecks: 1)
                 }
                 try set.unload(newest)
-                #expect(try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 100).sourcePath == newURL.path)
-                #expect(try set.snapshot().ckPointing(instrumentID: -77001,atEncodedTicks: 100).sourcePath == oldURL.path)
+                #expect(try retained.ckPointing(instrumentID: -77001,atEncodedTicks: 100).sourcePath == resolvedSpiceTestPath(newURL))
+                #expect(try set.snapshot().ckPointing(instrumentID: -77001,atEncodedTicks: 100).sourcePath == resolvedSpiceTestPath(oldURL))
                 try files.withFile(CKFixture(type: 4).daf.bytes) { unsupported in
                     try set.load(unsupported)
                     #expect(throws: SpiceCKError.unsupportedType(4)) { try set.snapshot().ckPointing(instrumentID: -77001,atEncodedTicks: 50) }

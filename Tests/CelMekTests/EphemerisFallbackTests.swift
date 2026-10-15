@@ -129,7 +129,7 @@ import Math
         let gap = try chain.selection(at: .j2000)
         #expect(gap.tier == .model && gap.state.position.x == 42 && gap.state.acceleration == nil)
         #expect(gap.skippedSources[0].reason == .spkCoverageGap(399))
-        #expect(gap.skippedSources[0].source.provenance.source.contains(late.path))
+        #expect(gap.skippedSources[0].source.provenance.source.contains(resolvedSpiceTestPath(late)))
         let outside = try chain.selection(at: epoch(25))
         #expect(outside.skippedSources[0].reason == .outsideDeclaredCoverage)
         // A highest-priority unsupported segment inside the interval must not become a gap.

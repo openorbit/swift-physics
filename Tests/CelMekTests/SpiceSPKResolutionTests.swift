@@ -94,7 +94,7 @@ import Testing
             #expect(query.commonCentreID == 0)
             #expect(query.positionKilometres == SIMD3(380100,90,111))
             #expect(query.contributions.map(\.kernelIndex) == [2,0,4])
-            #expect(query.contributions.last?.state.sourcePath == urls[4].path)
+            #expect(query.contributions.last?.state.sourcePath == resolvedSpiceTestPath(urls[4]))
             let last = old.loads.last!.id
             try set.unload(last)
             let verified4 = try set.snapshot().spkState(targetID: 301,centreID: 399,atSecondsTDB: -15).commonCentreID == 3

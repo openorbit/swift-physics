@@ -124,7 +124,7 @@ struct SPKFixture {
                 let second = try set.load(badURL)
                 #expect(throws: SpiceSPKError.unsupportedType(99)) { try set.snapshot().spkState(targetID: 399,atSecondsTDB: -15) }
                 try set.unload(second)
-                #expect(try set.snapshot().spkState(targetID: 399,atSecondsTDB: -15).sourcePath == url.path)
+                #expect(try set.snapshot().spkState(targetID: 399,atSecondsTDB: -15).sourcePath == resolvedSpiceTestPath(url))
             }
             var corrupt = SPKFixture(); corrupt.daf.double(.nan,corrupt.directoryOffset)
             try files.withFile(corrupt.daf.bytes) { badURL in

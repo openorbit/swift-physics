@@ -109,7 +109,7 @@ import Testing
         let manifest = try helper.write("KPL/MK\n\\begindata\nKERNELS_TO_LOAD=('first.tsc')","clock.tm",in: dir)
         let set = try SpiceKernelSet(); try set.load(manifest)
         let snapshot = set.snapshot(), old = try SpiceSCLKClock(snapshot: snapshot,spacecraftID: -77,encodedTickCoverage: 0...200,provenance: provenance)
-        #expect(snapshot.loads[0].sources.contains { $0.path == first.path && $0.kind == "SCLK" })
+        #expect(snapshot.loads[0].sources.contains { $0.path == resolvedSpiceTestPath(first) && $0.kind == "SCLK" })
         let id = try set.load(second)
         let current = try SpiceSCLKClock(snapshot: set.snapshot(),spacecraftID: -77,encodedTickCoverage: 0...200,provenance: provenance)
         #expect(try current.sample(atEncodedTicks: 0).parallelSeconds == 10)

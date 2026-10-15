@@ -90,12 +90,12 @@ struct PCKFixture {
         let a = directory.appendingPathComponent("a.bpc"), b = directory.appendingPathComponent("b.bpc"), spk = directory.appendingPathComponent("state.bsp")
         try PCKFixture().bytes.write(to: a); try PCKFixture(type: 20).bytes.write(to: b); try SPKFixture().daf.bytes.write(to: spk)
         let set = try SpiceKernelSet(); try set.load(a); try set.load(spk)
-        let old = set.snapshot(); #expect(try old.pckAngles(frameClassID: 301,atSecondsTDB: -15).sourcePath == a.path)
-        #expect(try old.spkState(targetID: 399,atSecondsTDB: -15).sourcePath == spk.path)
+        let old = set.snapshot(); #expect(try old.pckAngles(frameClassID: 301,atSecondsTDB: -15).sourcePath == resolvedSpiceTestPath(a))
+        #expect(try old.spkState(targetID: 399,atSecondsTDB: -15).sourcePath == resolvedSpiceTestPath(spk))
         let id = try set.load(b)
         #expect(throws: SpiceBinaryPCKError.unsupportedType(20)) { try set.snapshot().pckAngles(frameClassID: 301,atSecondsTDB: -15) }
         try set.unload(id)
-        #expect(try set.snapshot().pckAngles(frameClassID: 301,atSecondsTDB: -15).sourcePath == a.path)
+        #expect(try set.snapshot().pckAngles(frameClassID: 301,atSecondsTDB: -15).sourcePath == resolvedSpiceTestPath(a))
         #expect(old.cacheScope != set.snapshot().cacheScope)
         #expect(throws: SpiceBinaryPCKError.coverageGap(301)) { try old.pckAngles(frameClassID: 301,atSecondsTDB: 1) }
         #expect(throws: SpiceBinaryPCKError.missingFrameClass(399)) { try old.pckAngles(frameClassID: 399,atSecondsTDB: -15) }
