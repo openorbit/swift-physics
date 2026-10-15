@@ -100,7 +100,10 @@ fileprivate let PLUTO_3_908202_RAD =  (  3.908202).deg
 public func
 goffin2000(_ jde: Double) -> SIMD3<Double>
 {
-  let T = (jde - 2451545.0) / 36525.0;
+  return goffinPosition(centuries: (jde - 2451545.0) / 36525.0)
+}
+
+internal func goffinPosition(centuries T: Double) -> SIMD3<Double> {
   let J =  PLUTO_34_35_RAD + PLUTO_3034_9057_RAD * T;
   let S =  PLUTO_50_08_RAD + PLUTO_1222_1138_RAD * T;
   let P =  PLUTO_238_96_RAD +  PLUTO_144_9600_RAD * T;
@@ -119,7 +122,7 @@ goffin2000(_ jde: Double) -> SIMD3<Double>
   latitude -= PLUTO_3_908202_RAD;
   rad += 40.7247248;
 
-  // We now have heliocentric equatorial coordinates for J2000
+  // Heliocentric ecliptic longitude/latitude for J2000, with distance in AU.
   // We need to convert these to rectangular coordinates. One problem is that
   // This method results in heliocentric coordinates, these need to be
   // translated by the sun

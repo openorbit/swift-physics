@@ -16,84 +16,91 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class JewishCalendar_tests : XCTestCase {
+@Suite
+struct JewishCalendar_tests {
+  @Test
   func testJewishEaster() {
     // Meeus, example 9.a
     let date = jewishEaster(gregorianYear: 1990)
     
-    XCTAssertEqual(date.year, 1990)
-    XCTAssertEqual(date.month, .April)
-    XCTAssertEqual(date.day, 10.0)
+    #expect(date.year == 1990)
+    #expect(date.month == .april)
+    #expect(date.day == 10.0)
   }
   
+  @Test
   func testJewishCommonYear() {
     // Meeu,s example 9.a
     let isCommon = jewishYearIsCommon(jewishYear: 5751)
-    XCTAssertEqual(isCommon, true)
+    #expect(isCommon == true)
   }
   
+  @Test
   func testJewishYearStart() {
     // Meeu,s example 9.a
     let date = jewishYearStart(jewishYear: 5751)
-    XCTAssertEqual(date.year, 1990)
-    XCTAssertEqual(date.month, .September)
-    XCTAssertEqual(date.day, 20.0)
+    #expect(date.year == 1990)
+    #expect(date.month == .september)
+    #expect(date.day == 20.0)
   }
   
+  @Test
   func testDaysOfJewishYear() {
     // Meeu,s example 9.a
     let days = daysOfJewishYear(jewishYear: 5751)
-    XCTAssertEqual(days, 354)
+    #expect(days == 354)
   }
   
+  @Test
   func testMoslemToJulian() {
     // Meeu,s example 9.b
     let date = JulianDate(
       moslemDate: MoslemDate(year: 1421,
-                             month: .Muharram,
+                             month: .muharram,
                              day: 1))
     
-    XCTAssertEqual(date.year, 2000)
-    XCTAssertEqual(date.dayOfYear(), 84.0)
+    #expect(date.year == 2000)
+    #expect(date.dayOfYear() == 84.0)
 
     let jd = date.toJD()
     let gregDate = jd.toGregorian()
-    XCTAssertEqual(gregDate.year, 2000)
-    XCTAssertEqual(gregDate.month, .April)
-    XCTAssertEqual(gregDate.day, 6.0)
+    #expect(gregDate.year == 2000)
+    #expect(gregDate.month == .april)
+    #expect(gregDate.day == 6.0)
   }
   
-  func testJulianToMoslem() {
+  @Test
+  func testJulianToMoslem() throws {
     // Meeu,s example 9.c
     let date = MoslemDate(
       julianDate: JulianDate(year: 1991,
-                             month: .July,
+                             month: .july,
                              day: 31))
 
-    XCTAssertEqual(date.year, 1412)
-    XCTAssertEqual(date.month, .Safar)
-    XCTAssertEqual(date.day, 2)
+    #expect(date.year == 1412)
+    #expect(date.month == .safar)
+    #expect(date.day == 2)
 
-    let julianDate = JulianDate(year: 2000, dayInYear: 84.0)!
-    XCTAssertEqual(julianDate.year, 2000)
-    XCTAssertEqual(julianDate.month, .March)
-    XCTAssertEqual(julianDate.day, 24)
+    let julianDate = try #require(JulianDate(year: 2000, dayInYear: 84.0))
+    #expect(julianDate.year == 2000)
+    #expect(julianDate.month == .march)
+    #expect(julianDate.day == 24)
     
     let date2 = MoslemDate(julianDate: julianDate)
-    XCTAssertEqual(date2.year, 1421)
-    XCTAssertEqual(date2.month, .Muharram)
-    XCTAssertEqual(date2.day, 1)
+    #expect(date2.year == 1421)
+    #expect(date2.month == .muharram)
+    #expect(date2.day == 1)
     // Currently incorrect
     // Gregorian date 2023-01-04
     // Julian date 2022-12-22
     // Islamic date: 1444-06-11 According to Wiki
-    let date3 = MoslemDate(julianDate: JulianDate(year: 2022, month: .December, day: 22))
-    XCTAssertEqual(date3.year, 1444)
-    XCTAssertEqual(date3.month, .JumadaTTania)
-    XCTAssertEqual(date3.day, 11)
+    let date3 = MoslemDate(julianDate: JulianDate(year: 2022, month: .december, day: 22))
+    #expect(date3.year == 1444)
+    #expect(date3.month == .jumadaTTania)
+    #expect(date3.day == 11)
 
   }
 }

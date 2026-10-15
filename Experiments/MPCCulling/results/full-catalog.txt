@@ -1,0 +1,79 @@
+Synthetic circular/eccentric/near-parabolic/parabolic/hyperbolic checks PASS
+Load/prepare asteroids: 6.013611 s
+Load/prepare comets: 0.007549 s
+Records: 1574501; missing element epochs: 5
+Build swept radial/spatial index (includes full evaluation): 2.977311 s
+Cells: 25832; half-window: 1.0 days; cell width: 0.25 AU
+Query inner, offset -1.0 days
+  Radial selection: 0.000222 s
+  Radial + spatial selection: 0.000033 s
+  Evaluate spatial candidates: 0.001007 s
+  Full evaluation oracle: 2.412656 s
+  Candidates radial=6422, spatial=496, exact=74; oracle PASS
+Query belt, offset -1.0 days
+  Radial selection: 0.006130 s
+  Radial + spatial selection: 0.000152 s
+  Evaluate spatial candidates: 0.009077 s
+  Full evaluation oracle: 2.416895 s
+  Candidates radial=294308, spatial=5276, exact=543; oracle PASS
+Query Jupiter distance, offset -1.0 days
+  Radial selection: 0.000363 s
+  Radial + spatial selection: 0.000059 s
+  Evaluate spatial candidates: 0.000003 s
+  Full evaluation oracle: 2.408638 s
+  Candidates radial=11412, spatial=1, exact=0; oracle PASS
+Query outer, offset -1.0 days
+  Radial selection: 0.000131 s
+  Radial + spatial selection: 0.000038 s
+  Evaluate spatial candidates: 0.000005 s
+  Full evaluation oracle: 2.642510 s
+  Candidates radial=1044, spatial=1, exact=1; oracle PASS
+Query inner, offset 0.0 days
+  Radial selection: 0.003728 s
+  Radial + spatial selection: 0.000047 s
+  Evaluate spatial candidates: 0.001135 s
+  Full evaluation oracle: 2.550600 s
+  Candidates radial=6422, spatial=496, exact=84; oracle PASS
+Query belt, offset 0.0 days
+  Radial selection: 0.018802 s
+  Radial + spatial selection: 0.000324 s
+  Evaluate spatial candidates: 0.020513 s
+  Full evaluation oracle: 2.533168 s
+  Candidates radial=294308, spatial=5276, exact=535; oracle PASS
+Query Jupiter distance, offset 0.0 days
+  Radial selection: 0.000940 s
+  Radial + spatial selection: 0.000059 s
+  Evaluate spatial candidates: 0.000003 s
+  Full evaluation oracle: 2.443741 s
+  Candidates radial=11412, spatial=1, exact=0; oracle PASS
+Query outer, offset 0.0 days
+  Radial selection: 0.000111 s
+  Radial + spatial selection: 0.000037 s
+  Evaluate spatial candidates: 0.000003 s
+  Full evaluation oracle: 2.413231 s
+  Candidates radial=1044, spatial=1, exact=1; oracle PASS
+Query inner, offset 1.0 days
+  Radial selection: 0.000275 s
+  Radial + spatial selection: 0.000034 s
+  Evaluate spatial candidates: 0.001022 s
+  Full evaluation oracle: 2.411541 s
+  Candidates radial=6422, spatial=496, exact=89; oracle PASS
+Query belt, offset 1.0 days
+  Radial selection: 0.008174 s
+  Radial + spatial selection: 0.000155 s
+  Evaluate spatial candidates: 0.009183 s
+  Full evaluation oracle: 2.411376 s
+  Candidates radial=294308, spatial=5276, exact=522; oracle PASS
+Query Jupiter distance, offset 1.0 days
+  Radial selection: 0.000419 s
+  Radial + spatial selection: 0.000059 s
+  Evaluate spatial candidates: 0.000003 s
+  Full evaluation oracle: 2.402999 s
+  Candidates radial=11412, spatial=1, exact=0; oracle PASS
+Query outer, offset 1.0 days
+  Radial selection: 0.000147 s
+  Radial + spatial selection: 0.000039 s
+  Evaluate spatial candidates: 0.000004 s
+  Full evaluation oracle: 2.405266 s
+  Candidates radial=1044, spatial=1, exact=1; oracle PASS
+Stale-index rejection PASS

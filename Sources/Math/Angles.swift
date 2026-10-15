@@ -108,7 +108,7 @@ public func normalize(hours: Int) -> Int {
 }
 
 @frozen
-public struct HourAngle {
+public struct HourAngle: Sendable {
   public var hours: Int
   public var minutes: Int
   public var seconds: Double
@@ -151,7 +151,8 @@ public extension HourAngle {
     return ha
   }
 
-  func toDeg() -> Double {
+  /// The complete angle in degrees, including minutes and seconds.
+  var degrees: Double {
     let totalHours = Double(abs(self.hours)) + Double(self.minutes) / MINUTES_PER_HOUR + self.seconds / SECONDS_PER_HOUR
 
     if self.hours >= 0 {
@@ -161,13 +162,18 @@ public extension HourAngle {
     }
   }
 
-  func toRad() -> Double {
-    return toDeg().deg
-  }
+  /// The complete angle in radians, including minutes and seconds.
+  var radians: Double { degrees.deg }
+
+  @available(*, deprecated, renamed: "degrees")
+  func toDeg() -> Double { degrees }
+
+  @available(*, deprecated, renamed: "radians")
+  func toRad() -> Double { radians }
 }
 
 @frozen
-public struct AngleOfArc {
+public struct AngleOfArc: Sendable {
   public var degrees: Int
   public var minutes: Int
   public var seconds: Double
@@ -180,7 +186,8 @@ public struct AngleOfArc {
 }
 
 public extension AngleOfArc {
-  func toDeg() -> Double {
+  /// The complete angle in degrees; `degrees` stores only the degree component.
+  var totalDegrees: Double {
     let totalDegrees = Double(abs(self.degrees)) + Double(self.minutes) / MINUTES_OF_ARC_PER_DEGREE + self.seconds / SECONDS_OF_ARC_PER_DEGREE
     if self.degrees >= 0 {
       return totalDegrees
@@ -189,7 +196,12 @@ public extension AngleOfArc {
     }
   }
 
-  func toRad() -> Double {
-    return toDeg().deg
-  }
+  /// The complete angle in radians, including minutes and seconds.
+  var radians: Double { totalDegrees.deg }
+
+  @available(*, deprecated, renamed: "totalDegrees")
+  func toDeg() -> Double { totalDegrees }
+
+  @available(*, deprecated, renamed: "radians")
+  func toRad() -> Double { radians }
 }

@@ -46,11 +46,14 @@ public struct Nutation {
   let nutationInObliquity: Double
 }
 
-// Returns nutation in longitude and nutation in obliquity
+/// Four-term approximation returning nutation in longitude and obliquity in radians.
+/// For tighter accuracy, use `nutation(jd:)`. Measured differences from that
+/// implementation are documented in NUTATION_ACCURACY.md; they are not bounds
+/// on error relative to observed celestial orientation.
 public func fastNutation(jd: Double) -> Nutation {
   let T = julianCenturiesFromJ2000(jd: jd)
   let Omega = longitudeOfAscendingNodeOfMoonsMeanOrbitOnEcliptic(T: T).deg
-  let L = normalize(degrees: (280.4665 + 36000.7698*T))
+  let L = normalize(degrees: (280.4665 + 36000.7698*T)).deg
   let Lprime = normalize(degrees: (218.3165 + 481267.8813 * T)).deg
   let x = (-17.20 * sin(Omega)) - 1.32 * sin(2*L) - 0.23 * sin(2*Lprime) + 0.21 * sin(2*Omega)
   let y = 9.20 * cos(Omega) + 0.57 * cos(2*L) + 0.10 * cos(2*Lprime) - 0.09 * cos(2*Omega)
@@ -177,7 +180,7 @@ public func fastMeanObliquityOfTheEcliptic(jd: Double) -> Double {
   let T = julianCenturiesFromJ2000(jd: jd)
   let T2 = T * T
   let T3 = T * T * T
-  let e0 = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).toRad() - 46.8150.arcsec * T - 0.00059.arcsec * T2 + 0.001813.arcsec * T3
+  let e0 = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).radians - 46.8150.arcsec * T - 0.00059.arcsec * T2 + 0.001813.arcsec * T3
   return e0
 }
 
@@ -196,7 +199,7 @@ public func meanObliquityOfTheEcliptic(jd: Double) -> Double {
   let U10 = U5 * U5
 
 
-  let a = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).toRad()
+  let a = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).radians
   let b = -4680.93 * U
     - 1.55 * U2
     + 1999.25 * U3

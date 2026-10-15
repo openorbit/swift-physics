@@ -34,8 +34,8 @@ public func geometricLongitudeOfSun(T: Double) -> Double
 {
   // Meeus, Astronomical Algorithms 2nd edition, Equation p16
   // TODO: Test Case is missing
-  let L0 = AngleOfArc(degrees: 280, minutes:27, seconds:59.245).toDeg()
-  let L1 = AngleOfArc(degrees: 0, minutes:0, seconds:129602771.380).toDeg()
-  let L2 = AngleOfArc(degrees: 0, minutes:0, seconds:1.0915).toDeg()
+  let L0 = AngleOfArc(degrees: 280, minutes:27, seconds:59.245).totalDegrees
+  let L1 = AngleOfArc(degrees: 0, minutes:0, seconds:129602771.380).totalDegrees
+  let L2 = AngleOfArc(degrees: 0, minutes:0, seconds:1.0915).totalDegrees
   return L0 + L1 * T + L2 * T * T
 }

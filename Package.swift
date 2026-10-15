@@ -1,20 +1,30 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.4
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
 
 let package = Package(
     name: "swift-physics",
+    platforms: [
+        .macOS(.v15), .iOS(.v18), .tvOS(.v18), .watchOS(.v11), .visionOS(.v2),
+    ],
     products: [
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
             name: "Physics",
-            targets: ["CelMek", "Aerodynamics", "Math"]),
+            targets: ["CelMek", "Aerodynamics", "FluidDynamics", "Hydrodynamics", "Math", "Atmospheres", "MagneticFields"]),
+        .library(name: "CelMek", targets: ["CelMek"]),
+        .library(name: "Atmospheres", targets: ["Atmospheres"]),
+        .library(name: "MagneticFields", targets: ["MagneticFields"]),
+        .library(name: "Math", targets: ["Math"]),
+        .library(name: "Aerodynamics", targets: ["Aerodynamics"]),
+        .library(name: "FluidDynamics", targets: ["FluidDynamics"]),
+        .library(name: "Hydrodynamics", targets: ["Hydrodynamics"]),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
-      .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.6"),
+      .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
       .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.1.0"),
     ],
     targets: [
@@ -22,19 +32,55 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "CelMek",
-            dependencies: ["Math"]),
+            dependencies: ["Math", "ERFASwift", "Atmospheres", "FluidDynamics",
+                           "MagneticFields"]),
+        .target(name: "MagneticFields", resources: [.process("Resources")]),
+        .target(name: "ERFASwift", dependencies: ["Math"], exclude: ["LICENSE.txt", "README.md"]),
+        .target(name: "Atmospheres"),
+        .target(name: "FluidDynamics"),
+        .target(name: "Hydrodynamics", dependencies: ["FluidDynamics"]),
         .target(
             name: "Math",
             dependencies: []),
         .target(
             name: "Aerodynamics",
-            dependencies: ["Yams"]),
+            dependencies: ["Yams", "Atmospheres", "FluidDynamics"]),
+        .executableTarget(name: "FluidPhysicsDemo", dependencies: ["Aerodynamics", "Atmospheres", "FluidDynamics", "Hydrodynamics"],
+                          path: "Examples/FluidPhysicsDemo"),
+        .executableTarget(
+            name: "TwoBodyGameDemo",
+            dependencies: ["CelMek"],
+            path: "Examples/TwoBodyGameDemo"),
+        .executableTarget(
+            name: "AttitudeDynamicsDemo",
+            dependencies: ["CelMek", "Math"],
+            path: "Examples/AttitudeDynamicsDemo"),
+        .executableTarget(
+            name: "Voyager2GameDemo",
+            dependencies: ["CelMek", "Math"],
+            path: "Examples/Voyager2GameDemo",
+            exclude: ["README.md"]),
+        .executableTarget(
+            name: "GameIntegrationBenchmark",
+            dependencies: ["CelMek", "Math"],
+            path: "Tools/GameIntegrationBenchmark"),
+        .executableTarget(
+            name: "VSOP87Characterization",
+            dependencies: ["CelMek", "Math"],
+            path: "Tools/VSOP87Characterization"),
+        .executableTarget(name: "MPCCullingExperiment", dependencies: ["CelMek", "Math"],
+                          path: "Experiments/MPCCulling", exclude: ["README.md", "results"]),
         .testTarget(
             name: "CelMekTests",
-            dependencies: ["CelMek"]),
+            dependencies: ["CelMek", "FluidDynamics", "Atmospheres"],
+            resources: [.copy("Fixtures")]),
         .testTarget(
             name: "AerodynamicsTests",
-            dependencies: ["Aerodynamics"]),
+            dependencies: ["Aerodynamics", "FluidDynamics", "Atmospheres"], resources: [.process("Resources")]),
+        .testTarget(name: "FluidDynamicsTests", dependencies: ["FluidDynamics"]),
+        .testTarget(name: "HydrodynamicsTests", dependencies: ["Hydrodynamics", "FluidDynamics"]),
+        .testTarget(name: "AtmospheresTests", dependencies: ["Atmospheres"]),
+        .testTarget(name: "MagneticFieldsTests", dependencies: ["MagneticFields"], resources: [.copy("Fixtures")]),
         .testTarget(
             name: "MathTests",
             dependencies: ["Math"]),

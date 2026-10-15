@@ -1,0 +1,82 @@
+[
+  {
+    "naif": 1,
+    "km3PerSecond2": 22031.868551400003
+  },
+  {
+    "naif": 2,
+    "km3PerSecond2": 324858.592
+  },
+  {
+    "naif": 3,
+    "km3PerSecond2": 403503.2356254802
+  },
+  {
+    "naif": 4,
+    "km3PerSecond2": 42828.3758157561
+  },
+  {
+    "naif": 5,
+    "km3PerSecond2": 126712764.09999998
+  },
+  {
+    "naif": 6,
+    "km3PerSecond2": 37940584.8418
+  },
+  {
+    "naif": 7,
+    "km3PerSecond2": 5794556.3999999985
+  },
+  {
+    "naif": 8,
+    "km3PerSecond2": 6836527.100580399
+  },
+  {
+    "naif": 9,
+    "km3PerSecond2": 975.5
+  },
+  {
+    "naif": 10,
+    "km3PerSecond2": 132712440041.27942
+  },
+  {
+    "naif": 199,
+    "km3PerSecond2": 22031.868551400003
+  },
+  {
+    "naif": 299,
+    "km3PerSecond2": 324858.592
+  },
+  {
+    "naif": 301,
+    "km3PerSecond2": 4902.80011845755
+  },
+  {
+    "naif": 399,
+    "km3PerSecond2": 398600.43550702266
+  },
+  {
+    "naif": 499,
+    "km3PerSecond2": 42828.37362069909
+  },
+  {
+    "naif": 599,
+    "km3PerSecond2": 126686531.9003704
+  },
+  {
+    "naif": 699,
+    "km3PerSecond2": 37931206.23436167
+  },
+  {
+    "naif": 799,
+    "km3PerSecond2": 5793951.256527211
+  },
+  {
+    "naif": 899,
+    "km3PerSecond2": 6835103.145462294
+  },
+  {
+    "naif": 999,
+    "km3PerSecond2": 869.6138177608748
+  }
+]

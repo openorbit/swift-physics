@@ -3,3 +3,11 @@
 /Packages
 /*.xcodeproj
 xcuserdata/
+
+# Optional local JPL exports; never package multi-gigabyte ephemerides.
+/Data/DE441/
+
+# Reproducible JPL extraction caches and optional local kernel collections.
+/Data/JPL/cache/
+/Data/JPL/SPK/
+/Tools/SmallBodies/__pycache__/

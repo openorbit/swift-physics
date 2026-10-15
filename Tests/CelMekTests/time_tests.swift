@@ -16,29 +16,31 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class time_tests: XCTestCase {
-  func testDateTime() {
-    let dt0 = DateTime(isoDate: "2020-12-12")
-    XCTAssertNotNil(dt0)
-    XCTAssertEqual(dt0!.date.year, 2020)
-    XCTAssertEqual(dt0!.date.month, Month.December)
-    XCTAssertEqual(dt0!.date.day, 12)
+@Suite
+struct time_tests {
+  @Test
+  func testDateTime() throws {
+    let dt0 = try #require(DateTime(isoDate: "2020-12-12"))
+    #expect(dt0.date.year == 2020)
+    #expect(dt0.date.month == Month.december)
+    #expect(dt0.date.day == 12)
     
     let dt1 = DateTime(isoDate: "2020-0-12")
-    XCTAssertNil(dt1)
+    #expect(dt1 == nil)
     
   }
 
+  @Test
   func testIsLeap() {
-    XCTAssertTrue(isLeapYear(2000))
-    XCTAssertTrue(isLeapYear(1996))
-    XCTAssertTrue(isLeapYear(2004))
-    XCTAssertFalse(isLeapYear(1900))
-    XCTAssertFalse(isLeapYear(2001))
-    XCTAssertFalse(isLeapYear(1999))
+    #expect(isLeapYear(2000))
+    #expect(isLeapYear(1996))
+    #expect(isLeapYear(2004))
+    #expect(!(isLeapYear(1900)))
+    #expect(!(isLeapYear(2001)))
+    #expect(!(isLeapYear(1999)))
   }
 }
 

@@ -1,0 +1,665 @@
+{
+  "source": "JPL DE441 testpo.441 independently supplied reference values",
+  "sourceURL": "https://ssd.jpl.nasa.gov/ftp/eph/planets/ascii/de441/testpo.441",
+  "sourceSHA256": "e60c08ced7741a07d4dfe89b124afb4b1648bd1e3d0eb68dd9a79bf6990bb9c2",
+  "binaryCoverage": [
+    -3027215.5,
+    7930192.5
+  ],
+  "recordDays": 32,
+  "tolerance": 1e-12,
+  "units": "vectors AU and AU/TDB-day; nutations radians and radians/TDB-day",
+  "rows": [
+    {
+      "jd": -3027192.5,
+      "target": 10,
+      "center": 11,
+      "component": 5,
+      "expected": -0.01341169303288234
+    },
+    {
+      "jd": -287878.5,
+      "target": 12,
+      "center": 4,
+      "component": 5,
+      "expected": 0.007192953041596485
+    },
+    {
+      "jd": 2432976.5,
+      "target": 3,
+      "center": 8,
+      "component": 4,
+      "expected": -0.0067037082764800195
+    },
+    {
+      "jd": 2446278.5,
+      "target": 8,
+      "center": 12,
+      "component": 3,
+      "expected": -11.474221574991345
+    },
+    {
+      "jd": 2446704.5,
+      "target": 13,
+      "center": 12,
+      "component": 5,
+      "expected": 0.015576406593592744
+    },
+    {
+      "jd": 2447069.5,
+      "target": 10,
+      "center": 4,
+      "component": 4,
+      "expected": 0.0004953940082323219
+    },
+    {
+      "jd": 2447951.5,
+      "target": 11,
+      "center": 12,
+      "component": 2,
+      "expected": 0.0002344056270938633
+    },
+    {
+      "jd": 2447982.5,
+      "target": 9,
+      "center": 10,
+      "component": 2,
+      "expected": -21.925249444154574
+    },
+    {
+      "jd": 2448591.5,
+      "target": 10,
+      "center": 13,
+      "component": 5,
+      "expected": -0.0005317131274498788
+    },
+    {
+      "jd": 2448653.5,
+      "target": 12,
+      "center": 2,
+      "component": 1,
+      "expected": 0.4607413197244218
+    },
+    {
+      "jd": 2449047.5,
+      "target": 2,
+      "center": 1,
+      "component": 5,
+      "expected": 0.0007183102103564124
+    },
+    {
+      "jd": 2449261.5,
+      "target": 14,
+      "center": 0,
+      "component": 3,
+      "expected": -6.6667362883096e-07
+    },
+    {
+      "jd": 2449353.5,
+      "target": 13,
+      "center": 1,
+      "component": 6,
+      "expected": -0.001265900679423492
+    },
+    {
+      "jd": 2449384.5,
+      "target": 9,
+      "center": 7,
+      "component": 6,
+      "expected": -0.001861094027672815
+    },
+    {
+      "jd": 2449534.5,
+      "target": 10,
+      "center": 3,
+      "component": 3,
+      "expected": 0.00035318549699607445
+    },
+    {
+      "jd": 2449749.5,
+      "target": 7,
+      "center": 12,
+      "component": 4,
+      "expected": 0.003485917190168687
+    },
+    {
+      "jd": 2449808.5,
+      "target": 14,
+      "center": 0,
+      "component": 1,
+      "expected": 4.900437992140744e-05
+    },
+    {
+      "jd": 2449838.5,
+      "target": 6,
+      "center": 13,
+      "component": 6,
+      "expected": 0.007284984948701985
+    },
+    {
+      "jd": 2449899.5,
+      "target": 7,
+      "center": 10,
+      "component": 5,
+      "expected": -0.0004328146406648325
+    },
+    {
+      "jd": 2450143.5,
+      "target": 12,
+      "center": 6,
+      "component": 6,
+      "expected": -0.002123001392289255
+    },
+    {
+      "jd": 2450265.5,
+      "target": 5,
+      "center": 2,
+      "component": 2,
+      "expected": -4.0518672962192515
+    },
+    {
+      "jd": 2450418.5,
+      "target": 8,
+      "center": 3,
+      "component": 4,
+      "expected": 0.019128464392568843
+    },
+    {
+      "jd": 2450569.5,
+      "target": 4,
+      "center": 13,
+      "component": 6,
+      "expected": 2.424832554335865e-05
+    },
+    {
+      "jd": 2450600.5,
+      "target": 5,
+      "center": 7,
+      "component": 1,
+      "expected": -8.336393143869795
+    },
+    {
+      "jd": 2450630.5,
+      "target": 5,
+      "center": 10,
+      "component": 3,
+      "expected": -1.1219141954247476
+    },
+    {
+      "jd": 2450661.5,
+      "target": 3,
+      "center": 8,
+      "component": 2,
+      "expected": 23.630425353140737
+    },
+    {
+      "jd": 2450722.5,
+      "target": 4,
+      "center": 1,
+      "component": 3,
+      "expected": -0.714726600866116
+    },
+    {
+      "jd": 2450814.5,
+      "target": 7,
+      "center": 9,
+      "component": 1,
+      "expected": 24.3947978590047
+    },
+    {
+      "jd": 2450845.5,
+      "target": 11,
+      "center": 9,
+      "component": 4,
+      "expected": -0.002954029920010907
+    },
+    {
+      "jd": 2450904.5,
+      "target": 6,
+      "center": 12,
+      "component": 1,
+      "expected": 8.586591428653714
+    },
+    {
+      "jd": 2450995.5,
+      "target": 7,
+      "center": 6,
+      "component": 2,
+      "expected": -17.708391480603225
+    },
+    {
+      "jd": 2451057.5,
+      "target": 6,
+      "center": 3,
+      "component": 4,
+      "expected": -0.008989250195818189
+    },
+    {
+      "jd": 2451087.5,
+      "target": 6,
+      "center": 7,
+      "component": 3,
+      "expected": 7.578419087383061
+    },
+    {
+      "jd": 2451118.5,
+      "target": 14,
+      "center": 0,
+      "component": 4,
+      "expected": 7.71539591511e-09
+    },
+    {
+      "jd": 2451179.5,
+      "target": 7,
+      "center": 13,
+      "component": 3,
+      "expected": -6.4325939277540725
+    },
+    {
+      "jd": 2451210.5,
+      "target": 14,
+      "center": 0,
+      "component": 2,
+      "expected": -3.599946614197564e-05
+    },
+    {
+      "jd": 2451238.5,
+      "target": 13,
+      "center": 11,
+      "component": 2,
+      "expected": 0.31137617383644195
+    },
+    {
+      "jd": 2451269.5,
+      "target": 1,
+      "center": 2,
+      "component": 2,
+      "expected": -0.9117619017735857
+    },
+    {
+      "jd": 2451299.5,
+      "target": 5,
+      "center": 4,
+      "component": 4,
+      "expected": -0.010876516692371559
+    },
+    {
+      "jd": 2451360.5,
+      "target": 1,
+      "center": 8,
+      "component": 3,
+      "expected": 9.797735911288962
+    },
+    {
+      "jd": 2451422.5,
+      "target": 10,
+      "center": 13,
+      "component": 2,
+      "expected": 0.0016016625140590796
+    },
+    {
+      "jd": 2451452.5,
+      "target": 11,
+      "center": 9,
+      "component": 1,
+      "expected": 10.155095323781348
+    },
+    {
+      "jd": 2451483.5,
+      "target": 2,
+      "center": 10,
+      "component": 3,
+      "expected": 0.04391711736251043
+    },
+    {
+      "jd": 2451513.5,
+      "target": 8,
+      "center": 11,
+      "component": 2,
+      "expected": -23.032536019458984
+    },
+    {
+      "jd": 2451544.5,
+      "target": 12,
+      "center": 4,
+      "component": 5,
+      "expected": -0.01380715970704244
+    },
+    {
+      "jd": 2451575.5,
+      "target": 2,
+      "center": 5,
+      "component": 4,
+      "expected": 0.020578217934478282
+    },
+    {
+      "jd": 2451604.5,
+      "target": 6,
+      "center": 1,
+      "component": 5,
+      "expected": 0.026066795401506172
+    },
+    {
+      "jd": 2451635.5,
+      "target": 8,
+      "center": 4,
+      "component": 6,
+      "expected": -0.0036108962728007552
+    },
+    {
+      "jd": 2451665.5,
+      "target": 2,
+      "center": 3,
+      "component": 6,
+      "expected": 0.013470100006437453
+    },
+    {
+      "jd": 2451696.5,
+      "target": 4,
+      "center": 1,
+      "component": 2,
+      "expected": 1.4036091978699974
+    },
+    {
+      "jd": 2451726.5,
+      "target": 12,
+      "center": 13,
+      "component": 2,
+      "expected": 0.9238318161315968
+    },
+    {
+      "jd": 2451757.5,
+      "target": 11,
+      "center": 2,
+      "component": 5,
+      "expected": 0.01784824832403948
+    },
+    {
+      "jd": 2451788.5,
+      "target": 13,
+      "center": 8,
+      "component": 3,
+      "expected": 9.525923896290262
+    },
+    {
+      "jd": 2451849.5,
+      "target": 9,
+      "center": 10,
+      "component": 1,
+      "expected": -9.721603540286354
+    },
+    {
+      "jd": 2452000.5,
+      "target": 1,
+      "center": 10,
+      "component": 1,
+      "expected": 1.188907986504933
+    },
+    {
+      "jd": 2452030.5,
+      "target": 4,
+      "center": 9,
+      "component": 1,
+      "expected": 7.611173806868401
+    },
+    {
+      "jd": 2452061.5,
+      "target": 12,
+      "center": 8,
+      "component": 4,
+      "expected": -0.0024867698050119753
+    },
+    {
+      "jd": 2452091.5,
+      "target": 13,
+      "center": 7,
+      "component": 1,
+      "expected": -15.648282081499858
+    },
+    {
+      "jd": 2452122.5,
+      "target": 3,
+      "center": 7,
+      "component": 3,
+      "expected": 4.732756488915162
+    },
+    {
+      "jd": 2452153.5,
+      "target": 2,
+      "center": 9,
+      "component": 1,
+      "expected": 8.186738448668278
+    },
+    {
+      "jd": 2452183.5,
+      "target": 9,
+      "center": 6,
+      "component": 3,
+      "expected": -9.665991208579733
+    },
+    {
+      "jd": 2452244.5,
+      "target": 1,
+      "center": 8,
+      "component": 4,
+      "expected": 0.016739336644262783
+    },
+    {
+      "jd": 2452365.5,
+      "target": 5,
+      "center": 1,
+      "component": 6,
+      "expected": -0.014093552712056841
+    },
+    {
+      "jd": 2452426.5,
+      "target": 8,
+      "center": 4,
+      "component": 5,
+      "expected": 0.004416088941602201
+    },
+    {
+      "jd": 2452487.5,
+      "target": 7,
+      "center": 3,
+      "component": 6,
+      "expected": -0.003020306435106749
+    },
+    {
+      "jd": 2452518.5,
+      "target": 5,
+      "center": 13,
+      "component": 5,
+      "expected": -0.01788495036425394
+    },
+    {
+      "jd": 2452548.5,
+      "target": 4,
+      "center": 10,
+      "component": 5,
+      "expected": -0.02626634799892915
+    },
+    {
+      "jd": 2452640.5,
+      "target": 1,
+      "center": 10,
+      "component": 5,
+      "expected": 0.021017564195183216
+    },
+    {
+      "jd": 2452671.5,
+      "target": 3,
+      "center": 7,
+      "component": 1,
+      "expected": -17.737647184131703
+    },
+    {
+      "jd": 2452730.5,
+      "target": 2,
+      "center": 8,
+      "component": 2,
+      "expected": 20.192410917068067
+    },
+    {
+      "jd": 2452791.5,
+      "target": 11,
+      "center": 2,
+      "component": 3,
+      "expected": -0.05725496294960161
+    },
+    {
+      "jd": 2452944.5,
+      "target": 4,
+      "center": 5,
+      "component": 4,
+      "expected": 0.00021769029106606205
+    },
+    {
+      "jd": 2452974.5,
+      "target": 13,
+      "center": 9,
+      "component": 4,
+      "expected": -0.01941193557225475
+    },
+    {
+      "jd": 2453126.5,
+      "target": 9,
+      "center": 12,
+      "component": 4,
+      "expected": 0.0031575631939686688
+    },
+    {
+      "jd": 2453187.5,
+      "target": 3,
+      "center": 5,
+      "component": 5,
+      "expected": 0.009104306478741737
+    },
+    {
+      "jd": 2453218.5,
+      "target": 14,
+      "center": 0,
+      "component": 1,
+      "expected": -4.116152779273851e-05
+    },
+    {
+      "jd": 2453310.5,
+      "target": 10,
+      "center": 13,
+      "component": 1,
+      "expected": 0.0003455846800724575
+    },
+    {
+      "jd": 2453371.5,
+      "target": 1,
+      "center": 9,
+      "component": 6,
+      "expected": -0.011303511926246358
+    },
+    {
+      "jd": 2453491.5,
+      "target": 10,
+      "center": 12,
+      "component": 6,
+      "expected": -0.0050595647945855405
+    },
+    {
+      "jd": 2453767.5,
+      "target": 8,
+      "center": 10,
+      "component": 1,
+      "expected": 22.70095845978418
+    },
+    {
+      "jd": 2453826.5,
+      "target": 3,
+      "center": 5,
+      "component": 4,
+      "expected": -0.001873423717974402
+    },
+    {
+      "jd": 2454618.5,
+      "target": 11,
+      "center": 8,
+      "component": 6,
+      "expected": -0.0009078600044356236
+    },
+    {
+      "jd": 2454710.5,
+      "target": 3,
+      "center": 13,
+      "component": 6,
+      "expected": 3.34525653371813e-06
+    },
+    {
+      "jd": 2454740.5,
+      "target": 6,
+      "center": 9,
+      "component": 2,
+      "expected": 32.50346382043885
+    },
+    {
+      "jd": 2456048.5,
+      "target": 10,
+      "center": 3,
+      "component": 2,
+      "expected": 0.001231896115587122
+    },
+    {
+      "jd": 2456079.5,
+      "target": 9,
+      "center": 5,
+      "component": 5,
+      "expected": -0.004105074865056528
+    },
+    {
+      "jd": 2456870.5,
+      "target": 12,
+      "center": 3,
+      "component": 3,
+      "expected": 0.3167184093942803
+    },
+    {
+      "jd": 2464784.5,
+      "target": 14,
+      "center": 0,
+      "component": 3,
+      "expected": -1.625260359154e-08
+    },
+    {
+      "jd": 2467920.5,
+      "target": 3,
+      "center": 10,
+      "component": 1,
+      "expected": -0.002497081828728841
+    },
+    {
+      "jd": 2482256.5,
+      "target": 10,
+      "center": 2,
+      "component": 4,
+      "expected": 0.00566093645151751
+    },
+    {
+      "jd": 2512144.5,
+      "target": 13,
+      "center": 11,
+      "component": 3,
+      "expected": 0.36026486952295383
+    },
+    {
+      "jd": 5190832.5,
+      "target": 13,
+      "center": 12,
+      "component": 6,
+      "expected": 0.005420205389186955
+    },
+    {
+      "jd": 7930182.5,
+      "target": 7,
+      "center": 4,
+      "component": 2,
+      "expected": 11.615868284060099
+    }
+  ]
+}

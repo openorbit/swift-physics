@@ -2,32 +2,75 @@ name: Swift
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  macos:
-    runs-on: macos-13
+  build-and-test:
+    name: Swift 6.4 on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            build-system: swiftbuild
+          # Use the previous backend while investigating opaque Linux/Windows failures.
+          - os: ubuntu-24.04
+            build-system: native
+          - os: windows-latest
+            build-system: native
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v1
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
-  linux:
-    runs-on: ubuntu-latest
-    container:
-      image: swift:5.9
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v1
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Swift 6.4
+        if: runner.os != 'Windows'
+        uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: "6.4"
+      - name: Set up Swift 6.4 on Windows
+        if: runner.os == 'Windows'
+        uses: SwiftyLab/setup-swift@v1.14.0
+        with:
+          swift-version: "6.4"
+      - name: Show Swift version
+        run: swift --version
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          status=0
+          swift build --build-system "${{ matrix.build-system }}" --very-verbose --no-color-diagnostics 2>&1 | tee swift-build.log || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Swift build error summary"
+            grep -n -m 30 -E '(fatal )?error:|[Ss]ignal [0-9]+|[Kk]illed|[Cc]rash' swift-build.log || true
+            echo "::endgroup::"
+          fi
+          exit "$status"
+      - name: Run tests
+        shell: bash
+        run: |
+          set -o pipefail
+          status=0
+          swift test --build-system "${{ matrix.build-system }}" --very-verbose --no-color-diagnostics 2>&1 | tee swift-test.log || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::group::Swift test error summary"
+            grep -n -m 30 -E '(fatal )?error:|[Ss]ignal [0-9]+|[Kk]illed|[Cc]rash' swift-test.log || true
+            echo "::endgroup::"
+          fi
+          exit "$status"
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-diagnostics-${{ runner.os }}
+          retention-days: 7
+          include-hidden-files: true
+          path: |
+            swift-build.log
+            swift-test.log
+            .build/**/*.dia

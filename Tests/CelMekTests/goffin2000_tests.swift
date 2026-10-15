@@ -16,17 +16,19 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class goffin2000_tests : XCTestCase {
+@Suite
+struct goffin2000_tests {
+  @Test
   func testGoffin2000() {
     
     let res = goffin2000(2448908.5);
     
-    XCTAssertEqual(res.x, 232.74009.deg, accuracy:  0.0000005);
-    XCTAssertEqual(res.y, 14.58769.deg, accuracy:  0.0000005);
-    XCTAssertEqual(res.z, 29.711383, accuracy: 0.000001);
+    #expect(abs((res.x) - (232.74009.deg)) <= 0.0000005);
+    #expect(abs((res.y) - (14.58769.deg)) <= 0.0000005);
+    #expect(abs((res.z) - (29.711383)) <= 0.000001);
   }
 }
 

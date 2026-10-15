@@ -16,11 +16,13 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 import Math
 
-final class angularSeparation_tests : XCTestCase {
+@Suite
+struct angularSeparation_tests {
+  @Test
   func testAngularSeparation() {
     // Meeus, Example 17.a
     let p0 = EquatorialCoordinate(rightAscension: 213.9154.deg,
@@ -29,7 +31,7 @@ final class angularSeparation_tests : XCTestCase {
                                   declination: -11.1614.deg)
     let d = angularSeparation(p0, p1)
 
-    XCTAssertEqual(d, 32.7930.deg, accuracy: 0.000005)
+    #expect(abs((d) - (32.7930.deg)) <= 0.000005)
   }
 }
 

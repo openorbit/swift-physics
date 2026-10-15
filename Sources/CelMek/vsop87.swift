@@ -17,8 +17,9 @@
 //
 
 import Foundation
+import Math
 
-public enum vsop87_body_id : Int {
+public enum vsop87_body_id: Int, Sendable {
   case vsop87_sun
   case vsop87_mercury
   case vsop87_venus
@@ -30,7 +31,7 @@ public enum vsop87_body_id : Int {
   case vsop87_neptune
 }
 
-public class vsop87_body {
+public final class vsop87_body: Sendable {
   let body_id: vsop87_body_id
   let terms_x: [[(Double,Double,Double)]];
   let terms_y: [[(Double,Double,Double)]];
@@ -41,10 +42,16 @@ public class vsop87_body {
     terms_y = ty;
     terms_z = tz;
   }
+  /// Legacy VSOP87E query: TDB Julian date in, position AU and velocity AU/day out.
+  /// Use state(at:) for an epoch/frame-tagged result normalized to SI units.
   public func position(jd : Double) -> (SIMD3<Double>, SIMD3<Double>, Double, vsop87_body_id)
   {
-    let t = (jd - 2451545.0) / 365250.0;
+    let t = (jd - 2451545.0) / 365250.0
+    let (position, velocity) = positionAndVelocity(t: t)
+    return (position, velocity, jd, body_id)
+  }
 
+  private func positionAndVelocity(t: Double) -> (SIMD3<Double>, SIMD3<Double>) {
     var x = [Double](repeating: 0, count: 6);
     var y = [Double](repeating: 0, count: 6);
     var z = [Double](repeating: 0, count: 6);
@@ -107,9 +114,9 @@ public class vsop87_body {
     (2.0 * T[1] * x[2] - T[2] * vx[2]) + (3.0 * T[2] * x[3] - T[3] * vx[3]) +
     (4.0 * T[3] * x[4] - T[4] * vx[4]) + (5.0 * T[4] * x[5] - T[5] * vx[5]);
     let vely =
-    -vy[0] + (1.0 * x[1] - T[1] * vy[1]) +
-    (2.0 * T[1] * x[2] - T[2] * vy[2]) + (3.0 * T[2] * x[3] - T[3] * vy[3]) +
-    (4.0 * T[3] * x[4] - T[4] * vy[4]) + (5.0 * T[4] * x[5] - T[5] * vy[5]);
+    -vy[0] + (1.0 * y[1] - T[1] * vy[1]) +
+    (2.0 * T[1] * y[2] - T[2] * vy[2]) + (3.0 * T[2] * y[3] - T[3] * vy[3]) +
+    (4.0 * T[3] * y[4] - T[4] * vy[4]) + (5.0 * T[4] * y[5] - T[5] * vy[5]);
     let velz =
     -vz[0] + (1.0 * z[1] - T[1] * vz[1]) +
     (2.0 * T[1] * z[2] - T[2] * vz[2]) + (3.0 * T[2] * z[3] - T[3] * vz[3]) +
@@ -117,6 +124,43 @@ public class vsop87_body {
 
     let pos = SIMD3<Double>(px, py, pz);
     let vel = SIMD3<Double>(velx/365250.0, vely/365250.0,  velz/365250.0);
-    return (pos, vel, jd, body_id);
+    return (pos, vel)
+  }
+}
+
+extension vsop87_body: StateProvider {
+  public var frame: Math.Frame { CelestialFrames.vsop87E }
+
+  /// Native barycentric state in metres and metres per elapsed atomic second.
+  /// Uses the provisional Epoch TDB approximation and the complete coefficient
+  /// series. Acceleration is unavailable. No scientific coverage bound is implied.
+  public func state(at epoch: Epoch) throws -> CartesianState {
+    try state(at: epoch, using: nil)
+  }
+
+  /// Select a TDB model with enforced coverage and matching derivative conversion.
+  public func state(at epoch: Epoch, using model: (any TDBTimeModel)?) throws -> CartesianState {
+    let sample = try model.map { try epoch.tdbCorrection(using: $0) }
+    let date = try sample.map { try epoch.tdbDate(using: $0) } ?? epoch.julianDate(in: .tdb)
+    let t = (Double(date.wholeDay - 2_451_545) + date.fractionalDay) / 365_250
+    let (position, velocity) = positionAndVelocity(t: t)
+    // The series differentiates with respect to TDB time. Apply the same time
+    // adapter's rate so the state derivative follows Epoch's atomic seconds.
+    let atomicVelocity = velocity * (sample?.rate ?? epoch.coordinateTimeRate(in: .tdb))
+    return try CartesianState(epoch: epoch, frame: frame, position: position,
+                               velocity: atomicVelocity, units: .astronomicalUnitsAndDays)
+  }
+}
+
+/// A VSOP87 provider configured with an explicit TDB model for frame-tree queries.
+public struct VSOP87StateProvider: StateProvider {
+  public let body: vsop87_body
+  public let tdbModel: any TDBTimeModel
+  public var frame: Math.Frame { body.frame }
+  public init(body: vsop87_body, tdbModel: any TDBTimeModel) {
+    self.body = body; self.tdbModel = tdbModel
+  }
+  public func state(at epoch: Epoch) throws -> CartesianState {
+    try body.state(at: epoch, using: tdbModel)
   }
 }

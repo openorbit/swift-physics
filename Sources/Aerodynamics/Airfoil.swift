@@ -16,6 +16,7 @@
 // limitations under the License.
 //
 
+import FluidDynamics
 import Foundation
 import Yams
 
@@ -26,133 +27,78 @@ public protocol Airfoil {
   func coefficients(at alpha: Double, for reynoldsNumber: Double) -> AirfoilCoefficients
 }
 
-public struct AirfoilCoefficients : Codable {
+public struct AirfoilCoefficients: Codable, Sendable {
   public let lift: Double
   public let drag: Double
   public let moment: Double
+  public init(lift: Double, drag: Double, moment: Double) {
+    self.lift = lift; self.drag = drag; self.moment = moment
+  }
+  internal var isFinite: Bool { [lift,drag,moment].allSatisfy(\.isFinite) }
 }
 
-public struct ParametricAirfoil : Airfoil, Codable {
-  let reynoldsNumber: Double
-  let coefficients: [AirfoilCoefficients]
+/// Legacy scalar facade. Queries use radians and explicitly clamp to the loaded
+/// angle/Reynolds/Mach coverage with a Mach-zero query. Invalid queries return NaN; prefer the
+/// throwing TabulatedAirfoil API for coverage-sensitive physics.
+public struct ParametricAirfoil: Airfoil, Codable, Sendable {
+  private let model: TabulatedAirfoil
+  private init(model: TabulatedAirfoil) { self.model = model }
 
+  /// Coefficients at one-degree intervals from −180° through +180°, inclusive.
+  /// Use validatingReynoldsNumber for recoverable validation errors.
   public init(reynoldsNumber: Double, coefficients: [AirfoilCoefficients]) {
-    self.reynoldsNumber = reynoldsNumber
-    self.coefficients = coefficients
+    do { try self.init(validatingReynoldsNumber: reynoldsNumber, coefficients: coefficients) }
+    catch { preconditionFailure("Invalid coefficient table: \(error)") }
+  }
+
+  public init(validatingReynoldsNumber reynoldsNumber: Double, coefficients: [AirfoilCoefficients]) throws {
+    guard coefficients.count == 361 else { throw FluidError.invalidCoefficients }
+    let samples = coefficients.enumerated().map {
+      AirfoilSample(angleOfAttackRadians: Double($0.offset-180) * .pi/180, coefficients: $0.element)
+    }
+    model = try TabulatedAirfoil(polars: [AirfoilPolar(reynoldsNumber: reynoldsNumber,samples: samples)],
+                                boundaryPolicy: .clamp,source: "Caller-supplied degree grid",version: "1")
   }
 
   public init?(withString string: String) {
-    guard let foil = try? Yams.load(yaml: string) as? [String: Any] else {
-      print("Yams load failed")
-      return nil
-    }
-
-    //guard let name = foil["name"] as? String else {
-    //  print("no name")
-    //  return nil
-    //}
-    //guard let generator = foil["generated-with"] as? String else {
-    //  print("Generated with missing")
-    //  return nil
-    //}
-    guard let foilData = foil["data"] as? [[String : Any]] else {
-      print("Data missing")
-      return nil
-    }
-    let foilDataEntry = foilData[0]
-
-    guard let reynoldsNumber = foilDataEntry["reynolds-number"] as? Double else {
-      return nil
-    }
-
-    guard let coefficientsInFile = foilDataEntry["coefficients"] as? [[Double]] else {
-      return nil
-    }
-
-    var coefficients = [AirfoilCoefficients]()
-
-    guard let firstCoeef = coefficientsInFile.first else {
-      return nil
-    }
-
-    var preFill = -181.0
-    while preFill < firstCoeef[0] {
-      coefficients.append(AirfoilCoefficients(lift: firstCoeef[1],
-                                              drag: firstCoeef[2],
-                                              moment: firstCoeef[4]))
-      preFill += 1.0
-    }
-    for coef in coefficientsInFile {
-      coefficients.append(AirfoilCoefficients(lift: coef[1], drag: coef[2], moment: coef[4]))
-    }
-
-    guard let lastCoef = coefficientsInFile.last else {
-      return nil
-    }
-    var postFill = lastCoef[0] + 1
-    while postFill < 181.0 {
-      coefficients.append(AirfoilCoefficients(lift: lastCoef[1],
-                                              drag: lastCoef[2],
-                                              moment: lastCoef[4]))
-      postFill += 1.0
-    }
-
-    self.reynoldsNumber = reynoldsNumber
-    self.coefficients = coefficients
+    guard let parsed = try? AirfoilTableLoader.yaml(string,boundaryPolicy: .clamp) else { return nil }
+    model = parsed
   }
   public init?(withFile file: String) {
-    guard let data = try? String(contentsOfFile: file) else {
-      return nil
-    }
-
-    self.init(withString: data)
+    guard let parsed = try? AirfoilTableLoader.yamlFile(URL(fileURLWithPath: file),boundaryPolicy: .clamp) else { return nil }
+    model = parsed
   }
-
 
   public func liftCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 180]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 180 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    return c0.lift * fraction + c1.lift * (1-fraction)
+    return coefficients(at: alpha,for: reynoldsNumber).lift
   }
   public func dragCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 180]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 180 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    return c0.drag * fraction + c1.drag * (1-fraction)
+    return coefficients(at: alpha,for: reynoldsNumber).drag
   }
   public func momentCoefficient(at alpha: Double, for reynoldsNumber: Double) -> Double {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 180]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 180 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    return c0.moment * fraction + c1.moment * (1-fraction)
+    return coefficients(at: alpha,for: reynoldsNumber).moment
+  }
+  public func coefficients(at alpha: Double, for reynoldsNumber: Double) -> AirfoilCoefficients {
+    guard alpha.isFinite, abs(alpha) <= .pi else {
+      return AirfoilCoefficients(lift: .nan,drag: .nan,moment: .nan)
+    }
+    return (try? model.coefficients(angleOfAttackRadians: alpha,reynoldsNumber: reynoldsNumber,machNumber: 0))
+      ?? AirfoilCoefficients(lift: .nan,drag: .nan,moment: .nan)
   }
 
-  public func coefficients(at alpha: Double, for reynoldsNumber: Double) -> AirfoilCoefficients
-  {
-    let alphaDeg = alpha * 180 / .pi
-    let alphaInt = Int(alphaDeg)
-    assert(abs(alphaInt) <= 180)
-    let c0 = coefficients[alphaInt + 181]
-    let sub = alphaInt < 0
-    let c1 = coefficients[alphaInt + 181 + (sub ? -1 : 1)]
-    let fraction = fmod(alpha, 1.0)
-    let resultingCoefficient = AirfoilCoefficients(
-      lift: c0.lift * fraction + c1.lift * (1-fraction),
-      drag: c0.drag * fraction + c1.drag * (1-fraction),
-      moment: c0.moment * fraction + c1.moment * (1-fraction))
-    return resultingCoefficient
+  private enum CodingKeys: String, CodingKey { case model, reynoldsNumber, coefficients }
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    if c.contains(.model) { try self.init(model: c.decode(TabulatedAirfoil.self,forKey: .model)) }
+    else {
+      var values = try c.decode([AirfoilCoefficients].self,forKey: .coefficients)
+      // The original YAML loader added an unused −181° padding sample.
+      if values.count == 362 { values.removeFirst() }
+      try self.init(validatingReynoldsNumber: c.decode(Double.self,forKey: .reynoldsNumber),coefficients: values)
+    }
+  }
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(model,forKey: .model)
   }
 }

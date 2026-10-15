@@ -18,7 +18,7 @@
 
 import Foundation
 
-public struct Quaternion {
+public struct Quaternion: Sendable {
   var elements: SIMD4<Double>
   public var x : Double { get { return elements.x } set { elements.x = newValue }}
   public var y : Double { get { return elements.y } set { elements.y = newValue }}
@@ -33,12 +33,19 @@ public struct Quaternion {
   public init(vector: SIMD4<Double>) {
     elements = vector
   }
+  /// Constructs a Hamilton rotation from an angle in radians and a finite axis.
+  /// The axis is normalized. A zero axis is allowed only for a zero angle.
   public init(angle: Double, axis: SIMD3<Double>) {
-    elements = SIMD4(axis, angle)
-    let  Omega = angle * 0.5
-    let sin_Omega = sin(Omega)
-    let sincos = SIMD4(sin_Omega, sin_Omega, sin_Omega, cos(Omega))
-    elements *= sincos
+    precondition(angle.isFinite && axis.x.isFinite && axis.y.isFinite && axis.z.isFinite)
+    let scale = max(abs(axis.x), abs(axis.y), abs(axis.z))
+    guard scale > 0 else {
+      precondition(angle == 0, "A nonzero rotation requires a nonzero axis")
+      self = .identity
+      return
+    }
+    let scaledAxis = axis / scale
+    let unitAxis = scaledAxis / (scaledAxis * scaledAxis).sum().squareRoot()
+    elements = SIMD4(unitAxis * sin(angle * 0.5), cos(angle * 0.5))
   }
   public init() {
     elements = SIMD4(repeating: 0)
@@ -46,15 +53,20 @@ public struct Quaternion {
 
 //  init(from: SIMD3<Double>, to: SIMD3<Double>) {
 //  }
+  /// Rotation angle in radians in 0...2π, independent of positive quaternion scale.
+  /// The zero quaternion returns zero; it does not represent a valid rotation.
   public var angle : Double {
-    get {
-      elements.w
-    }
+    let scale = max(abs(x), abs(y), abs(z), abs(w))
+    guard scale > 0 else { return 0 }
+    let scaledVector = vector / scale
+    return 2 * atan2((scaledVector * scaledVector).sum().squareRoot(), w / scale)
   }
+  /// Unit rotation axis; rotations with no vector component use the x axis.
   public var axis : SIMD3<Double> {
-    get {
-      SIMD3<Double>(elements.x, elements.y, elements.z)
-    }
+    let scale = max(abs(x), abs(y), abs(z))
+    guard scale > 0 else { return SIMD3(1, 0, 0) }
+    let scaledVector = vector / scale
+    return scaledVector / (scaledVector * scaledVector).sum().squareRoot()
   }
   public var matrix: Matrix3x3 {
     get {
@@ -96,7 +108,7 @@ public struct Quaternion {
   // length
   public var conj : Quaternion {
     get {
-      return Quaternion(vector: elements * SIMD4<Double>(repeating: -1))
+      return Quaternion(x: -x, y: -y, z: -z, w: w)
     }
   }
 

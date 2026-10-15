@@ -16,17 +16,19 @@
 // limitations under the License.
 //
 
-import XCTest
+import Testing
 @testable import CelMek;
 
-final class elp2000_82b_tests : XCTestCase {
+@Suite
+struct elp2000_82b_tests {
+  @Test
   func testELP2000() {
     
     let res = elp2000_82b(2448724.5);
     
-    XCTAssertEqual(res.x, 133.162659.deg, accuracy: 0.00000002)
-    XCTAssertEqual(res.y, -3.229127.deg, accuracy: 0.000000005)
-    XCTAssertEqual(res.z, 368409.7e3, accuracy: 100.0)
+    #expect(abs((res.x) - (133.162659.deg)) <= 0.00000002)
+    #expect(abs((res.y) - (-3.229127.deg)) <= 0.000000005)
+    #expect(abs((res.z) - (368409.7e3)) <= 100.0)
   }
 }
 

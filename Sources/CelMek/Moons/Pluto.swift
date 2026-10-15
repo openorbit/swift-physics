@@ -16,7 +16,7 @@
 // limitations under the License.
 //
 
-public struct PlanetaryBody {
+public struct PlanetaryBody: Sendable {
   public let name: String
   public let diameter: Double
   public let mass: Double
@@ -25,7 +25,7 @@ public struct PlanetaryBody {
   public let eccentricity: Double
   public let inclination: Double
 }
-public struct IrregularPlanetaryBody {
+public struct IrregularPlanetaryBody: Sendable {
   public let name: String
   public let dimensions: SIMD3<Double>
   public let mass: Double
