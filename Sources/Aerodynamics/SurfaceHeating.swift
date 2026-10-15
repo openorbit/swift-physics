@@ -88,29 +88,46 @@ public struct LaminarFlatPlateHeating: SurfaceConvectiveHeatingModel {
         "https://archive.nptel.ac.in/content/storage2/courses/112104159/module2/Lec8.pdf"
     }
     public func evaluate(_ query: SurfaceHeatingQuery) throws -> SurfaceConvectionResult {
-        let flow = query.edgeFlow, properties = query.transport, x = query.distanceFromLeadingEdgeMetres
-        guard let temperature = flow.temperatureKelvin, let mach = flow.machNumber,
-              let kn = try flow.knudsenNumber(referenceLengthMetres: x) else {
-            throw AerodynamicError.missingFlowProperty
-        }
-        let wallTemperature = query.wall.temperatureKelvin
-        let filmTemperature = 0.5*temperature+0.5*wallTemperature
-        guard abs(properties.temperatureKelvin-filmTemperature) <= 1e-8*filmTemperature else {
-            throw AerodynamicError.unsupportedQuery
-        }
-        // Transport properties are at film conditions, independently of edge-flow density/viscosity.
-        let re = properties.densityKilogramsPerCubicMetre*flow.speedMetresPerSecond*x/properties.dynamicViscosityPascalSeconds
-        let pr = properties.prandtlNumber
-        guard re.isFinite else { throw AerodynamicError.nonFiniteResult }
-        guard mach <= 0.3, (1000...500000).contains(re), (0.6...15).contains(pr),
-              kn <= 0.01, (0.8...1.25).contains(wallTemperature/temperature) else {
-            throw AerodynamicError.outsideCoverage
-        }
-        let nu = 0.332*sqrt(re)*pow(pr,1.0/3.0)
-        let h = nu*properties.thermalConductivityWattsPerMetreKelvin/x
-        return try SurfaceConvectionResult(wattsPerSquareMetre: h*(temperature-wallTemperature),
-            surfacePositionMetres: query.surfacePositionMetres,
-            heatTransferCoefficientWattsPerSquareMetreKelvin: h,
-            localNusseltNumber: nu, localReynoldsNumber: re, prandtlNumber: pr)
+        try flatPlateConvection(query,coefficient: 0.332,reynoldsExponent: 0.5,reynoldsRange: 1000...500000)
     }
+}
+
+
+/// Fully turbulent isothermal flat plate from its leading edge, not a transition
+/// model. Nu_x=0.0296 Re_x^0.8 Pr^(1/3). Same low-Mach/Kn/temperature restrictions
+/// as the laminar model, but 500000 ≤ Re_x ≤ 10000000 and 0.6 ≤ Pr ≤ 15.
+public struct TurbulentFlatPlateHeating: SurfaceConvectiveHeatingModel {
+    public init() {}
+    public var source: String { "https://archive.nptel.ac.in/content/storage2/courses/112104159/module2/Lec12.pdf" }
+    public func evaluate(_ query: SurfaceHeatingQuery) throws -> SurfaceConvectionResult {
+        try flatPlateConvection(query,coefficient: 0.0296,reynoldsExponent: 0.8,reynoldsRange: 500000...10000000)
+    }
+}
+
+private func flatPlateConvection(_ query: SurfaceHeatingQuery, coefficient: Double,
+                            reynoldsExponent: Double, reynoldsRange: ClosedRange<Double>) throws -> SurfaceConvectionResult {
+    let flow = query.edgeFlow, properties = query.transport, x = query.distanceFromLeadingEdgeMetres
+    guard let temperature = flow.temperatureKelvin, let mach = flow.machNumber,
+          let kn = try flow.knudsenNumber(referenceLengthMetres: x) else {
+        throw AerodynamicError.missingFlowProperty
+    }
+    let wallTemperature = query.wall.temperatureKelvin
+    let filmTemperature = 0.5*temperature+0.5*wallTemperature
+    guard abs(properties.temperatureKelvin-filmTemperature) <= 1e-8*filmTemperature else {
+        throw AerodynamicError.unsupportedQuery
+    }
+    // Transport properties are at film conditions, independently of edge-flow density/viscosity.
+    let re = properties.densityKilogramsPerCubicMetre*flow.speedMetresPerSecond*x/properties.dynamicViscosityPascalSeconds
+    let pr = properties.prandtlNumber
+    guard re.isFinite else { throw AerodynamicError.nonFiniteResult }
+    guard mach <= 0.3, reynoldsRange.contains(re), (0.6...15).contains(pr),
+          kn <= 0.01, (0.8...1.25).contains(wallTemperature/temperature) else {
+        throw AerodynamicError.outsideCoverage
+    }
+    let nu = coefficient*pow(re,reynoldsExponent)*pow(pr,1.0/3.0)
+    let h = nu*properties.thermalConductivityWattsPerMetreKelvin/x
+    return try SurfaceConvectionResult(wattsPerSquareMetre: h*(temperature-wallTemperature),
+        surfacePositionMetres: query.surfacePositionMetres,
+        heatTransferCoefficientWattsPerSquareMetreKelvin: h,
+        localNusseltNumber: nu, localReynoldsNumber: re, prandtlNumber: pr)
 }

@@ -140,3 +140,12 @@ let molecularFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(7
 let molecularLoads = try SurfaceTractionAerodynamics(panels: [molecularPanel],referenceLengthMetres: 1,
     model: molecularModel).evaluate(flow: molecularFlow).loads
 print("Free-molecular example panel force: \(molecularLoads.forceNewtons) N")
+
+// Nonlinear section/wake coupling; do not wrap the section polar in a separate
+// finite-wing correction, which would count induced drag twice.
+let wakeSegments = try SegmentedWing.rectangular(spanMetres: 8,chordMetres: 2,
+    incidenceRadians: 0.08,model: AirfoilWingSectionModel(airfoil: airfoil)).segments
+let wakeSolver = try NonlinearLiftingLine(segments: wakeSegments,wakeLengthMetres: 800,vortexCoreRadiusMetres: 0.001)
+let wakeResult = try wakeSolver.evaluate { _ in wingFlow }
+print("Nonlinear fixed wake: \(wakeResult.iterations) iterations; residual \(wakeResult.maximumNormalizedCirculationResidual); force \(wakeResult.loads.forceNewtons) N")
+try runEntryComparison()

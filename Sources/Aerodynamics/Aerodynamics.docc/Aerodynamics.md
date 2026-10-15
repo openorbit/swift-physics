@@ -9,6 +9,15 @@ Aerodynamics re-exports for compatibility.
 ## Topics
 
 ### Physics foundations
+- <doc:ModelCoverage>
+- ``AerodynamicTableAxis``
+- ``AerodynamicScalarTable``
+- ``AerodynamicFlowCoverage``
+- ``CoveredBodyCoefficients``
+- ``MachRegimeBodyCoefficients``
+- ``PerfectGasSpecies``
+- ``PerfectGasMassFraction``
+- ``PerfectGasMixture``
 - <doc:Foundations>
 - ``AerodynamicFlow``
 - ``AerodynamicReferenceGeometry``
@@ -28,6 +37,9 @@ Aerodynamics re-exports for compatibility.
 - <doc:FiniteWing>
 - ``FiniteWingAirfoil``
 - ``FiniteWingSolution``
+- <doc:NonlinearWakes>
+- ``NonlinearLiftingLine``
+- ``NonlinearLiftingLineResult``
 - <doc:LiftingLine>
 - ``LiftingLineWing``
 - ``LiftingLineSection``
@@ -77,6 +89,7 @@ Aerodynamics re-exports for compatibility.
 - ``FreeMolecularGas``
 - ``GasSurfaceReflection``
 - ``MaxwellianFreeMolecularTraction``
+- ``TabulatedRarefiedTraction``
 
 ### Aerothermal physics
 - <doc:SurfaceHeating>
@@ -85,6 +98,18 @@ Aerodynamics re-exports for compatibility.
 - ``SurfaceConvectiveHeatingModel``
 - ``SurfaceConvectionResult``
 - ``LaminarFlatPlateHeating``
+- ``TurbulentFlatPlateHeating``
+- <doc:EntryHeating>
+- ``AerothermalBoundaryLayer``
+- ``EnthalpySurfaceHeatingCoverage``
+- ``EnthalpySurfaceHeatingQuery``
+- ``EnthalpySurfaceHeatingResult``
+- ``EnthalpySurfaceHeatingModel``
+- ``TabulatedEnthalpySurfaceHeating``
+- ``LeadingEdgeHeatingQuery``
+- ``LeadingEdgeConvectiveHeatingModel``
+- ``SweptCylinderStagnationHeating``
+- ``TabulatedRadiativeHeating``
 - <doc:Aerothermal>
 - ``StagnationHeatingQuery``
 - ``AerothermalWallState``

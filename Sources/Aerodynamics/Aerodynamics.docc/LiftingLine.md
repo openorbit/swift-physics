@@ -72,3 +72,6 @@ constant profile drag, reference-point transfer and unsupported coverage.
 
 References: [classical lifting-line Fourier formulation](https://www.mdpi.com/2076-3417/15/6/3383)
 and [NASA induced-drag relationship](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/induced-drag-coefficient/).
+
+For supplied nonlinear polars, nonuniform incident flow and coupled fixed wakes
+between surfaces, see <doc:NonlinearWakes>.

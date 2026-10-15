@@ -3,7 +3,7 @@
 ``ConvectiveHeatingModel`` and ``RadiativeHeatingModel`` accept a
 ``StagnationHeatingQuery`` and return incoming heat flux in W/m² at an explicit
 surface position. They are separate contributions: no radiative model means
-radiation is unavailable, not zero. There is no built-in radiative correlation yet.
+radiation is unavailable, not zero. ``TabulatedRadiativeHeating`` accepts supplied cold-wall radiation data; no default radiative correlation is inferred.
 Wall radiation emission, temperature evolution, conduction and ablation belong to
 external thermal models. These interfaces do not advance a clock or mutate vehicle
 state. Richer gas chemistry or catalytic-surface data can be supplied through a
@@ -73,3 +73,6 @@ and exercise gas mismatch, custom coefficients, rest and coverage boundaries.
 
 Sources: [Sutton and Graves, NASA TR R-376](https://ntrs.nasa.gov/citations/19720003329)
 and [NASA TFAWS 2012 Aerothermodynamics Course](https://tfaws.nasa.gov/TFAWS12/Proceedings/Aerothermodynamics%20Course.pdf).
+
+See <doc:EntryHeating> for enthalpy-based surface data and swept leading-edge
+stagnation-line heating, and <doc:SurfaceHeating> for low-speed plate convection.

@@ -75,10 +75,9 @@ let loads = try evaluator.evaluate(flow: flow).loads
 ```
 
 These are demonstration inputs, not an atmosphere or material preset. No chemical
-reactions, ablation, heat flux or gas inventory is evolved. Slip/transitional flow
-and continuum/free-molecular blending remain unsupported; do not extrapolate either
-endpoint model to fill that gap. A replacement traction provider may supply a
-validated transition model through the same integration contract.
+reactions, ablation, heat flux or gas inventory is evolved. Do not extrapolate either endpoint model into slip/transitional flow.
+``TabulatedRarefiedTraction`` accepts a supplied consistent transition dataset
+through the same integration contract; no universal endpoint blend is inferred.
 
 Tests compare molecular fluxes with independent Simpson quadrature, equal-temperature
 rest and hot-wall limits, thermal leeward impacts, specular high-speed pressure,
@@ -86,3 +85,29 @@ force/moment transfer and equivalence of the continuum pressure adapter.
 
 References: [NASA free-molecular pressure/shear formulation](https://ntrs.nasa.gov/api/citations/19890015753/downloads/19890015753.pdf)
 and [NASA rarefied-flow regime definitions](https://www.nas.nasa.gov/assets/nas/pdf/ams/2022/AMS_20220802_Singh.pdf).
+
+
+## Supplied transitional traction
+
+``TabulatedRarefiedTraction`` uses matched pressure/shear ``AerodynamicScalarTable``
+axes, ordered `log10Kn`, `incidenceCosine`, `speedRatio`, `wallTemperatureRatio`,
+all dimensionless. Incidence cosine is outward normal dotted with body-relative
+velocity direction; speed ratio is `V / sqrt(R T)`, and temperature ratio is
+`Tw / T`. Pressure values are gauge pressure divided by `rho R T`; nonnegative
+shear magnitudes use the same normalization and oppose tangential relative velocity.
+This normalization differs from conventional dynamic-pressure coefficients.
+Normals/rest have no tangential direction and must have zero interpolated shear;
+inconsistent data throws. Nonzero molecular thermal pressure at rest can remain.
+
+Gas R and wall temperature are explicit; source/version/assumptions must identify
+the gas composition, surface accommodation, geometry and data method (for example
+DSMC or a calibrated bridge). A complete rectangular dataset may include continuum,
+slip, transition and free-molecular conditions, with continuous multilinear output
+inside its stated coverage. The model never changes mean free path to trick the
+asymptotic evaluators into accepting unsupported states. Missing temperature/path
+or an out-of-range coordinate throws; no density-based vacuum fallback exists.
+Caller exposure flags remain the only shielding input.
+
+Tests use a synthetic affine dataset to verify log-Kn interpolation/continuity,
+normalization, shear direction and integrated moments. These tests do not validate
+a physical transition law; no calibrated transition dataset ships by default.
