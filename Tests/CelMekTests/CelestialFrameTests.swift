@@ -84,7 +84,7 @@ struct CelestialFrameTests {
   @Test
   func convertedProvidersDoNotCreateOwnershipCycles() throws {
     var tree: FrameTree? = try CelestialFrames.makeTree()
-    weak var observed = tree
+    weak let observed = tree
     let adapter = try FrameConvertedStateProvider(earth, in: CelestialFrames.icrf, using: tree!)
     _ = try tree!.makeGCRF(earth: earth, accelerationPolicy: .assumeZero)
     tree = nil

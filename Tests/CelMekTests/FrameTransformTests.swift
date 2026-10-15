@@ -106,7 +106,7 @@ struct FrameTransformTests {
     }
     // A child retains its parent even without a tree or another owner.
     var temporary: Frame? = Frame(name: "Retained", pseudoInertial: true)
-    weak var weakParent = temporary
+    weak let weakParent = temporary
     let child = Frame(parent: temporary, name: "Child", pseudoInertial: false)
     temporary = nil
     #expect(weakParent != nil && child.parent === weakParent)
@@ -115,8 +115,8 @@ struct FrameTransformTests {
   @Test
   func releasingTreeDoesNotCycleThroughFramesOrBuiltInProviders() throws {
     var tree: FrameTree? = FrameTree()
-    weak var observedTree = tree
-    weak var observedRoot = tree!.root
+    weak let observedTree = tree
+    weak let observedRoot = tree!.root
     var child: Frame? = try tree!.makeFrame(parent: tree!.root, name: "Child",
       provider: UniformRotationProvider(axis: SIMD3(0, 0, 1), rate: 1))
     tree = nil
