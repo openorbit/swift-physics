@@ -1,6 +1,6 @@
-# Aerodynamic loads in coupled dynamics
+# Fluid loads in coupled dynamics
 
-Use ``AerodynamicWrench`` to connect an Aerodynamics evaluator to
+Use ``FluidWrench`` to connect an aerodynamic or hydrodynamic evaluator to
 ``CoupledSpacecraftDynamics``. Its closure receives the current coupled state and
 context at each integration stage. Return force and moment in the attitude's body
 axes, with an explicit moment reference point. The adapter transfers that moment
@@ -11,13 +11,13 @@ For a supplied whole-body evaluator `capsule`, atmosphere provider `atmosphere`
 and thermodynamic profile `profile`, an evaluator can follow this pattern:
 
 ```swift
-let wrench = try AerodynamicWrench(bodyFrame: bodyFrame) { state, context in
+let wrench = try FluidWrench(bodyFrame: bodyFrame) { state, context in
     let air = try atmosphere.sample(for: state.spacecraft,
                                     in: context.referenceContext)
     let p = state.spacecraft.cartesian.position
     let altitude = hypot(hypot(p.x, p.y), p.z) - atmosphere.referenceRadiusMetres
     let properties = try profile.properties(at: altitude)
-    let flow = try state.aerodynamicFlow(
+    let flow = try state.fluidFlow(
         atmosphere: air, origin: context.referenceContext.origin,
         properties: properties)
     return try capsule.evaluate(flow: flow,
@@ -46,5 +46,8 @@ register another drag force or torque model for the same aerodynamic load.
 Closures must be repeatable evaluations: deployment, actuator evolution and
 thermal integration belong to external systems models.
 
-Aerodynamics remains independent of CelMek. CelMek depends on Aerodynamics to
-provide this integration layer; neither evaluator owns a vehicle assembly.
+CelMek depends only on FluidDynamics for the shared load/flow contracts. It does
+not depend on Aerodynamics, Hydrodynamics or Yams. Evaluators are injected by the
+consumer and neither evaluator owns a vehicle assembly. Liquid currents use the
+scalar-properties `fluidFlow` overload; atmosphere sampling retains a checked
+convenience overload. All media share one force/moment convention.

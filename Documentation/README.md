@@ -1,11 +1,13 @@
 # Documentation
 
-Public documentation is authored in five DocC catalogs, alongside the module sources:
+Public documentation is authored in seven DocC catalogs, alongside the module sources:
 
 | Module | Catalog |
 | --- | --- |
 | CelMek | [CelMek.docc](../Sources/CelMek/CelMek.docc/CelMek.md) |
 | Math | [Math.docc](../Sources/Math/Math.docc/Math.md) |
+| FluidDynamics | [FluidDynamics.docc](../Sources/FluidDynamics/FluidDynamics.docc/FluidDynamics.md) |
+| Hydrodynamics | [Hydrodynamics.docc](../Sources/Hydrodynamics/Hydrodynamics.docc/Hydrodynamics.md) |
 | Aerodynamics | [Aerodynamics.docc](../Sources/Aerodynamics/Aerodynamics.docc/Aerodynamics.md) |
 | Atmospheres | [Atmospheres.docc](../Sources/Atmospheres/Atmospheres.docc/Atmospheres.md) |
 | MagneticFields | [MagneticFields.docc](../Sources/MagneticFields/MagneticFields.docc/MagneticFields.md) |

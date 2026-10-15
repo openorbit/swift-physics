@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Aerodynamics
 import Atmospheres
@@ -16,15 +17,15 @@ struct EntryDemoReport {
 func entryComparison(winged: Bool, step: Double) throws -> EntryDemoReport {
     let alpha = winged ? 0.35 : 0.2, mass = winged ? 2000.0 : 1500.0
     let atmosphere = ISAAtmosphere()
-    let geometry = try AerodynamicReferenceGeometry(areaSquareMetres: 5,momentLengthsMetres: SIMD3(repeating: 2))
+    let geometry = try FluidReferenceGeometry(areaSquareMetres: 5,momentLengthsMetres: SIMD3(repeating: 2))
     let capsule = try WholeBodyAerodynamics(geometry: geometry,reynoldsReferenceLengthMetres: 2,
         model: ConstantBodyCoefficients(value: WindForceCoefficients(drag: 1.4,lift: 0.3)
             .bodyCoefficients(angleOfAttackRadians: alpha,sideslipRadians: 0),
             source: "Synthetic entry demonstration",version: "1"))
     let panels = try (0..<8).map { i in
-        try AerodynamicSurfacePanel(areaSquareMetres: 1.5,centreMetres: SIMD3(0,Double(i)-3.5,0),outwardNormal: SIMD3(0,0,1))
+        try FluidSurfacePanel(areaSquareMetres: 1.5,centreMetres: SIMD3(0,Double(i)-3.5,0),outwardNormal: SIMD3(0,0,1))
     }
-    let wing = try SurfacePressureAerodynamics(panels: panels,referenceLengthMetres: 2,
+    let wing = try SurfacePressureIntegration(panels: panels,referenceLengthMetres: 2,
         model: ModifiedNewtonianPressure(specificHeatRatio: 1.4,machRange: 5...25))
     let heating = SuttonGravesHeating(parameters: .earthAirColdWall,coverage: try StagnationHeatingCoverage(
         speedMetresPerSecond: 1500...8000,densityKilogramsPerCubicMetre: 1e-6...1,
@@ -38,9 +39,9 @@ func entryComparison(winged: Bool, step: Double) throws -> EntryDemoReport {
         let properties = try atmosphere.properties(at: s.x), speed = hypot(s.y,s.z)
         // Explicit illustrative mean-free-path approximation; not a transport dataset.
         let path = 6.6e-8*1.225/properties.densityKilogramsPerCubicMetre
-        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed*cos(alpha),0,speed*sin(alpha)),
+        let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed*cos(alpha),0,speed*sin(alpha)),
             properties: properties,meanFreePathMetres: path)
-        guard let mach = flow.machNumber, (5...25).contains(mach) else { throw AerodynamicError.outsideCoverage }
+        guard let mach = flow.machNumber, (5...25).contains(mach) else { throw FluidError.outsideCoverage }
         let loads = try winged ? wing.evaluate(flow: flow).loads : capsule.evaluate(flow: flow)
         let theta = atan2(s.z,s.y)-alpha
         let horizontalForce = cos(theta)*loads.forceNewtons.x-sin(theta)*loads.forceNewtons.z

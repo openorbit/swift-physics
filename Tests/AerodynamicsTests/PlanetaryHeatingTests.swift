@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -10,7 +11,7 @@ import Aerodynamics
     }
     @Test func marsAndVenusMixtures() throws {
         let mars = SuttonGravesHeating(parameters: .marsCarbonDioxideNitrogenColdWall, coverage: try coverage())
-        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(3000,0,0),
+        let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(3000,0,0),
             densityKilogramsPerCubicMetre: 0.01, speedOfSoundMetresPerSecond: 300, meanFreePathMetres: 1e-4)
         let query = try StagnationHeatingQuery(flow: flow, gasIdentifier: mars.parameters.gasIdentifier,
             noseRadiusMetres: 1, surfacePositionMetres: .zero)
@@ -26,17 +27,17 @@ import Aerodynamics
         let venusQuery = try StagnationHeatingQuery(flow: flow, gasIdentifier: venus.gasIdentifier,
             noseRadiusMetres: 1, surfacePositionMetres: SIMD3(1,0,0), gasState: state)
         #expect(abs((try heating.heatFlux(for: venusQuery)).wattsPerSquareMetre-venus.enthalpyCoefficient*10e6) < 1e-8)
-        #expect(throws: AerodynamicError.missingFlowProperty) {
+        #expect(throws: FluidError.missingFlowProperty) {
             try heating.heatFlux(for: StagnationHeatingQuery(flow: flow, gasIdentifier: venus.gasIdentifier,
                 noseRadiusMetres: 1, surfacePositionMetres: .zero))
         }
-        #expect(throws: AerodynamicError.invalidParameter) {
+        #expect(throws: FluidError.invalidParameter) {
             try SuttonGravesMixtureParameters(gasIdentifier: "invalid", massFractions: [.nitrogen: 0.5])
         }
     }
     func query(v: Double, rho: Double, radius: Double, mixture: HydrogenHeliumHeatingMixture = .neptuneReference,
                temperature: Double = 141.2, wall: Double = 300, path: Double? = 1e-5) throws -> StagnationHeatingQuery {
-        try StagnationHeatingQuery(flow: AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(v,0,0),
+        try StagnationHeatingQuery(flow: FluidFlow(relativeVelocityMetresPerSecond: SIMD3(v,0,0),
             densityKilogramsPerCubicMetre: rho, temperatureKelvin: temperature,
             speedOfSoundMetresPerSecond: 1000, meanFreePathMetres: path), gasIdentifier: mixture.gasIdentifier,
             noseRadiusMetres: radius, surfacePositionMetres: SIMD3(1,0,0), wall: AerothermalWallState(temperatureKelvin: wall))
@@ -63,10 +64,10 @@ import Aerodynamics
         }
         #expect(try model.evaluate(query(v: 28999,rho: 1e-4,radius: 0.4)).usesHighSpeedFit == false)
         #expect(try model.evaluate(query(v: 29000,rho: 1e-4,radius: 0.4)).usesHighSpeedFit)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.evaluate(query(v: 45000,rho: 0.1,radius: 0.4)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.evaluate(query(v: 7000,rho: 1e-5,radius: 0.4)) }
-        #expect(throws: AerodynamicError.unsupportedQuery) { try model.evaluate(query(v: 19000,rho: 1e-4,radius: 0.4,temperature: 150)) }
-        #expect(throws: AerodynamicError.unsupportedQuery) { try model.evaluate(query(v: 19000,rho: 1e-4,radius: 0.4,wall: 1000)) }
-        #expect(throws: AerodynamicError.missingFlowProperty) { try model.evaluate(query(v: 19000,rho: 1e-4,radius: 0.4,path: nil)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.evaluate(query(v: 45000,rho: 0.1,radius: 0.4)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.evaluate(query(v: 7000,rho: 1e-5,radius: 0.4)) }
+        #expect(throws: FluidError.unsupportedQuery) { try model.evaluate(query(v: 19000,rho: 1e-4,radius: 0.4,temperature: 150)) }
+        #expect(throws: FluidError.unsupportedQuery) { try model.evaluate(query(v: 19000,rho: 1e-4,radius: 0.4,wall: 1000)) }
+        #expect(throws: FluidError.missingFlowProperty) { try model.evaluate(query(v: 19000,rho: 1e-4,radius: 0.4,path: nil)) }
     }
 }

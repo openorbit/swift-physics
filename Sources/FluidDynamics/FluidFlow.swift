@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import Foundation
-import Atmospheres
 
 /// Pure local flow in caller-selected right-handed body/section axes:
 /// +X forward, +Y right, +Z down. Velocity is body motion relative to the medium,
-/// not the opposite air-on-body velocity. All vectors in a query must use the same axes.
+/// not the opposite fluid-on-body velocity. All vectors in a query must use the same axes.
 /// Subtract atmosphere velocity from body velocity in a common frame before rotating
 /// the difference into these axes. A co-rotating atmosphere is at rest in the planet's
 /// rotating frame, but has velocity Ω×r in a planet-centred inertial frame.
-public struct AerodynamicFlow: Sendable {
+public struct FluidFlow: Sendable {
     public let relativeVelocityMetresPerSecond: SIMD3<Double>
     public let densityKilogramsPerCubicMetre: Double
     public let pressurePascals: Double?
@@ -16,7 +15,7 @@ public struct AerodynamicFlow: Sendable {
     public let speedOfSoundMetresPerSecond: Double?
     public let dynamicViscosityPascalSeconds: Double?
     public let meanFreePathMetres: Double?
-    public var speedMetresPerSecond: Double { aeroNorm(relativeVelocityMetresPerSecond) }
+    public var speedMetresPerSecond: Double { fluidNorm(relativeVelocityMetresPerSecond) }
     public var dynamicPressurePascals: Double { (0.5*densityKilogramsPerCubicMetre*speedMetresPerSecond)*speedMetresPerSecond }
     public var machNumber: Double? { speedOfSoundMetresPerSecond.map { speedMetresPerSecond/$0 } }
     /// Positive incidence has a positive downward velocity component in body axes.
@@ -32,39 +31,31 @@ public struct AerodynamicFlow: Sendable {
                 pressurePascals: Double? = nil, temperatureKelvin: Double? = nil,
                 speedOfSoundMetresPerSecond: Double? = nil, dynamicViscosityPascalSeconds: Double? = nil,
                 meanFreePathMetres: Double? = nil) throws {
-        guard aeroFinite(relativeVelocityMetresPerSecond), densityKilogramsPerCubicMetre.isFinite,
+        guard fluidFinite(relativeVelocityMetresPerSecond), densityKilogramsPerCubicMetre.isFinite,
               densityKilogramsPerCubicMetre >= 0,
               pressurePascals.map({ $0.isFinite && $0 >= 0 }) ?? true,
               [temperatureKelvin,speedOfSoundMetresPerSecond,dynamicViscosityPascalSeconds,meanFreePathMetres]
-                .compactMap({ $0 }).allSatisfy({ $0.isFinite && $0 > 0 }) else { throw AerodynamicError.invalidFlow }
+                .compactMap({ $0 }).allSatisfy({ $0.isFinite && $0 > 0 }) else { throw FluidError.invalidFlow }
         self.relativeVelocityMetresPerSecond = relativeVelocityMetresPerSecond
         self.densityKilogramsPerCubicMetre = densityKilogramsPerCubicMetre
         self.pressurePascals = pressurePascals; self.temperatureKelvin = temperatureKelvin
         self.speedOfSoundMetresPerSecond = speedOfSoundMetresPerSecond
         self.dynamicViscosityPascalSeconds = dynamicViscosityPascalSeconds; self.meanFreePathMetres = meanFreePathMetres
         guard speedMetresPerSecond.isFinite, dynamicPressurePascals.isFinite,
-              machNumber.map(\.isFinite) ?? true else { throw AerodynamicError.nonFiniteResult }
-    }
-    public init(relativeVelocityMetresPerSecond: SIMD3<Double>, properties: AtmosphericProperties,
-                meanFreePathMetres: Double? = nil) throws {
-        try self.init(relativeVelocityMetresPerSecond: relativeVelocityMetresPerSecond,
-            densityKilogramsPerCubicMetre: properties.densityKilogramsPerCubicMetre,
-            pressurePascals: properties.pressurePascals,temperatureKelvin: properties.temperatureKelvin,
-            speedOfSoundMetresPerSecond: properties.speedOfSoundMetresPerSecond,
-            dynamicViscosityPascalSeconds: properties.dynamicViscosityPascalSeconds,meanFreePathMetres: meanFreePathMetres)
+              machNumber.map(\.isFinite) ?? true else { throw FluidError.nonFiniteResult }
     }
     public func reynoldsNumber(referenceLengthMetres length: Double) throws -> Double? {
-        try aeroPositiveLength(length)
+        try fluidPositiveLength(length)
         guard let viscosity = dynamicViscosityPascalSeconds else { return nil }
         let result = (densityKilogramsPerCubicMetre*speedMetresPerSecond)*length/viscosity
-        guard result.isFinite else { throw AerodynamicError.nonFiniteResult }
+        guard result.isFinite else { throw FluidError.nonFiniteResult }
         return result
     }
     public func knudsenNumber(referenceLengthMetres length: Double) throws -> Double? {
-        try aeroPositiveLength(length)
+        try fluidPositiveLength(length)
         guard let path = meanFreePathMetres else { return nil }
         let result = path/length
-        guard result.isFinite else { throw AerodynamicError.nonFiniteResult }
+        guard result.isFinite else { throw FluidError.nonFiniteResult }
         return result
     }
     /// Local relative velocity v + (ωBody − ωMedium)×r for a rigidly rotating
@@ -75,21 +66,32 @@ public struct AerodynamicFlow: Sendable {
     /// zero medium rate; in inertial coordinates, supply the planet's rotation rate.
     public func atLocalPoint(offsetMetres: SIMD3<Double>, angularVelocityRadiansPerSecond: SIMD3<Double>,
                              mediumAngularVelocityRadiansPerSecond: SIMD3<Double> = .zero) throws -> Self {
-        guard aeroFinite(offsetMetres), aeroFinite(angularVelocityRadiansPerSecond),
-              aeroFinite(mediumAngularVelocityRadiansPerSecond) else { throw AerodynamicError.invalidFlow }
+        guard fluidFinite(offsetMetres), fluidFinite(angularVelocityRadiansPerSecond),
+              fluidFinite(mediumAngularVelocityRadiansPerSecond) else { throw FluidError.invalidFlow }
         return try Self(relativeVelocityMetresPerSecond: relativeVelocityMetresPerSecond
-            + aeroCross(angularVelocityRadiansPerSecond-mediumAngularVelocityRadiansPerSecond,offsetMetres),
+            + fluidCross(angularVelocityRadiansPerSecond-mediumAngularVelocityRadiansPerSecond,offsetMetres),
             densityKilogramsPerCubicMetre: densityKilogramsPerCubicMetre,pressurePascals: pressurePascals,
             temperatureKelvin: temperatureKelvin,speedOfSoundMetresPerSecond: speedOfSoundMetresPerSecond,
             dynamicViscosityPascalSeconds: dynamicViscosityPascalSeconds,meanFreePathMetres: meanFreePathMetres)
     }
 }
 
-internal func aeroNorm(_ v: SIMD3<Double>) -> Double { hypot(hypot(v.x,v.y),v.z) }
-internal func aeroFinite(_ v: SIMD3<Double>) -> Bool { [v.x,v.y,v.z].allSatisfy(\.isFinite) }
-internal func aeroCross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
+package func fluidNorm(_ v: SIMD3<Double>) -> Double { hypot(hypot(v.x,v.y),v.z) }
+package func fluidFinite(_ v: SIMD3<Double>) -> Bool { [v.x,v.y,v.z].allSatisfy(\.isFinite) }
+package func fluidCross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
     SIMD3(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x)
 }
-private func aeroPositiveLength(_ length: Double) throws {
-    guard length.isFinite, length > 0 else { throw AerodynamicError.invalidGeometry }
+private func fluidPositiveLength(_ length: Double) throws {
+    guard length.isFinite, length > 0 else { throw FluidError.invalidGeometry }
+}
+
+public extension FluidFlow {
+    /// Preserve thermodynamic properties while applying caller-supplied wind/wake
+    /// or other physical relative-velocity corrections in the same axes and frame.
+    func replacingRelativeVelocity(_ velocityMetresPerSecond: SIMD3<Double>) throws -> Self {
+        try Self(relativeVelocityMetresPerSecond: velocityMetresPerSecond,
+            densityKilogramsPerCubicMetre: densityKilogramsPerCubicMetre,pressurePascals: pressurePascals,
+            temperatureKelvin: temperatureKelvin,speedOfSoundMetresPerSecond: speedOfSoundMetresPerSecond,
+            dynamicViscosityPascalSeconds: dynamicViscosityPascalSeconds,meanFreePathMetres: meanFreePathMetres)
+    }
 }

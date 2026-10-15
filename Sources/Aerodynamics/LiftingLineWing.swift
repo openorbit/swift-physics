@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// Supplied linear attached-flow polar at one span station; profile drag excludes
@@ -23,7 +24,7 @@ public struct LiftingLineSection: Sendable {
               [effectiveAngleRangeRadians.lowerBound,effectiveAngleRangeRadians.upperBound]
                 .allSatisfy({ $0.isFinite && abs($0) <= 0.35 }),
               reynoldsRange.lowerBound.isFinite, reynoldsRange.lowerBound > 0, reynoldsRange.upperBound.isFinite else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         self.chordMetres = chordMetres; self.liftSlopePerRadian = liftSlopePerRadian; self.zeroLiftAngleRadians = zeroLiftAngleRadians
         self.geometricIncidenceRadians = geometricIncidenceRadians; self.profileDragCoefficient = profileDragCoefficient
@@ -47,7 +48,7 @@ public struct LiftingLineResult: Sendable {
     /// Undefined at numerically zero total lift, including antisymmetric loading.
     public let spanEfficiency: Double?
     public let maximumEquationResidualRadians: Double
-    public let loads: AerodynamicLoads
+    public let loads: FluidLoads
 }
 
 /// Classical linear lifting line for one straight, unswept planar wing along body Y.
@@ -72,13 +73,13 @@ public struct LiftingLineWing: Sendable {
                 momentReferenceLineCentreMetres: SIMD3<Double> = .zero, source: String, version: String,
                 sectionAtSpanFraction: (Double) throws -> LiftingLineSection) throws {
         guard spanMetres.isFinite, spanMetres > 0, referenceAreaSquareMetres.isFinite, referenceAreaSquareMetres > 0,
-              (2...64).contains(stationCount), aeroFinite(momentReferenceLineCentreMetres),
-              [source,version].allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { throw AerodynamicError.invalidGeometry }
+              (2...64).contains(stationCount), fluidFinite(momentReferenceLineCentreMetres),
+              [source,version].allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { throw FluidError.invalidGeometry }
         let ar = (spanMetres/referenceAreaSquareMetres)*spanMetres
-        guard ar.isFinite, ar >= 4 else { throw AerodynamicError.outsideCoverage }
+        guard ar.isFinite, ar >= 4 else { throw FluidError.outsideCoverage }
         let angles = (1...stationCount).map { Double($0)*Double.pi/Double(stationCount+1) }
         let local = try angles.map { try sectionAtSpanFraction(-cos($0)) }
-        guard local.allSatisfy({ (1e-6...1).contains($0.chordMetres/spanMetres) }) else { throw AerodynamicError.outsideCoverage }
+        guard local.allSatisfy({ (1e-6...1).contains($0.chordMetres/spanMetres) }) else { throw FluidError.outsideCoverage }
         var entries = [Double](), weights = [Double]()
         for (j,t) in angles.enumerated() {
             let section = local[j]
@@ -90,19 +91,19 @@ public struct LiftingLineWing: Sendable {
             for k in stride(from: 1,through: stationCount,by: 2) { sum += sin(Double(k)*t)/Double(k) }
             weights.append(spanMetres*2*sin(t)*sum/Double(stationCount+1))
         }
-        guard entries.allSatisfy(\.isFinite), weights.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw AerodynamicError.nonFiniteResult }
+        guard entries.allSatisfy(\.isFinite), weights.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw FluidError.nonFiniteResult }
         factor = try LiftingLineFactor(matrix: entries,count: stationCount)
         self.spanMetres = spanMetres; self.referenceAreaSquareMetres = referenceAreaSquareMetres
         self.momentReferenceLineCentreMetres = momentReferenceLineCentreMetres; sections = local; theta = angles
         matrix = entries; widths = weights; self.source = source; self.version = version
     }
-    public func evaluate(flow: AerodynamicFlow, momentReferencePointMetres: SIMD3<Double> = .zero) throws -> LiftingLineResult {
+    public func evaluate(flow: FluidFlow, momentReferencePointMetres: SIMD3<Double> = .zero) throws -> LiftingLineResult {
         guard let mach = flow.machNumber, let alpha = flow.angleOfAttackRadians,
-              let beta = flow.sideslipRadians else { throw AerodynamicError.missingFlowProperty }
-        guard flow.speedMetresPerSecond >= 1, mach <= 0.3, abs(alpha) <= 0.35, abs(beta) <= 1e-12 else { throw AerodynamicError.outsideCoverage }
+              let beta = flow.sideslipRadians else { throw FluidError.missingFlowProperty }
+        guard flow.speedMetresPerSecond >= 1, mach <= 0.3, abs(alpha) <= 0.35, abs(beta) <= 1e-12 else { throw FluidError.outsideCoverage }
         for section in sections {
-            guard let re = try flow.reynoldsNumber(referenceLengthMetres: section.chordMetres) else { throw AerodynamicError.missingFlowProperty }
-            guard section.reynoldsRange.contains(re), abs(alpha+section.geometricIncidenceRadians) <= 0.35 else { throw AerodynamicError.outsideCoverage }
+            guard let re = try flow.reynoldsNumber(referenceLengthMetres: section.chordMetres) else { throw FluidError.missingFlowProperty }
+            guard section.reynoldsRange.contains(re), abs(alpha+section.geometricIncidenceRadians) <= 0.35 else { throw FluidError.outsideCoverage }
         }
         let rhs = sections.map { alpha+$0.geometricIncidenceRadians-$0.zeroLiftAngleRadians }
         let a = try factor.solve(rhs)
@@ -117,7 +118,7 @@ public struct LiftingLineWing: Sendable {
                 equation += matrix[j*n+k]*a[k]
             }
             let effective = alpha+section.geometricIncidenceRadians-induced
-            guard section.effectiveAngleRangeRadians.contains(effective) else { throw AerodynamicError.outsideCoverage }
+            guard section.effectiveAngleRangeRadians.contains(effective) else { throw FluidError.outsideCoverage }
             let cl = 4*spanMetres*circulationTerm/section.chordMetres
             let liftPerSpan = 4*q*spanMetres*circulationTerm
             let profilePerSpan = q*section.chordMetres*section.profileDragCoefficient
@@ -129,7 +130,7 @@ public struct LiftingLineWing: Sendable {
                 circulationSquareMetresPerSecond: 2*spanMetres*speed*circulationTerm,
                 sectionLiftCoefficient: cl,inducedAngleRadians: induced,effectiveAngleRadians: effective))
         }
-        guard residual <= 1e-10 else { throw AerodynamicError.nonFiniteResult }
+        guard residual <= 1e-10 else { throw FluidError.nonFiniteResult }
         let sum = a.enumerated().reduce(0.0) { $0+Double($1.offset+1)*$1.element*$1.element }
         let cl = Double.pi*aspectRatio*a[0], cdi = Double.pi*aspectRatio*sum
         let lift = q*referenceAreaSquareMetres*cl, inducedDrag = q*referenceAreaSquareMetres*cdi
@@ -139,7 +140,7 @@ public struct LiftingLineWing: Sendable {
         let liftSpanMoment = -Double.pi*q*spanMetres*spanMetres*spanMetres*a[1]/4
         let moment = SIMD3(-direction.x,0,-direction.z)*liftSpanMoment
             + SIMD3(-direction.z,0,direction.x)*dragSpanMoment+SIMD3(0,pitch,0)
-        let loads = try AerodynamicLoads(forceNewtons: force,momentNewtonMetres: moment,
+        let loads = try FluidLoads(forceNewtons: force,momentNewtonMetres: moment,
             referencePointMetres: momentReferenceLineCentreMetres).referred(to: momentReferencePointMetres)
         let cdProfile = sections.enumerated().reduce(0.0) { $0+$1.element.chordMetres*$1.element.profileDragCoefficient*widths[$1.offset] }/referenceAreaSquareMetres
         return LiftingLineResult(stations: stations,fourierCoefficients: a,liftCoefficient: cl,inducedDragCoefficient: cdi,
@@ -157,7 +158,7 @@ private struct LiftingLineFactor: Sendable {
         let scale = matrix.map { abs($0) }.max()!
         for k in 0..<count {
             let row = (k..<count).max { abs(m[$0*count+k]) < abs(m[$1*count+k]) }!
-            guard abs(m[row*count+k]) > scale*1e-12 else { throw AerodynamicError.invalidGeometry }
+            guard abs(m[row*count+k]) > scale*1e-12 else { throw FluidError.invalidGeometry }
             pivots.append(row)
             if row != k { for j in 0..<count { m.swapAt(k*count+j,row*count+j) } }
             if k+1 < count {
@@ -177,7 +178,7 @@ private struct LiftingLineFactor: Sendable {
             if i+1 < count { for j in i+1..<count { result[i] -= lu[i*count+j]*result[j] } }
             result[i] /= lu[i*count+i]
         }
-        guard result.allSatisfy(\.isFinite) else { throw AerodynamicError.nonFiniteResult }
+        guard result.allSatisfy(\.isFinite) else { throw FluidError.nonFiniteResult }
         return result
     }
 }

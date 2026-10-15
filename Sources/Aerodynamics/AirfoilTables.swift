@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Yams
-
-public enum AerodynamicError: Error, Equatable {
-    case invalidParameter, invalidGeometry, invalidFlow, invalidCoefficients
-    case malformedData, duplicateCondition, incompleteGrid, outsideCoverage, nonFiniteResult
-    case missingFlowProperty, unsupportedQuery, nonConvergence
-}
 
 /// Explicit boundary behavior; no automatic physical extrapolation beyond measured samples.
 public enum CoefficientBoundaryPolicy: String, Codable, Sendable { case reject, clamp }
@@ -30,7 +25,7 @@ public struct AirfoilPolar: Sendable, Codable {
         guard reynoldsNumber.isFinite, reynoldsNumber > 0, machNumber.isFinite, machNumber >= 0,
               !samples.isEmpty, samples.allSatisfy({ $0.angleOfAttackRadians.isFinite && abs($0.angleOfAttackRadians) <= .pi && $0.coefficients.isFinite }),
               zip(samples,samples.dropFirst()).allSatisfy({ $0.angleOfAttackRadians < $1.angleOfAttackRadians }) else {
-            throw AerodynamicError.invalidCoefficients
+            throw FluidError.invalidCoefficients
         }
         self.reynoldsNumber = reynoldsNumber; self.machNumber = machNumber; self.samples = samples
     }
@@ -68,14 +63,14 @@ public struct TabulatedAirfoil: AirfoilCoefficientModel, Sendable, Codable {
     public init(polars: [AirfoilPolar], boundaryPolicy: CoefficientBoundaryPolicy = .reject,
                 source: String, version: String) throws {
         guard !polars.isEmpty, !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AerodynamicError.invalidParameter }
+              !version.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw FluidError.invalidParameter }
         let re = Array(Set(polars.map(\.reynoldsNumber))).sorted(), ma = Array(Set(polars.map(\.machNumber))).sorted()
         var ordered = [AirfoilPolar]()
         for m in ma {
             for r in re {
                 let matching = polars.filter { $0.reynoldsNumber == r && $0.machNumber == m }
-                guard matching.count <= 1 else { throw AerodynamicError.duplicateCondition }
-                guard let polar = matching.first else { throw AerodynamicError.incompleteGrid }
+                guard matching.count <= 1 else { throw FluidError.duplicateCondition }
+                guard let polar = matching.first else { throw FluidError.incompleteGrid }
                 ordered.append(polar)
             }
         }
@@ -84,7 +79,7 @@ public struct TabulatedAirfoil: AirfoilCoefficientModel, Sendable, Codable {
     }
     public func coefficients(angleOfAttackRadians: Double, reynoldsNumber: Double, machNumber: Double) throws -> AirfoilCoefficients {
         guard reynoldsNumber.isFinite, reynoldsNumber > 0, machNumber.isFinite, machNumber >= 0 else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         let re = try bracket(reynoldsNumber,grid: reynoldsGrid), ma = try bracket(machNumber,grid: machGrid)
         func evaluate(_ r: Int, _ m: Int) throws -> AirfoilCoefficients {
@@ -126,16 +121,16 @@ public enum AirfoilTableLoader {
                             source: String = "Caller-supplied airfoil YAML", version: String = "1") throws -> TabulatedAirfoil {
         let file: YAMLAirfoilFile
         do { file = try YAMLDecoder().decode(YAMLAirfoilFile.self,from: text) }
-        catch { throw AerodynamicError.malformedData }
-        guard !file.data.isEmpty else { throw AerodynamicError.malformedData }
+        catch { throw FluidError.malformedData }
+        guard !file.data.isEmpty else { throw FluidError.malformedData }
         var polars = [AirfoilPolar]()
         for entry in file.data {
             let re = entry.reynoldsNumber, mach = entry.machNumber ?? 0, rows = entry.coefficients
-            guard !rows.isEmpty else { throw AerodynamicError.malformedData }
+            guard !rows.isEmpty else { throw FluidError.malformedData }
             var samples = [AirfoilSample]()
             for row in rows {
                 guard row.count == 5, row.allSatisfy(\.isFinite), (-180.0...180.0).contains(row[0]) else {
-                    throw AerodynamicError.malformedData
+                    throw FluidError.malformedData
                 }
                 samples.append(AirfoilSample(angleOfAttackRadians: row[0] * .pi/180,
                     coefficients: AirfoilCoefficients(lift: row[1],drag: row[2],moment: row[4])))
@@ -150,14 +145,14 @@ public enum AirfoilTableLoader {
 }
 
 internal func boundedCoefficientCoordinate(_ value: Double, range: ClosedRange<Double>, policy: CoefficientBoundaryPolicy) throws -> Double {
-    guard value.isFinite else { throw AerodynamicError.invalidParameter }
-    guard policy == .clamp || range.contains(value) else { throw AerodynamicError.outsideCoverage }
+    guard value.isFinite else { throw FluidError.invalidParameter }
+    guard policy == .clamp || range.contains(value) else { throw FluidError.outsideCoverage }
     return min(range.upperBound,max(range.lowerBound,value))
 }
 internal func blendCoefficients(_ first: AirfoilCoefficients, _ last: AirfoilCoefficients, weight: Double) throws -> AirfoilCoefficients {
     let result = AirfoilCoefficients(lift: first.lift*(1-weight)+last.lift*weight,
         drag: first.drag*(1-weight)+last.drag*weight,moment: first.moment*(1-weight)+last.moment*weight)
-    guard result.isFinite else { throw AerodynamicError.nonFiniteResult }
+    guard result.isFinite else { throw FluidError.nonFiniteResult }
     return result
 }
 

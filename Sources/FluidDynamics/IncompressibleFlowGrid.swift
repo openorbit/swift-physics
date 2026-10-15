@@ -4,51 +4,48 @@ import Foundation
 /// Uniform Cartesian MAC-grid geometry and constant fluid properties, in SI.
 /// The frame must translate at constant velocity without rotating; moving-frame
 /// acceleration/rotation and moving solid geometry are not inferred.
-public struct LocalCFDConfiguration: Sendable {
-    public let dimensions: SIMD3<Int>
-    public let minimumCornerMetres: SIMD3<Double>
-    public let cellSizeMetres: Double
+public struct IncompressibleFlowConfiguration: Sendable {
+    public let grid: CartesianFluidGrid
+    public var dimensions: SIMD3<Int> { grid.dimensions }
+    public var minimumCornerMetres: SIMD3<Double> { grid.minimumCornerMetres }
+    public var cellSizeMetres: Double { grid.cellSizeMetres }
     public let densityKilogramsPerCubicMetre: Double
     public let speedOfSoundMetresPerSecond: Double
-    public let meanFreePathMetres: Double
     public let kinematicViscositySquareMetresPerSecond: Double
     /// Prescribed normal velocity at all six outer faces; net box flux is zero.
     public let boundaryVelocityMetresPerSecond: SIMD3<Double>
     public var cellCount: Int { dimensions.x*dimensions.y*dimensions.z }
     public init(dimensions: SIMD3<Int> = SIMD3(repeating: 16), minimumCornerMetres: SIMD3<Double>,
                 cellSizeMetres: Double, densityKilogramsPerCubicMetre: Double,
-                speedOfSoundMetresPerSecond: Double, meanFreePathMetres: Double, kinematicViscositySquareMetresPerSecond: Double = 0,
+                speedOfSoundMetresPerSecond: Double, kinematicViscositySquareMetresPerSecond: Double = 0,
                 boundaryVelocityMetresPerSecond: SIMD3<Double> = .zero) throws {
         guard [dimensions.x,dimensions.y,dimensions.z].allSatisfy({ (4...64).contains($0) }),
-              aeroFinite(minimumCornerMetres), cellSizeMetres.isFinite, cellSizeMetres > 0,
+              fluidFinite(minimumCornerMetres), cellSizeMetres.isFinite, cellSizeMetres > 0,
               (cellSizeMetres*cellSizeMetres*cellSizeMetres).isFinite,
               cellSizeMetres*cellSizeMetres*cellSizeMetres > 0,
               densityKilogramsPerCubicMetre.isFinite, densityKilogramsPerCubicMetre > 0,
               speedOfSoundMetresPerSecond.isFinite, speedOfSoundMetresPerSecond > 0,
-              meanFreePathMetres.isFinite, meanFreePathMetres > 0,
               kinematicViscositySquareMetresPerSecond.isFinite, kinematicViscositySquareMetresPerSecond >= 0,
-              aeroFinite(boundaryVelocityMetresPerSecond) else { throw AerodynamicError.invalidParameter }
+              fluidFinite(boundaryVelocityMetresPerSecond) else { throw FluidError.invalidParameter }
         let extent = SIMD3(Double(dimensions.x),Double(dimensions.y),Double(dimensions.z))*cellSizeMetres
-        guard aeroFinite(minimumCornerMetres+extent),
-              (0..<3).allSatisfy({ minimumCornerMetres[$0]+cellSizeMetres > minimumCornerMetres[$0] }) else { throw AerodynamicError.invalidGeometry }
-        guard aeroNorm(boundaryVelocityMetresPerSecond)/speedOfSoundMetresPerSecond <= 0.3,
-              meanFreePathMetres/cellSizeMetres <= 0.01 else { throw AerodynamicError.outsideCoverage }
-        self.dimensions = dimensions; self.minimumCornerMetres = minimumCornerMetres; self.cellSizeMetres = cellSizeMetres
+        guard fluidFinite(minimumCornerMetres+extent),
+              (0..<3).allSatisfy({ minimumCornerMetres[$0]+cellSizeMetres > minimumCornerMetres[$0] }) else { throw FluidError.invalidGeometry }
+        guard fluidNorm(boundaryVelocityMetresPerSecond)/speedOfSoundMetresPerSecond <= 0.3 else { throw FluidError.outsideCoverage }
+        self.grid = try CartesianFluidGrid(dimensions: dimensions,minimumCornerMetres: minimumCornerMetres,cellSizeMetres: cellSizeMetres)
         self.densityKilogramsPerCubicMetre = densityKilogramsPerCubicMetre
         self.speedOfSoundMetresPerSecond = speedOfSoundMetresPerSecond
-        self.meanFreePathMetres = meanFreePathMetres
         self.kinematicViscositySquareMetresPerSecond = kinematicViscositySquareMetresPerSecond
         self.boundaryVelocityMetresPerSecond = boundaryVelocityMetresPerSecond
     }
 }
 
-public struct CFDProjectionReport: Sendable {
+public struct PressureProjectionReport: Sendable {
     public let iterations: Int
     public let relativePressureResidual: Double
     public let maximumDivergenceBeforePerSecond: Double
     public let maximumDivergenceAfterPerSecond: Double
 }
-public struct CFDStepReport: Sendable {
+public struct IncompressibleStepReport: Sendable {
     public let substeps: Int
     public let totalPressureIterations: Int
     public let maximumDivergenceAfterPerSecond: Double
@@ -61,8 +58,8 @@ public struct CFDStepReport: Sendable {
 /// boundary-layer, compressible shock or thermal model. Fixed stair-step solids
 /// impose zero normal velocity (free-slip inviscid boundary, not resolved no-slip).
 /// Owns fluid state, not scheduling, a vehicle assembly or rigid-body integration.
-public struct LocalCFDGrid: AirVelocityField {
-    public let configuration: LocalCFDConfiguration
+public struct IncompressibleFlowGrid: FluidVelocityField {
+    public let configuration: IncompressibleFlowConfiguration
     public let solidCells: [Bool]
     /// Gauge pressure in Pa; zero mean over fluid cells after projection.
     public private(set) var pressurePascals: [Double]
@@ -74,10 +71,10 @@ public struct LocalCFDGrid: AirVelocityField {
     private var nz: Int { configuration.dimensions.z }
     private var h: Double { configuration.cellSizeMetres }
 
-    /// Initial velocity is total air velocity in grid axes, including background.
+    /// Initial velocity is total fluid velocity in grid axes, including background.
     /// Project after arbitrary initialization before treating it as divergence-free.
     /// Solids may not touch the outermost cell layer, preserving balanced box flux.
-    public init(configuration: LocalCFDConfiguration,
+    public init(configuration: IncompressibleFlowConfiguration,
                 solidAtCellCentre: (SIMD3<Double>) throws -> Bool = { _ in false },
                 initialVelocity: ((SIMD3<Double>) throws -> SIMD3<Double>)? = nil) throws {
         self.configuration = configuration
@@ -88,7 +85,7 @@ public struct LocalCFDGrid: AirVelocityField {
             let p = origin+SIMD3(Double(i)+0.5,Double(j)+0.5,Double(k)+0.5)*dx
             let solid = try solidAtCellCentre(p)
             guard !solid || (i > 0 && j > 0 && k > 0 && i < n.x-1 && j < n.y-1 && k < n.z-1) else {
-                throw AerodynamicError.invalidGeometry
+                throw FluidError.invalidGeometry
             }
             solids[i+n.x*(j+n.y*k)] = solid
         } } }
@@ -116,7 +113,7 @@ public struct LocalCFDGrid: AirVelocityField {
             for k in 0..<shape.z { for j in 0..<shape.y { for i in 0..<shape.x {
                 let p = facePosition(axis,i,j,k)
                 let v = try initialVelocity?(p) ?? configuration.boundaryVelocityMetresPerSecond
-                guard aeroFinite(v) else { throw AerodynamicError.invalidFlow }
+                guard fluidFinite(v) else { throw FluidError.invalidFlow }
                 faces[axis][flat(i,j,k,shape)] = v[axis]
             } } }
         }
@@ -150,20 +147,20 @@ public struct LocalCFDGrid: AirVelocityField {
     }
     /// Conservative component-wise maximum speed bound, also used for low-Mach checks.
     public var maximumSpeedBoundMetresPerSecond: Double {
-        aeroNorm(SIMD3(faces[0].reduce(0) { max($0,abs($1)) },faces[1].reduce(0) { max($0,abs($1)) },faces[2].reduce(0) { max($0,abs($1)) }))
+        fluidNorm(SIMD3(faces[0].reduce(0) { max($0,abs($1)) },faces[1].reduce(0) { max($0,abs($1)) },faces[2].reduce(0) { max($0,abs($1)) }))
     }
     private func validateSpeed() throws {
-        guard faces.allSatisfy({ $0.allSatisfy(\.isFinite) }) else { throw AerodynamicError.nonFiniteResult }
+        guard faces.allSatisfy({ $0.allSatisfy(\.isFinite) }) else { throw FluidError.nonFiniteResult }
         let speed = maximumSpeedBoundMetresPerSecond
-        guard speed.isFinite else { throw AerodynamicError.nonFiniteResult }
-        guard speed/configuration.speedOfSoundMetresPerSecond <= 0.3 else { throw AerodynamicError.outsideCoverage }
+        guard speed.isFinite else { throw FluidError.nonFiniteResult }
+        guard speed/configuration.speedOfSoundMetresPerSecond <= 0.3 else { throw FluidError.outsideCoverage }
     }
     private func gridCoordinate(_ p: SIMD3<Double>) -> SIMD3<Double> { (p-configuration.minimumCornerMetres)/h }
     private func cellIndex(at p: SIMD3<Double>) throws -> Int {
-        guard aeroFinite(p) else { throw AerodynamicError.invalidParameter }
+        guard fluidFinite(p) else { throw FluidError.invalidParameter }
         let q = gridCoordinate(p), n = configuration.dimensions
-        guard aeroFinite(q), q.x >= 0, q.y >= 0, q.z >= 0,
-              q.x <= Double(n.x), q.y <= Double(n.y), q.z <= Double(n.z) else { throw AerodynamicError.outsideCoverage }
+        guard fluidFinite(q), q.x >= 0, q.y >= 0, q.z >= 0,
+              q.x <= Double(n.x), q.y <= Double(n.y), q.z <= Double(n.z) else { throw FluidError.outsideCoverage }
         return flat(min(n.x-1,Int(q.x)),min(n.y-1,Int(q.y)),min(n.z-1,Int(q.z)),n)
     }
     private func sampleComponent(_ field: [Double], axis: Int, coordinate: SIMD3<Double>) -> Double {
@@ -187,10 +184,17 @@ public struct LocalCFDGrid: AirVelocityField {
     }
     public func velocityMetresPerSecond(at positionMetres: SIMD3<Double>) throws -> SIMD3<Double> {
         let index = try cellIndex(at: positionMetres)
-        guard !solidCells[index] else { throw AerodynamicError.unsupportedQuery }
+        guard !solidCells[index] else { throw FluidError.unsupportedQuery }
         let velocity = sample(faces,at: positionMetres)
-        guard aeroFinite(velocity) else { throw AerodynamicError.nonFiniteResult }
+        guard fluidFinite(velocity) else { throw FluidError.nonFiniteResult }
         return velocity
+    }
+    /// Gauge pressure at the containing fluid cell. A pressure reference is needed
+    /// before using this value for phase/cavitation or structural absolute pressure.
+    public func gaugePressurePascals(at positionMetres: SIMD3<Double>) throws -> Double {
+        let index = try cellIndex(at: positionMetres)
+        guard !solidCells[index] else { throw FluidError.unsupportedQuery }
+        return pressurePascals[index]
     }
     /// Cell-centred discrete divergence, 1/s. Solid entries are zero.
     public func divergencePerSecond() -> [Double] {
@@ -219,32 +223,32 @@ public struct LocalCFDGrid: AirVelocityField {
     /// Atomic projection: failed solves leave the grid unchanged. Relative residual
     /// is L2; absolute divergence tolerance also supplies a stopping floor (1/s).
     public mutating func project(timeStepSeconds: Double, maximumIterations: Int = 300,
-                                 relativeTolerance: Double = 1e-8, absoluteDivergenceTolerancePerSecond: Double = 1e-8) throws -> CFDProjectionReport {
+                                 relativeTolerance: Double = 1e-8, absoluteDivergenceTolerancePerSecond: Double = 1e-8) throws -> PressureProjectionReport {
         var next = self
         let report = try next.projectInPlace(dt: timeStepSeconds,maximumIterations: maximumIterations,
             relativeTolerance: relativeTolerance,absoluteTolerance: absoluteDivergenceTolerancePerSecond)
         self = next; return report
     }
     private mutating func projectInPlace(dt: Double, maximumIterations: Int, relativeTolerance: Double,
-                                        absoluteTolerance: Double) throws -> CFDProjectionReport {
+                                        absoluteTolerance: Double) throws -> PressureProjectionReport {
         guard dt.isFinite, dt > 0, (1...5000).contains(maximumIterations),
               relativeTolerance.isFinite, relativeTolerance > 0, relativeTolerance <= 1e-2,
-              absoluteTolerance.isFinite, absoluteTolerance > 0 else { throw AerodynamicError.invalidParameter }
+              absoluteTolerance.isFinite, absoluteTolerance > 0 else { throw FluidError.invalidParameter }
         enforceBoundaries()
         let divergence = divergencePerSecond(), scale = configuration.densityKilogramsPerCubicMetre/dt
         var b = divergence.map { -scale*$0 }
-        guard b.allSatisfy(\.isFinite) else { throw AerodynamicError.nonFiniteResult }
+        guard b.allSatisfy(\.isFinite) else { throw FluidError.nonFiniteResult }
         let fluidCount = solidCells.filter { !$0 }.count
         let mean = b.reduce(0,+)/Double(fluidCount)
         for i in b.indices where !solidCells[i] { b[i] -= mean }
         let normB = sqrt(dot(b,b)), threshold = max(relativeTolerance*normB,scale*absoluteTolerance)
-        guard normB.isFinite, threshold.isFinite else { throw AerodynamicError.nonFiniteResult }
+        guard normB.isFinite, threshold.isFinite else { throw FluidError.nonFiniteResult }
         var p = [Double](repeating: 0,count: b.count), r = b
         var z = r.indices.map { diagonal[$0] > 0 ? r[$0]/diagonal[$0] : 0 }, direction = z
         var rz = dot(r,z), residual = normB, iterations = 0
         while residual > threshold && iterations < maximumIterations {
             let ad = matrix(direction), denominator = dot(direction,ad)
-            guard denominator.isFinite, denominator > 0, rz.isFinite, rz > 0 else { throw AerodynamicError.nonConvergence }
+            guard denominator.isFinite, denominator > 0, rz.isFinite, rz > 0 else { throw FluidError.nonConvergence }
             let alpha = rz/denominator
             for i in p.indices { p[i] += alpha*direction[i]; r[i] -= alpha*ad[i] }
             iterations += 1; residual = sqrt(dot(r,r))
@@ -254,10 +258,10 @@ public struct LocalCFDGrid: AirVelocityField {
             for i in direction.indices { direction[i] = z[i]+beta*direction[i] }
             rz = nextRZ
         }
-        guard residual.isFinite, residual <= threshold else { throw AerodynamicError.nonConvergence }
+        guard residual.isFinite, residual <= threshold else { throw FluidError.nonConvergence }
         let pressureMean = p.reduce(0,+)/Double(fluidCount)
         pressurePascals = p.indices.map { solidCells[$0] ? 0 : p[$0]-pressureMean }
-        guard pressurePascals.allSatisfy(\.isFinite) else { throw AerodynamicError.nonFiniteResult }
+        guard pressurePascals.allSatisfy(\.isFinite) else { throw FluidError.nonFiniteResult }
         let n = configuration.dimensions
         for axis in 0..<3 {
             let shape = faceShape(axis)
@@ -270,19 +274,19 @@ public struct LocalCFDGrid: AirVelocityField {
             } } }
         }
         enforceBoundaries(); try validateSpeed()
-        return CFDProjectionReport(iterations: iterations,relativePressureResidual: normB == 0 ? 0 : residual/normB,
+        return PressureProjectionReport(iterations: iterations,relativePressureResidual: normB == 0 ? 0 : residual/normB,
             maximumDivergenceBeforePerSecond: divergence.map(abs).max() ?? 0,
             maximumDivergenceAfterPerSecond: divergencePerSecond().map(abs).max() ?? 0)
     }
-    /// Caller supplies acceleration of the air (m/s²), evaluated at face positions.
+    /// Caller supplies acceleration of the fluid (m/s²), evaluated at face positions.
     /// This is a source term, not a target velocity or an extra aircraft force.
     /// Advection is numerically dissipative; no sub-grid turbulence is invented.
     /// Atomic on failure, including substep-budget exhaustion and pressure failure.
     public mutating func advance(timeStepSeconds: Double, maximumSubsteps: Int = 64,
                                  maximumPressureIterations: Int = 300, relativePressureTolerance: Double = 1e-8,
-                                 accelerationMetresPerSecondSquared: (SIMD3<Double>) throws -> SIMD3<Double> = { _ in .zero }) throws -> CFDStepReport {
+                                 accelerationMetresPerSecondSquared: (SIMD3<Double>) throws -> SIMD3<Double> = { _ in .zero }) throws -> IncompressibleStepReport {
         guard timeStepSeconds.isFinite, timeStepSeconds > 0, (1...10000).contains(maximumSubsteps) else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         var next = self, remaining = timeStepSeconds, substeps = 0, totalIterations = 0, maximumDivergence = 0.0
         var acceleration = next.faces
@@ -290,22 +294,22 @@ public struct LocalCFDGrid: AirVelocityField {
             let shape = faceShape(axis)
             for k in 0..<shape.z { for j in 0..<shape.y { for i in 0..<shape.x {
                 let value = try accelerationMetresPerSecondSquared(facePosition(axis,i,j,k))
-                guard aeroFinite(value) else { throw AerodynamicError.invalidFlow }
+                guard fluidFinite(value) else { throw FluidError.invalidFlow }
                 acceleration[axis][flat(i,j,k,shape)] = value[axis]
             } } }
         }
-        let accelerationBound = aeroNorm(SIMD3(acceleration[0].map(abs).max() ?? 0,
+        let accelerationBound = fluidNorm(SIMD3(acceleration[0].map(abs).max() ?? 0,
             acceleration[1].map(abs).max() ?? 0,acceleration[2].map(abs).max() ?? 0))
-        guard accelerationBound.isFinite else { throw AerodynamicError.nonFiniteResult }
+        guard accelerationBound.isFinite else { throw FluidError.nonFiniteResult }
         while remaining > 0 {
-            guard substeps < maximumSubsteps else { throw AerodynamicError.outsideCoverage }
+            guard substeps < maximumSubsteps else { throw FluidError.workBudgetExceeded }
             let speedBound = next.maximumSpeedBoundMetresPerSecond+accelerationBound*remaining
-            guard speedBound.isFinite else { throw AerodynamicError.nonFiniteResult }
+            guard speedBound.isFinite else { throw FluidError.nonFiniteResult }
             let advectiveLimit = speedBound > 0 ? 0.75*h/speedBound : remaining
             let nu = configuration.kinematicViscositySquareMetresPerSecond
             let viscousLimit = nu > 0 ? h*h/(6*nu) : remaining
             let dt = min(remaining,advectiveLimit,viscousLimit)
-            guard dt.isFinite, dt > 0, remaining-dt < remaining else { throw AerodynamicError.outsideCoverage }
+            guard dt.isFinite, dt > 0, remaining-dt < remaining else { throw FluidError.outsideCoverage }
             let old = next.faces
             var updated = old
             for axis in 0..<3 {
@@ -339,17 +343,17 @@ public struct LocalCFDGrid: AirVelocityField {
             remaining -= dt; substeps += 1
         }
         self = next
-        return CFDStepReport(substeps: substeps,totalPressureIterations: totalIterations,
+        return IncompressibleStepReport(substeps: substeps,totalPressureIterations: totalIterations,
             maximumDivergenceAfterPerSecond: maximumDivergence,maximumSpeedBoundMetresPerSecond: maximumSpeedBoundMetresPerSecond)
     }
     /// Gauge-pressure force on the supplied fixed voxel solids, at grid-face centres.
     /// One-sided linear pressure reconstruction (cell value if no fluid neighbour).
     /// No viscous stress or sub-grid wing lift is included. This replaces the same
     /// pressure contribution in other models; it is not an extra force to add twice.
-    public func pressureLoadsOnSolids(momentReferencePointMetres: SIMD3<Double> = .zero) throws -> AerodynamicLoads {
+    public func pressureLoadsOnSolids(momentReferencePointMetres: SIMD3<Double> = .zero) throws -> FluidLoads {
         var force = SIMD3<Double>.zero, moment = SIMD3<Double>.zero
         let n = configuration.dimensions
-        guard aeroFinite(momentReferencePointMetres) else { throw AerodynamicError.invalidParameter }
+        guard fluidFinite(momentReferencePointMetres) else { throw FluidError.invalidParameter }
         for axis in 0..<3 {
             let shape = faceShape(axis)
             for k in 0..<shape.z { for j in 0..<shape.y { for i in 0..<shape.x {
@@ -368,9 +372,9 @@ public struct LocalCFDGrid: AirVelocityField {
                 }
                 var f = SIMD3<Double>.zero
                 f[axis] = (solidCells[right] ? facePressure : -facePressure)*h*h
-                force += f; moment += aeroCross(facePosition(axis,i,j,k)-momentReferencePointMetres,f)
+                force += f; moment += fluidCross(facePosition(axis,i,j,k)-momentReferencePointMetres,f)
             } } }
         }
-        return try AerodynamicLoads(forceNewtons: force,momentNewtonMetres: moment,referencePointMetres: momentReferencePointMetres)
+        return try FluidLoads(forceNewtons: force,momentNewtonMetres: moment,referencePointMetres: momentReferencePointMetres)
     }
 }

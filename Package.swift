@@ -9,12 +9,14 @@ let package = Package(
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
             name: "Physics",
-            targets: ["CelMek", "Aerodynamics", "Math", "Atmospheres", "MagneticFields"]),
+            targets: ["CelMek", "Aerodynamics", "FluidDynamics", "Hydrodynamics", "Math", "Atmospheres", "MagneticFields"]),
         .library(name: "CelMek", targets: ["CelMek"]),
         .library(name: "Atmospheres", targets: ["Atmospheres"]),
         .library(name: "MagneticFields", targets: ["MagneticFields"]),
         .library(name: "Math", targets: ["Math"]),
         .library(name: "Aerodynamics", targets: ["Aerodynamics"]),
+        .library(name: "FluidDynamics", targets: ["FluidDynamics"]),
+        .library(name: "Hydrodynamics", targets: ["Hydrodynamics"]),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -27,18 +29,20 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "CelMek",
-            dependencies: ["Math", "Atmospheres", "Aerodynamics",
+            dependencies: ["Math", "Atmospheres", "FluidDynamics",
                            "MagneticFields"]),
         .target(name: "MagneticFields", resources: [.process("Resources")]),
         .target(name: "Atmospheres"),
+        .target(name: "FluidDynamics"),
+        .target(name: "Hydrodynamics", dependencies: ["FluidDynamics"]),
         .target(
             name: "Math",
             dependencies: []),
         .target(
             name: "Aerodynamics",
-            dependencies: ["Yams", "Atmospheres"]),
-        .executableTarget(name: "AerodynamicsDemo", dependencies: ["Aerodynamics", "Atmospheres"],
-                          path: "Examples/AerodynamicsDemo"),
+            dependencies: ["Yams", "Atmospheres", "FluidDynamics"]),
+        .executableTarget(name: "FluidPhysicsDemo", dependencies: ["Aerodynamics", "Atmospheres", "FluidDynamics", "Hydrodynamics"],
+                          path: "Examples/FluidPhysicsDemo"),
         .executableTarget(
             name: "TwoBodyGameDemo",
             dependencies: ["CelMek"],
@@ -64,11 +68,13 @@ let package = Package(
                           path: "Experiments/MPCCulling", exclude: ["README.md", "results"]),
         .testTarget(
             name: "CelMekTests",
-            dependencies: ["CelMek"],
+            dependencies: ["CelMek", "FluidDynamics", "Atmospheres"],
             resources: [.copy("Fixtures")]),
         .testTarget(
             name: "AerodynamicsTests",
-            dependencies: ["Aerodynamics"], resources: [.process("Resources")]),
+            dependencies: ["Aerodynamics", "FluidDynamics", "Atmospheres"], resources: [.process("Resources")]),
+        .testTarget(name: "FluidDynamicsTests", dependencies: ["FluidDynamics"]),
+        .testTarget(name: "HydrodynamicsTests", dependencies: ["Hydrodynamics", "FluidDynamics"]),
         .testTarget(name: "AtmospheresTests", dependencies: ["Atmospheres"]),
         .testTarget(name: "MagneticFieldsTests", dependencies: ["MagneticFields"], resources: [.copy("Fixtures")]),
         .testTarget(

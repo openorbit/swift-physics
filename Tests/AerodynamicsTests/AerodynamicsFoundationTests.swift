@@ -1,4 +1,6 @@
+import Atmospheres
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -18,13 +20,13 @@ import Aerodynamics
         #expect(abs(result.lift-3.5) < 1e-12)
         #expect(abs(result.drag-0.85) < 1e-12)
         #expect(abs(result.moment-0.25) < 1e-12)
-        #expect(throws: AerodynamicError.outsideCoverage) {
+        #expect(throws: FluidError.outsideCoverage) {
             try model.coefficients(angleOfAttackRadians:0.31,reynoldsNumber:200,machNumber:0.4)
         }
-        #expect(throws: AerodynamicError.outsideCoverage) {
+        #expect(throws: FluidError.outsideCoverage) {
             try model.coefficients(angleOfAttackRadians:0,reynoldsNumber:400,machNumber:0.4)
         }
-        #expect(throws: AerodynamicError.outsideCoverage) {
+        #expect(throws: FluidError.outsideCoverage) {
             try model.coefficients(angleOfAttackRadians:0,reynoldsNumber:200,machNumber:1.1)
         }
         let clamp = try TabulatedAirfoil(polars:model.polars,boundaryPolicy:.clamp,source:"Test",version:"1")
@@ -33,14 +35,14 @@ import Aerodynamics
         #expect(try decoded.coefficients(angleOfAttackRadians:0.15,reynoldsNumber:200,machNumber:0.4).lift == result.lift)
     }
     @Test func validatesGridAndDecodedPolars() throws {
-        #expect(throws: AerodynamicError.duplicateCondition) {
+        #expect(throws: FluidError.duplicateCondition) {
             try TabulatedAirfoil(polars:[polar(re:100,mach:0),polar(re:100,mach:0)],source:"Test",version:"1")
         }
-        #expect(throws: AerodynamicError.incompleteGrid) {
+        #expect(throws: FluidError.incompleteGrid) {
             try TabulatedAirfoil(polars:[polar(re:100,mach:0),polar(re:300,mach:1)],source:"Test",version:"1")
         }
         let bad = Data("{\"reynoldsNumber\":100,\"machNumber\":0,\"samples\":[]}".utf8)
-        #expect(throws: AerodynamicError.invalidCoefficients) { try JSONDecoder().decode(AirfoilPolar.self,from:bad) }
+        #expect(throws: FluidError.invalidCoefficients) { try JSONDecoder().decode(AirfoilPolar.self,from:bad) }
     }
     @Test func yamlPreservesSamplesAndUsesAllReynoldsEntries() throws {
         let yaml = """
@@ -77,9 +79,9 @@ import Aerodynamics
             #expect(abs(decoded.liftCoefficient(at:0.5 * .pi/180,for:1e6)-0.5) < 1e-12)
         }
         let invalid = try JSONEncoder().encode(Legacy(reynoldsNumber:1e6,coefficients:[]))
-        #expect(throws:AerodynamicError.invalidCoefficients) { try JSONDecoder().decode(ParametricAirfoil.self,from:invalid) }
+        #expect(throws:FluidError.invalidCoefficients) { try JSONDecoder().decode(ParametricAirfoil.self,from:invalid) }
         let properties = try ISAAtmosphere().properties(at:0)
-        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(100,0,0),properties:properties)
+        let flow = try FluidFlow(relativeVelocityMetresPerSecond:SIMD3(100,0,0),properties:properties)
         #expect(abs(flow.dynamicPressurePascals-6125) < 0.01)
         #expect(flow.machNumber != nil)
         #expect(try flow.reynoldsNumber(referenceLengthMetres:1) != nil)
@@ -105,15 +107,15 @@ import Aerodynamics
             let numericalSlope = (foil.meanCamberLine(x+step)-foil.meanCamberLine(x-step))/(2*step)
             #expect(abs(numericalSlope-slope) < 1e-6)
         }
-        #expect(throws:AerodynamicError.invalidGeometry) {
+        #expect(throws:FluidError.invalidGeometry) {
             try NACA4(validatingCamberPercentage:2,maximumCamber:0,maximumThicknessPercentage:12)
         }
-        #expect(throws:AerodynamicError.invalidGeometry) { try foil.surfaceCoordinates(atChordFraction:1.01) }
+        #expect(throws:FluidError.invalidGeometry) { try foil.surfaceCoordinates(atChordFraction:1.01) }
         let cambered = ThinCamberedAirfoil(cl0:0.4)
         #expect(cambered.coefficients(at:0.1,for:1e6).lift == cambered.liftCoefficient(at:0.1,for:1e6))
     }
     @Test func flowNumbersRotationAndMissingProperties() throws {
-        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(3,0,4),densityKilogramsPerCubicMetre:2,
+        let flow = try FluidFlow(relativeVelocityMetresPerSecond:SIMD3(3,0,4),densityKilogramsPerCubicMetre:2,
             speedOfSoundMetresPerSecond:10,dynamicViscosityPascalSeconds:0.5,meanFreePathMetres:0.01)
         #expect(flow.speedMetresPerSecond == 5)
         #expect(flow.dynamicPressurePascals == 25)
@@ -123,19 +125,19 @@ import Aerodynamics
         #expect(flow.angleOfAttackRadians == atan2(4.0,3.0))
         let local = try flow.atLocalPoint(offsetMetres:SIMD3(0,2,0),angularVelocityRadiansPerSecond:SIMD3(0,0,1))
         #expect(local.relativeVelocityMetresPerSecond == SIMD3(1,0,4))
-        let still = try AerodynamicFlow(relativeVelocityMetresPerSecond:.zero,densityKilogramsPerCubicMetre:0)
+        let still = try FluidFlow(relativeVelocityMetresPerSecond:.zero,densityKilogramsPerCubicMetre:0)
         #expect(still.dynamicPressurePascals == 0)
         #expect(still.angleOfAttackRadians == nil)
         #expect(still.sideslipRadians == nil)
         #expect(still.machNumber == nil)
         #expect(try still.reynoldsNumber(referenceLengthMetres:1) == nil)
-        #expect(throws:AerodynamicError.invalidFlow) {
-            try AerodynamicFlow(relativeVelocityMetresPerSecond:.zero,densityKilogramsPerCubicMetre:-1)
+        #expect(throws:FluidError.invalidFlow) {
+            try FluidFlow(relativeVelocityMetresPerSecond:.zero,densityKilogramsPerCubicMetre:-1)
         }
-        #expect(throws:AerodynamicError.invalidGeometry) { try flow.reynoldsNumber(referenceLengthMetres:0) }
+        #expect(throws:FluidError.invalidGeometry) { try flow.reynoldsNumber(referenceLengthMetres:0) }
     }
     @Test func rotatingMediumLocalVelocityIsFrameIndependent() throws {
-        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(100, 2, 3),
+        let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(100, 2, 3),
                                        densityKilogramsPerCubicMetre: 1)
         let offset = SIMD3<Double>(4, -3, 2)
         let planetRate = SIMD3<Double>(0.01, -0.02, 0.03)
@@ -153,9 +155,9 @@ import Aerodynamics
         #expect(coRotating.relativeVelocityMetresPerSecond == flow.relativeVelocityMetresPerSecond)
     }
     @Test func coefficientScalingMomentTransferAndAddition() throws {
-        let geometry = try AerodynamicReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(4,3,4),
+        let geometry = try FluidReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(4,3,4),
             momentReferencePointMetres:SIMD3(2,0,0))
-        let coefficients = try AerodynamicCoefficients(force:SIMD3(-1,0,-2),moment:SIMD3(0,0.5,0))
+        let coefficients = try FluidCoefficients(force:SIMD3(-1,0,-2),moment:SIMD3(0,0.5,0))
         let loads = try coefficients.loads(dynamicPressurePascals:10,geometry:geometry)
         #expect(loads.forceNewtons == SIMD3(-20,0,-40))
         #expect(loads.momentNewtonMetres == SIMD3(0,30,0))

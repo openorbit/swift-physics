@@ -52,7 +52,7 @@ new encoding retains the validated table, coordinate samples and provenance.
 
 ## Flow conventions and missing properties
 
-``AerodynamicFlow`` uses right-handed body or section axes: X forward, Y right,
+`FluidFlow` uses right-handed body or section axes: X forward, Y right,
 Z down. Its velocity is the body's motion relative to the atmosphere. Positive
 angle of attack is `atan2(vz, vx)`; sideslip is `atan2(vy, hypot(vx, vz))`.
 Angle of attack is absent when the X/Z velocity projection is zero; sideslip is absent
@@ -83,7 +83,7 @@ Atmospheres profiles can directly supply ambient properties:
 import Aerodynamics
 import Atmospheres
 let ambient = try ISAAtmosphere().properties(at: 0)
-let flow = try AerodynamicFlow(
+let flow = try FluidFlow(
     relativeVelocityMetresPerSecond: SIMD3(100, 0, 0), properties: ambient)
 let reynolds = try flow.reynoldsNumber(referenceLengthMetres: 1)
 let local = try flow.atLocalPoint(
@@ -103,10 +103,10 @@ and [Reynolds number](https://www.grc.nasa.gov/WWW/K-12/airplane/reynolds.html).
 
 ## Forces and moments
 
-``AerodynamicCoefficients`` carries three signed force and three moment components.
-``AerodynamicReferenceGeometry`` states area, three moment reference lengths and a
+`FluidCoefficients` carries three signed force and three moment components.
+`FluidReferenceGeometry` states area, three moment reference lengths and a
 moment reference point. Aircraft moment lengths typically use span/chord/span.
-``AerodynamicLoads`` contains force in N and moment in N m in the same caller-selected
+`FluidLoads` contains force in N and moment in N m in the same caller-selected
 axes. Coefficient conversion uses `F = q S C` and `M = q S L Cmoment`.
 The moment already includes the full coefficient moment about its stated reference
 point; do not add a second centre-of-pressure moment for the same load.
@@ -117,7 +117,7 @@ point. This operation aggregates physics without owning a vehicle assembly.
 Reference points and force/moment vectors must use the same origin and axes;
 the types do not perform frame transforms or certify coordinate compatibility.
 
-``AerodynamicHeatFlux`` provides a surface position and positive inward heat flux in
+`SurfaceHeatFlux` provides a surface position and positive inward heat flux in
 W/m² for correlations and external thermal integration. See <doc:Aerothermal> for
 the initial stagnation-point evaluator. The value itself does not evolve temperature
 or manage ablation.

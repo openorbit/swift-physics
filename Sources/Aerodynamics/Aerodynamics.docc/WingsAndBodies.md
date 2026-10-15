@@ -29,7 +29,7 @@ See [NASA aerodynamic-center conventions](https://www1.grc.nasa.gov/beginners-gu
 ```swift
 import Aerodynamics
 let ambient = try ISAAtmosphere().properties(at: 0)
-let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(40, 0, 0), properties: ambient)
+let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(40, 0, 0), properties: ambient)
 // `airfoil` is a caller-supplied AirfoilCoefficientModel with appropriate coverage.
 let wing = try SegmentedWing.rectangular(spanMetres: 8, chordMetres: 2,
     incidenceRadians: 0.08, model: AirfoilWingSectionModel(airfoil: airfoil))
@@ -102,7 +102,7 @@ models remain separate workstreams.
 ## Runnable example and verification
 
 ```sh
-swift run AerodynamicsDemo
+swift run FluidPhysicsDemo
 ```
 
 The example evaluates an eight-strip wing using Earth sea-level ISA and a lifting

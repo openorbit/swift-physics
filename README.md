@@ -1,6 +1,6 @@
-# swift-celmek
+# swift-physics
 
-A port of the celmek library to swift.
+Swift physics libraries for celestial mechanics, gas and liquid dynamics, atmospheres and magnetic fields.
 
 The celmek library implements several astronomical algorithms.
 
@@ -20,20 +20,20 @@ A companion app for interactivelly working with this library is developed here:
 
 ## Evolution
 
-In addition to the celestial mechanics algorithms,
-various functionality related to Aerodynamics have been added.
-It is probable that we will rename the package `swift-physics` at some point.
+The package has grown beyond the original CelMek port. Shared fluid physics now
+lives in FluidDynamics, with dedicated Aerodynamics and Hydrodynamics modules.
 
 ## Modules
 
-Use the `CelMek`, `Math`, `Aerodynamics`, `Atmospheres`, or `MagneticFields` library
-product for the modules your application needs. The `Physics` product bundles all five.
+Use the `CelMek`, `Math`, `FluidDynamics`, `Aerodynamics`, `Hydrodynamics`,
+`Atmospheres`, or `MagneticFields` product for the modules your application needs.
+The `Physics` product bundles all seven.
 Import the corresponding module names. See [MODULES.md](MODULES.md) for responsibilities and dependency rules.
 
 ## Documentation
 
 The public guides and API references use DocC. See [documentation build instructions](Documentation/README.md)
-for the five module catalogs and the combined package archive.
+for the seven module catalogs and the combined package archive.
 
 ```sh
 python3 Tools/Documentation/build.py
@@ -85,3 +85,16 @@ The [MagneticFields target](Sources/MagneticFields/MagneticFields.docc/Guide.md)
 pluggable magnetic-field models, ideal dipoles and CelMek body/orientation adapters.
 It also includes Swift WMM/IGRF evaluators, coefficient-file loaders and bundled
 WMM2025/IGRF-14 datasets with explicit date coverage.
+
+## Fluid physics examples
+
+```sh
+swift run FluidPhysicsDemo
+swift run -c release -debug-info-format none FluidPhysicsDemo --cfd --compressible
+```
+
+The example includes dedicated Earth/Titan liquid displacement and pressure cases,
+optional incompressible rotor/body CFD and a compressible Sod reference problem.
+Liquid properties and vehicle coefficients in these examples are illustrative.
+See the FluidDynamics and Hydrodynamics DocC guides for coverage, numerical cost,
+pressure-reference rules and the remaining real-gas/free-surface fidelity work.

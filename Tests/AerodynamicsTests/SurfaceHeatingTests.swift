@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -7,12 +8,12 @@ import Aerodynamics
     func query(x: Double = 0.1, speed: Double = 10, wall: Double = 300, edge: Double = 330,
                pr: Double = 1, sound: Double? = 340, path: Double? = 1e-7,
                film: Double? = nil) throws -> SurfaceHeatingQuery {
-        try SurfaceHeatingQuery(edgeFlow: AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),
+        try SurfaceHeatingQuery(edgeFlow: FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),
             densityKilogramsPerCubicMetre: 2,temperatureKelvin: edge,
             speedOfSoundMetresPerSecond: sound,meanFreePathMetres: path),
             distanceFromLeadingEdgeMetres: x,surfacePositionMetres: SIMD3(x,2,3),
             wall: AerothermalWallState(temperatureKelvin: wall),
-            transport: AerothermalTransportProperties(gasIdentifier: "synthetic",source: "test constant properties",
+            transport: ThermalTransportProperties(fluidIdentifier: "synthetic",source: "test constant properties",
                 temperatureKelvin: film ?? (wall+edge)/2,densityKilogramsPerCubicMetre: 1,
                 dynamicViscosityPascalSeconds: 1e-5,thermalConductivityWattsPerMetreKelvin: 0.01,
                 specificHeatJoulesPerKilogramKelvin: pr*1000))
@@ -58,12 +59,12 @@ import Aerodynamics
         let model = LaminarFlatPlateHeating()
         for q in [try query(speed: 0),try query(speed: 110),try query(x: 1),try query(x: 0.0001),
                   try query(pr: 0.5),try query(pr: 16),try query(path: 0.002),try query(wall: 100)] {
-            #expect(throws: AerodynamicError.outsideCoverage) { try model.evaluate(q) }
+            #expect(throws: FluidError.outsideCoverage) { try model.evaluate(q) }
         }
-        #expect(throws: AerodynamicError.missingFlowProperty) { try model.evaluate(query(sound: nil)) }
-        #expect(throws: AerodynamicError.missingFlowProperty) { try model.evaluate(query(path: nil)) }
-        #expect(throws: AerodynamicError.unsupportedQuery) { try model.evaluate(query(film: 300)) }
-        #expect(throws: AerodynamicError.self) { try query(x: 0) }
-        #expect(throws: AerodynamicError.self) { try query(pr: .nan) }
+        #expect(throws: FluidError.missingFlowProperty) { try model.evaluate(query(sound: nil)) }
+        #expect(throws: FluidError.missingFlowProperty) { try model.evaluate(query(path: nil)) }
+        #expect(throws: FluidError.unsupportedQuery) { try model.evaluate(query(film: 300)) }
+        #expect(throws: FluidError.self) { try query(x: 0) }
+        #expect(throws: FluidError.self) { try query(pr: .nan) }
     }
 }

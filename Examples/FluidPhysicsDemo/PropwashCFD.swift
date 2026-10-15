@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Dispatch
 import Aerodynamics
 
 func runPropwashExample() throws {
-    let disk = try ActuatorDiskPropwash(centreMetres: .zero,downstreamAxis: SIMD3(-1,0,0),radiusMetres: 1,
-        thrustNewtons: 500,airTorqueNewtonMetres: 40,densityKilogramsPerCubicMetre: 1.2,upstreamAxialSpeedMetresPerSecond: 30)
-    let air = try SuperposedAirVelocityField(backgroundMetresPerSecond: SIMD3(-30,0,0),increments: [disk])
+    let disk = try ActuatorDiskSlipstream(centreMetres: .zero,downstreamAxis: SIMD3(-1,0,0),radiusMetres: 1,
+        thrustNewtons: 500,fluidTorqueNewtonMetres: 40,densityKilogramsPerCubicMetre: 1.2,upstreamAxialSpeedMetresPerSecond: 30)
+    let air = try SuperposedFluidVelocityField(backgroundMetresPerSecond: SIMD3(-30,0,0),increments: [disk])
     print("Actuator disk: induced speed at disk \(disk.inducedSpeedAtDiskMetresPerSecond) m/s; air at tail \(try air.velocityMetresPerSecond(at: SIMD3(-3,0.4,0))) m/s")
 }
 
@@ -14,13 +15,13 @@ func runPropwashExample() throws {
 func runCFDBenchmark() throws {
     print("CPU local incompressible CFD: fixed 8 m box, free-slip voxel sphere, prescribed rotor volume forcing; three 0.01 s steps. Use -c release for budget measurements.")
     for count in [16,20,32] {
-        let config = try LocalCFDConfiguration(dimensions: SIMD3(repeating: count),minimumCornerMetres: SIMD3(repeating: -4),
-            cellSizeMetres: 8/Double(count),densityKilogramsPerCubicMetre: 1.2,speedOfSoundMetresPerSecond: 340,meanFreePathMetres: 1e-7,
+        let config = try IncompressibleFlowConfiguration(dimensions: SIMD3(repeating: count),minimumCornerMetres: SIMD3(repeating: -4),
+            cellSizeMetres: 8/Double(count),densityKilogramsPerCubicMetre: 1.2,speedOfSoundMetresPerSecond: 340,
             kinematicViscositySquareMetresPerSecond: 1.5e-5,boundaryVelocityMetresPerSecond: SIMD3(-10,0,0))
-        var grid = try LocalCFDGrid(configuration: config,solidAtCellCentre: { p in (p*p).sum() < 1 })
+        var grid = try IncompressibleFlowGrid(configuration: config,solidAtCellCentre: { p in (p*p).sum() < 1 })
         _ = try grid.project(timeStepSeconds: 0.01)
-        let disk = try ActuatorDiskPropwash(centreMetres: SIMD3(2,0,0),downstreamAxis: SIMD3(-1,0,0),radiusMetres: 0.75,
-            thrustNewtons: 80,airTorqueNewtonMetres: 2,densityKilogramsPerCubicMetre: 1.2,upstreamAxialSpeedMetresPerSecond: 10)
+        let disk = try ActuatorDiskSlipstream(centreMetres: SIMD3(2,0,0),downstreamAxis: SIMD3(-1,0,0),radiusMetres: 0.75,
+            thrustNewtons: 80,fluidTorqueNewtonMetres: 2,densityKilogramsPerCubicMetre: 1.2,upstreamAxialSpeedMetresPerSecond: 10)
         let source = try ActuatorDiskAccelerationField(disk: disk,thicknessMetres: 1)
         var milliseconds: [Double] = [], iterations = 0, divergence = 0.0
         for _ in 0..<3 {

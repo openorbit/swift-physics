@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
-import Aerodynamics
 
 @Suite struct LocalCFDTests {
-    func configuration(count: Int = 8, viscosity: Double = 0, boundary: SIMD3<Double> = .zero) throws -> LocalCFDConfiguration {
-        try LocalCFDConfiguration(dimensions: SIMD3(repeating: count),minimumCornerMetres: .zero,
-            cellSizeMetres: 1,densityKilogramsPerCubicMetre: 2,speedOfSoundMetresPerSecond: 340,meanFreePathMetres: 1e-7,
+    func configuration(count: Int = 8, viscosity: Double = 0, boundary: SIMD3<Double> = .zero) throws -> IncompressibleFlowConfiguration {
+        try IncompressibleFlowConfiguration(dimensions: SIMD3(repeating: count),minimumCornerMetres: .zero,
+            cellSizeMetres: 1,densityKilogramsPerCubicMetre: 2,speedOfSoundMetresPerSecond: 340,
             kinematicViscositySquareMetresPerSecond: viscosity,boundaryVelocityMetresPerSecond: boundary)
     }
     @Test func uniformFlowRemainsUniformOnRectangularGrid() throws {
         let velocity = SIMD3(2.0,1,-0.5)
-        let config = try LocalCFDConfiguration(dimensions: SIMD3(4,6,8),minimumCornerMetres: SIMD3(-2,-3,-4),
-            cellSizeMetres: 1,densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 340,meanFreePathMetres: 1e-7,
+        let config = try IncompressibleFlowConfiguration(dimensions: SIMD3(4,6,8),minimumCornerMetres: SIMD3(-2,-3,-4),
+            cellSizeMetres: 1,densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 340,
             kinematicViscositySquareMetresPerSecond: 0.02,boundaryVelocityMetresPerSecond: velocity)
-        var grid = try LocalCFDGrid(configuration: config)
+        var grid = try IncompressibleFlowGrid(configuration: config)
         let report = try grid.advance(timeStepSeconds: 0.1)
         #expect(report.substeps == 1)
         #expect(report.maximumDivergenceAfterPerSecond < 1e-12)
@@ -24,7 +24,7 @@ import Aerodynamics
     }
     @Test func manufacturedGradientIsRemovedAndPressureMatchesPoissonSolution() throws {
         let wave = Double.pi/8, amplitude = 2*sin(Double.pi/16)
-        var grid = try LocalCFDGrid(configuration: configuration()) { _ in false } initialVelocity: { p in
+        var grid = try IncompressibleFlowGrid(configuration: configuration()) { _ in false } initialVelocity: { p in
             SIMD3(-amplitude*sin(wave*p.x)*cos(wave*p.y)*cos(wave*p.z),
                   -amplitude*cos(wave*p.x)*sin(wave*p.y)*cos(wave*p.z),
                   -amplitude*cos(wave*p.x)*cos(wave*p.y)*sin(wave*p.z))
@@ -41,7 +41,7 @@ import Aerodynamics
     }
     @Test func solenoidalFieldSurvivesProjectionAndViscosityDissipates() throws {
         let wave = Double.pi/8
-        var grid = try LocalCFDGrid(configuration: configuration(viscosity: 0.1),initialVelocity: { p in
+        var grid = try IncompressibleFlowGrid(configuration: configuration(viscosity: 0.1),initialVelocity: { p in
             SIMD3(sin(wave*p.x)*cos(wave*p.y),-cos(wave*p.x)*sin(wave*p.y),0)
         })
         let before = grid.maximumSpeedBoundMetresPerSecond
@@ -49,7 +49,7 @@ import Aerodynamics
         _ = try grid.project(timeStepSeconds: 0.1)
         #expect(abs(grid.maximumSpeedBoundMetresPerSecond-before) < 1e-12)
         let point = SIMD3(3.5,2.5,4.5), original = try grid.velocityMetresPerSecond(at: point)
-        var inviscid = try LocalCFDGrid(configuration: configuration(),initialVelocity: { p in
+        var inviscid = try IncompressibleFlowGrid(configuration: configuration(),initialVelocity: { p in
             SIMD3(sin(wave*p.x)*cos(wave*p.y),-cos(wave*p.x)*sin(wave*p.y),0)
         })
         _ = try inviscid.advance(timeStepSeconds: 0.1)
@@ -61,13 +61,13 @@ import Aerodynamics
         #expect(abs(change.x-expected.x)+abs(change.y-expected.y)+abs(change.z-expected.z) < 1e-8)
     }
     @Test func obstaclesProjectionPressureLoadsAndReferencePoint() throws {
-        var grid = try LocalCFDGrid(configuration: configuration(boundary: SIMD3(2,0,0)),solidAtCellCentre: { p in
+        var grid = try IncompressibleFlowGrid(configuration: configuration(boundary: SIMD3(2,0,0)),solidAtCellCentre: { p in
             p.x > 3 && p.x < 5 && p.y > 3 && p.y < 5 && p.z > 3 && p.z < 5
         })
         let report = try grid.project(timeStepSeconds: 0.1)
         #expect(report.maximumDivergenceBeforePerSecond > 1)
         #expect(report.maximumDivergenceAfterPerSecond < 1e-7)
-        #expect(throws: AerodynamicError.unsupportedQuery) { try grid.velocityMetresPerSecond(at: SIMD3(4,4,4)) }
+        #expect(throws: FluidError.unsupportedQuery) { try grid.velocityMetresPerSecond(at: SIMD3(4,4,4)) }
         let loads = try grid.pressureLoadsOnSolids(momentReferencePointMetres: SIMD3(4,4,4))
         #expect(abs(loads.forceNewtons.y)+abs(loads.forceNewtons.z) < 1e-8)
         #expect(loads.forceNewtons.x > 0)
@@ -77,7 +77,7 @@ import Aerodynamics
         _ = try grid.advance(timeStepSeconds: 0.02)
     }
     @Test func hydrostaticPressureGivesDisplacedFluidBuoyancy() throws {
-        var grid = try LocalCFDGrid(configuration: configuration(),solidAtCellCentre: { p in
+        var grid = try IncompressibleFlowGrid(configuration: configuration(),solidAtCellCentre: { p in
             p.x > 3 && p.x < 5 && p.y > 3 && p.y < 5 && p.z > 3 && p.z < 5
         })
         _ = try grid.advance(timeStepSeconds: 0.1,accelerationMetresPerSecondSquared: { _ in SIMD3(0,0,3) })
@@ -88,9 +88,9 @@ import Aerodynamics
         #expect(abs(loads.forceNewtons.x)+abs(loads.forceNewtons.y) < 1e-7)
     }
     @Test func rotorForcingProducesDownstreamFlowAndSwirl() throws {
-        var grid = try LocalCFDGrid(configuration: configuration(count: 12))
-        let disk = try ActuatorDiskPropwash(centreMetres: SIMD3(6,6,6),downstreamAxis: SIMD3(1,0,0),radiusMetres: 2,
-            thrustNewtons: 50,airTorqueNewtonMetres: 5,densityKilogramsPerCubicMetre: 2,upstreamAxialSpeedMetresPerSecond: 0)
+        var grid = try IncompressibleFlowGrid(configuration: configuration(count: 12))
+        let disk = try ActuatorDiskSlipstream(centreMetres: SIMD3(6,6,6),downstreamAxis: SIMD3(1,0,0),radiusMetres: 2,
+            thrustNewtons: 50,fluidTorqueNewtonMetres: 5,densityKilogramsPerCubicMetre: 2,upstreamAxialSpeedMetresPerSecond: 0)
         let source = try ActuatorDiskAccelerationField(disk: disk,thicknessMetres: 2)
         for _ in 0..<3 { _ = try grid.advance(timeStepSeconds: 0.05,accelerationMetresPerSecondSquared: source.accelerationMetresPerSecondSquared) }
         let downstream = try grid.velocityMetresPerSecond(at: SIMD3(7.5,6.5,6))
@@ -99,24 +99,21 @@ import Aerodynamics
         #expect(grid.divergencePerSecond().map(abs).max()! < 1e-7)
     }
     @Test func limitsAndFailuresDoNotMutateGrid() throws {
-        var grid = try LocalCFDGrid(configuration: configuration(),initialVelocity: { p in SIMD3(p.x/8,p.y/8,p.z/8) })
+        var grid = try IncompressibleFlowGrid(configuration: configuration(),initialVelocity: { p in SIMD3(p.x/8,p.y/8,p.z/8) })
         let before = try grid.velocityMetresPerSecond(at: SIMD3(4,4,4))
-        #expect(throws: AerodynamicError.nonConvergence) { try grid.project(timeStepSeconds: 0.1,maximumIterations: 1) }
+        #expect(throws: FluidError.nonConvergence) { try grid.project(timeStepSeconds: 0.1,maximumIterations: 1) }
         #expect(try grid.velocityMetresPerSecond(at: SIMD3(4,4,4)) == before)
-        #expect(throws: AerodynamicError.outsideCoverage) { try grid.advance(timeStepSeconds: 10,maximumSubsteps: 1) }
+        #expect(throws: FluidError.workBudgetExceeded) { try grid.advance(timeStepSeconds: 10,maximumSubsteps: 1) }
         #expect(try grid.velocityMetresPerSecond(at: SIMD3(4,4,4)) == before)
-        #expect(throws: AerodynamicError.invalidFlow) {
+        #expect(throws: FluidError.invalidFlow) {
             try grid.advance(timeStepSeconds: 0.1,accelerationMetresPerSecondSquared: { _ in SIMD3(.nan,0,0) })
         }
-        #expect(throws: AerodynamicError.nonFiniteResult) { try grid.project(timeStepSeconds: .leastNonzeroMagnitude) }
+        #expect(throws: FluidError.nonFiniteResult) { try grid.project(timeStepSeconds: .leastNonzeroMagnitude) }
         #expect(try grid.velocityMetresPerSecond(at: SIMD3(4,4,4)) == before)
-        #expect(throws: AerodynamicError.outsideCoverage) { try grid.velocityMetresPerSecond(at: SIMD3(-1,4,4)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try configuration(boundary: SIMD3(200,0,0)) }
-        #expect(throws: AerodynamicError.invalidGeometry) { try LocalCFDGrid(configuration: configuration(),solidAtCellCentre: { _ in true }) }
-        #expect(throws: AerodynamicError.invalidParameter) { try configuration(count: 3) }
-        #expect(throws: AerodynamicError.outsideCoverage) {
-            try LocalCFDConfiguration(minimumCornerMetres: .zero,cellSizeMetres: 1,
-                densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 340,meanFreePathMetres: 1)
-        }
+        #expect(throws: FluidError.outsideCoverage) { try grid.velocityMetresPerSecond(at: SIMD3(-1,4,4)) }
+        #expect(throws: FluidError.outsideCoverage) { try configuration(boundary: SIMD3(200,0,0)) }
+        #expect(throws: FluidError.invalidGeometry) { try IncompressibleFlowGrid(configuration: configuration(),solidAtCellCentre: { _ in true }) }
+        #expect(throws: FluidError.invalidParameter) { try configuration(count: 3) }
+
     }
 }

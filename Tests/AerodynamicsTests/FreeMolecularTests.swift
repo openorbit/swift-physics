@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -9,12 +10,12 @@ import Aerodynamics
             specificGasConstantJoulesPerKilogramKelvin: 2,source: "Analytic kinetic test"),
             surface: GasSurfaceReflection(specularFraction: specular,wallTemperatureKelvin: wall))
     }
-    func flow(_ v: SIMD3<Double>, path: Double? = 20, temperature: Double? = 2) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond: v,densityKilogramsPerCubicMetre: 1,
+    func flow(_ v: SIMD3<Double>, path: Double? = 20, temperature: Double? = 2) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond: v,densityKilogramsPerCubicMetre: 1,
                             temperatureKelvin: temperature,meanFreePathMetres: path)
     }
-    func panel() throws -> AerodynamicSurfacePanel {
-        try AerodynamicSurfacePanel(areaSquareMetres: 2,centreMetres: SIMD3(0,1,0),outwardNormal: SIMD3(1,0,0))
+    func panel() throws -> FluidSurfacePanel {
+        try FluidSurfacePanel(areaSquareMetres: 2,centreMetres: SIMD3(0,1,0),outwardNormal: SIMD3(1,0,0))
     }
     @Test func gaussianMomentumMatchesIndependentQuadrature() throws {
         for normalSpeed in [-25.0,-3.0,0,3,25] {
@@ -53,8 +54,8 @@ import Aerodynamics
     }
     @Test func specularBeamLimitAndMomentTransfer() throws {
         let normal = SIMD3<Double>(1/sqrt(2),1/sqrt(2),0)
-        let surfacePanel = try AerodynamicSurfacePanel(areaSquareMetres: 2,centreMetres: SIMD3(0,0,1),outwardNormal: normal)
-        let evaluator = try SurfaceTractionAerodynamics(panels: [surfacePanel],referenceLengthMetres: 1,model: model(specular: 1))
+        let surfacePanel = try FluidSurfacePanel(areaSquareMetres: 2,centreMetres: SIMD3(0,0,1),outwardNormal: normal)
+        let evaluator = try SurfaceTractionIntegration(panels: [surfacePanel],referenceLengthMetres: 1,model: model(specular: 1))
         let result = try evaluator.evaluate(flow: flow(SIMD3(1000,0,0)))
         // 2 rho (V·n)^2 + rho RT, after subtracting ambient rho RT.
         #expect(abs(result.tractions[0].gaugePressurePascals-(1e6+4)) < 1e-8)
@@ -64,19 +65,19 @@ import Aerodynamics
     }
     @Test func continuumAdapterAndCoverage() throws {
         let continuum = try ModifiedNewtonianPressure(specificHeatRatio: 1.4)
-        let local = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(1000,0,0),
+        let local = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(1000,0,0),
             densityKilogramsPerCubicMetre: 0.02,speedOfSoundMetresPerSecond: 100,meanFreePathMetres: 0.001)
-        let original = try SurfacePressureAerodynamics(panels: [panel()],referenceLengthMetres: 1,model: continuum).evaluate(flow: local)
-        let adapted = try SurfaceTractionAerodynamics(panels: [panel()],referenceLengthMetres: 1,
+        let original = try SurfacePressureIntegration(panels: [panel()],referenceLengthMetres: 1,model: continuum).evaluate(flow: local)
+        let adapted = try SurfaceTractionIntegration(panels: [panel()],referenceLengthMetres: 1,
             model: PressureOnlyTraction(continuum)).evaluate(flow: local)
         #expect(original.loads.forceNewtons == adapted.loads.forceNewtons)
         #expect(original.loads.momentNewtonMetres == adapted.loads.momentNewtonMetres)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model().traction(panel: panel(),flow: flow(.zero,path: 1),referenceLengthMetres: 1) }
-        #expect(throws: AerodynamicError.missingFlowProperty) { try model().traction(panel: panel(),flow: flow(.zero,path: nil),referenceLengthMetres: 1) }
-        #expect(throws: AerodynamicError.missingFlowProperty) { try model().traction(panel: panel(),flow: flow(.zero,temperature: nil),referenceLengthMetres: 1) }
-        let oblique = try AerodynamicSurfacePanel(areaSquareMetres: 1,centreMetres: .zero,
+        #expect(throws: FluidError.outsideCoverage) { try model().traction(panel: panel(),flow: flow(.zero,path: 1),referenceLengthMetres: 1) }
+        #expect(throws: FluidError.missingFlowProperty) { try model().traction(panel: panel(),flow: flow(.zero,path: nil),referenceLengthMetres: 1) }
+        #expect(throws: FluidError.missingFlowProperty) { try model().traction(panel: panel(),flow: flow(.zero,temperature: nil),referenceLengthMetres: 1) }
+        let oblique = try FluidSurfacePanel(areaSquareMetres: 1,centreMetres: .zero,
                                                   outwardNormal: SIMD3(1,2,3))
-        let evaluator = try SurfaceTractionAerodynamics(panels: [oblique],referenceLengthMetres: 1,model: model())
+        let evaluator = try SurfaceTractionIntegration(panels: [oblique],referenceLengthMetres: 1,model: model())
         let parallel = try evaluator.evaluate(flow: flow(oblique.outwardNormal*1000))
         #expect(abs(parallel.tractions[0].shearPascals.x)+abs(parallel.tractions[0].shearPascals.y)
             + abs(parallel.tractions[0].shearPascals.z) < 1e-8)

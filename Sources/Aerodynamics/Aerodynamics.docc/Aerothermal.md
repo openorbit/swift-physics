@@ -32,7 +32,7 @@ let coverage = try StagnationHeatingCoverage(
     densityKilogramsPerCubicMetre: 1e-6...0.01,
     noseRadiusMetres: 0.1...5, machNumber: 5...40)
 let model = SuttonGravesHeating(parameters: .earthAirColdWall, coverage: coverage)
-let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(3535, 0, 0),
+let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(3535, 0, 0),
     densityKilogramsPerCubicMetre: 3.1459e-4, speedOfSoundMetresPerSecond: 300,
     meanFreePathMetres: 1e-4)
 let query = try StagnationHeatingQuery(flow: flow, gasIdentifier: "earth-air",

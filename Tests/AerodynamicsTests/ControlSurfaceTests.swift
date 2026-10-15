@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -22,7 +23,7 @@ import Aerodynamics
             momentReferenceDescription: "Quarter chord")
     }
     func query(alpha: Double = 0.1, deflection: Double = 0.05) throws -> WingSectionQuery {
-        try WingSectionQuery(flow: AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(50*cos(alpha),0,50*sin(alpha)),
+        try WingSectionQuery(flow: FluidFlow(relativeVelocityMetresPerSecond: SIMD3(50*cos(alpha),0,50*sin(alpha)),
             densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 100,dynamicViscosityPascalSeconds: 0.01),
             chordMetres: 1,controlDeflectionRadians: deflection)
     }
@@ -37,7 +38,7 @@ import Aerodynamics
         #expect(decoded.settings.map(\.deflectionRadians) == [-0.1,0,0.2])
         var json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(model)) as? [String: Any])
         json["settings"] = []
-        #expect(throws: AerodynamicError.invalidParameter) {
+        #expect(throws: FluidError.invalidParameter) {
             try ControlSurfaceTableLoader.load(data: JSONSerialization.data(withJSONObject: json))
         }
     }
@@ -45,12 +46,12 @@ import Aerodynamics
         let settings = try [setting(0),setting(0.2,angles: [-0.05,0.05])]
         let model = try table(settings)
         #expect(try model.coefficients(for: query(deflection: 0)).lift > 0)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.coefficients(for: query(deflection: 0.1)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.coefficients(for: query(deflection: -0.01)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.coefficients(for: query(deflection: 0.1)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.coefficients(for: query(deflection: -0.01)) }
         let clamped = try table(settings,policy: .clamp)
         #expect(try clamped.coefficients(for: query(deflection: -0.01)).lift == model.coefficients(for: query(deflection: 0)).lift)
-        #expect(throws: AerodynamicError.duplicateCondition) { try table([setting(0),setting(0)]) }
-        #expect(throws: AerodynamicError.invalidParameter) { try ControlSurfaceSetting(deflectionRadians: .nan,airfoil: setting(0).airfoil) }
+        #expect(throws: FluidError.duplicateCondition) { try table([setting(0),setting(0)]) }
+        #expect(throws: FluidError.invalidParameter) { try ControlSurfaceSetting(deflectionRadians: .nan,airfoil: setting(0).airfoil) }
     }
     @Test func suppliedPostStallSamplesArePreserved() throws {
         let samples = [
@@ -65,7 +66,7 @@ import Aerodynamics
         let coefficient = try model.coefficients(for: query(alpha: 0.3,deflection: 0))
         #expect(abs(coefficient.lift-0.8) < 1e-12)
         #expect(abs(coefficient.drag-0.25) < 1e-12)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.coefficients(for: query(alpha: 0.5,deflection: 0)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.coefficients(for: query(alpha: 0.5,deflection: 0)) }
     }
     @Test func differentialWingAndVerticalTailLoads() throws {
         let model = try table([setting(-0.1),setting(0.1)])

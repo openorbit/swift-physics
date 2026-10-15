@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 public enum FiniteWingError: Error, Equatable { case unbracketedSolution, iterationLimit }
@@ -44,14 +45,14 @@ public struct FiniteWingAirfoil: AirfoilCoefficientModel {
                operatingAngleRangeRadians.lowerBound,operatingAngleRangeRadians.upperBound].allSatisfy({ $0.isFinite && abs($0) <= 0.35 }),
               effectiveAngleRangeRadians.lowerBound < effectiveAngleRangeRadians.upperBound,
               operatingAngleRangeRadians.lowerBound < operatingAngleRangeRadians.upperBound else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         self.airfoil = airfoil; self.aspectRatio = aspectRatio; self.spanEfficiency = spanEfficiency
         self.effectiveAngleRangeRadians = effectiveAngleRangeRadians; self.operatingAngleRangeRadians = operatingAngleRangeRadians
         self.maximumMachNumber = maximumMachNumber; self.angleToleranceRadians = angleToleranceRadians
         self.maximumIterations = maximumIterations
         inducedFactor = (1/aspectRatio)/spanEfficiency/Double.pi
-        guard inducedFactor.isFinite, inducedFactor > 0 else { throw AerodynamicError.invalidParameter }
+        guard inducedFactor.isFinite, inducedFactor > 0 else { throw FluidError.invalidParameter }
     }
     public func coefficients(angleOfAttackRadians: Double, reynoldsNumber: Double, machNumber: Double) throws -> AirfoilCoefficients {
         try solve(angleOfAttackRadians: angleOfAttackRadians,reynoldsNumber: reynoldsNumber,machNumber: machNumber).coefficients
@@ -60,22 +61,22 @@ public struct FiniteWingAirfoil: AirfoilCoefficientModel {
     /// Use a monotone attached-flow polar; post-stall branches are outside this model.
     public func solve(angleOfAttackRadians alpha: Double, reynoldsNumber: Double, machNumber: Double) throws -> FiniteWingSolution {
         guard alpha.isFinite, reynoldsNumber.isFinite, reynoldsNumber > 0, machNumber.isFinite, machNumber >= 0 else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         guard operatingAngleRangeRadians.contains(alpha), machNumber <= maximumMachNumber else {
-            throw AerodynamicError.outsideCoverage
+            throw FluidError.outsideCoverage
         }
         func evaluate(_ effective: Double) throws -> (AirfoilCoefficients,Double) {
             let coefficients = try airfoil.coefficients(angleOfAttackRadians: effective,reynoldsNumber: reynoldsNumber,machNumber: machNumber)
-            guard coefficients.isFinite, coefficients.drag >= 0 else { throw AerodynamicError.invalidCoefficients }
+            guard coefficients.isFinite, coefficients.drag >= 0 else { throw FluidError.invalidCoefficients }
             let residual = effective+coefficients.lift*inducedFactor-alpha
-            guard residual.isFinite else { throw AerodynamicError.nonFiniteResult }
+            guard residual.isFinite else { throw FluidError.nonFiniteResult }
             return (coefficients,residual)
         }
         func result(_ effective: Double, _ value: (AirfoilCoefficients,Double), _ iterations: Int) throws -> FiniteWingSolution {
             let inducedAngle = value.0.lift*inducedFactor, inducedDrag = value.0.lift*inducedAngle
             let coefficients = AirfoilCoefficients(lift: value.0.lift,drag: value.0.drag+inducedDrag,moment: value.0.moment)
-            guard inducedDrag.isFinite, coefficients.isFinite else { throw AerodynamicError.nonFiniteResult }
+            guard inducedDrag.isFinite, coefficients.isFinite else { throw FluidError.nonFiniteResult }
             return FiniteWingSolution(coefficients: coefficients,effectiveAngleOfAttackRadians: effective,
                 inducedAngleRadians: inducedAngle,inducedDragCoefficient: inducedDrag,
                 angleResidualRadians: value.1,iterations: iterations)

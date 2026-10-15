@@ -4,14 +4,14 @@ Choose a prescribed slipstream or evolve a local incompressible flow field, and 
 
 ## Shared velocity convention
 
-``AirVelocityField`` returns physical **air** velocity in caller-selected common
-axes and frame. ``InducedAirVelocityField`` marks an increment; the actuator-disk
-provider conforms to it. ``SuperposedAirVelocityField`` adds increments to one
-background. A ``LocalCFDGrid`` returns total air velocity, including its boundary
+``FluidVelocityField`` returns physical **fluid** velocity in caller-selected common
+axes and frame. ``InducedFluidVelocityField`` marks an increment; the actuator-disk
+provider conforms to it. ``SuperposedFluidVelocityField`` adds increments to one
+background. A ``IncompressibleFlowGrid`` returns total fluid velocity, including its boundary
 background, and is deliberately not an induced-increment provider.
 
-AerodynamicFlow stores body motion relative to air, the opposite sign for a
-stationary body in a moving-air grid. Subtract air velocity from body velocity in
+FluidFlow stores body motion relative to the medium, the opposite sign for a
+stationary body in a moving-air grid. Subtract fluid velocity from body velocity in
 the same frame before expressing the difference in section/body axes:
 
 ```swift
@@ -20,11 +20,11 @@ let localFlow = try ambientFlow.replacingRelativeVelocity(
 ```
 
 Do not add a total CFD velocity to the same background again. Atmosphere rotation,
-vehicle translation and frame conversion remain explicit as in <doc:Foundations>.
+vehicle translation and frame conversion remain explicit as in [fluid conventions](/documentation/fluiddynamics).
 
 ## Actuator-disk propwash
 
-``ActuatorDiskPropwash`` accepts supplied positive thrust, signed air torque,
+``ActuatorDiskSlipstream`` accepts supplied positive thrust, signed fluid torque,
 radius, centre, downstream axis, density and nonnegative aligned upstream speed.
 For disk area A it solves `T = 2 rho A vi (V + vi)`, with disk speed `V + vi`, far
 wake speed `V + 2vi` and mass flow `rho A (V + vi)`. Downstream radius follows
@@ -41,18 +41,18 @@ not a divergence-free solution around obstacles. Swirl does not feed back into
 the axial momentum calculation; no shaft-power/efficiency closure is inferred.
 
 ```swift
-let disk = try ActuatorDiskPropwash(centreMetres: .zero,
+let disk = try ActuatorDiskSlipstream(centreMetres: .zero,
     downstreamAxis: SIMD3(-1, 0, 0), radiusMetres: 1,
-    thrustNewtons: 500, airTorqueNewtonMetres: 40,
+    thrustNewtons: 500, fluidTorqueNewtonMetres: 40,
     densityKilogramsPerCubicMetre: 1.2,
     upstreamAxialSpeedMetresPerSecond: 30)
-let field = try SuperposedAirVelocityField(
+let field = try SuperposedFluidVelocityField(
     backgroundMetresPerSecond: SIMD3(-30, 0, 0), increments: [disk])
 let airAtTail = try field.velocityMetresPerSecond(at: SIMD3(-3, 0.4, 0))
 ```
 
-The axis points along force **on the air**; aircraft thrust and torque have opposite
-signs. ``ActuatorDiskPropwash/reactionLoads(momentReferencePointMetres:)`` returns
+The axis points along force **on the fluid**; aircraft thrust and torque have opposite
+signs. ``ActuatorDiskSlipstream/reactionLoads(momentReferencePointMetres:)`` returns
 that reaction once, including its lever arm. Do not add it to the same propeller
 loads already returned by a propulsion provider. With an existing propulsion model,
 use its supplied thrust/torque only to construct the wake.
@@ -70,16 +70,16 @@ limits, axis/torque reversal, reaction moments and wing response to local wash.
 
 ## Local incompressible CFD
 
-``LocalCFDGrid`` is an optional experimental CPU solver, not a replacement for every
-coefficient or heating model. ``LocalCFDConfiguration`` accepts rectangular grids
+``IncompressibleFlowGrid`` is an optional experimental CPU solver, not a replacement for every
+coefficient or heating model. ``IncompressibleFlowConfiguration`` accepts rectangular grids
 of 4–64 cells per axis, with a default of 16³ (4,096 cells); powers of two are not
-required. Spacing, origin, constant density, sound speed, mean free path, kinematic
+required. Spacing, origin, constant density, sound speed, kinematic
 viscosity and outer boundary velocity are explicit. It conservatively restricts
-its component-wise speed bound to Mach ≤ 0.3 and mean-free-path/cell-size to ≤ 0.01.
+its component-wise speed bound to Mach ≤ 0.3 throughout the domain.
 This is a continuum, constant-density approximation without shock/energy equations.
 
 Velocity lives on staggered faces and gauge pressure at cell centres. Each step
-uses first-order semi-Lagrangian advection, explicit viscosity, prescribed air
+uses first-order semi-Lagrangian advection, explicit viscosity, prescribed fluid
 acceleration and pressure projection with a Jacobi-preconditioned conjugate-gradient
 solve. The pressure operator uses the same face gradient/divergence discretization.
 Projection reports iterations, relative L2 residual and maximum divergence before
@@ -101,12 +101,12 @@ is supplied at cell centres; moving bodies and moving-grid/remeshing support rem
 future extensions. The application owns frame transformations and motion coupling.
 
 ```swift
-let config = try LocalCFDConfiguration(minimumCornerMetres: SIMD3(repeating: -4),
+let config = try IncompressibleFlowConfiguration(minimumCornerMetres: SIMD3(repeating: -4),
     cellSizeMetres: 0.5, densityKilogramsPerCubicMetre: 1.2,
-    speedOfSoundMetresPerSecond: 340, meanFreePathMetres: 7e-8,
+    speedOfSoundMetresPerSecond: 340,
     kinematicViscositySquareMetresPerSecond: 1.5e-5,
     boundaryVelocityMetresPerSecond: SIMD3(-10, 0, 0))
-var grid = try LocalCFDGrid(configuration: config,
+var grid = try IncompressibleFlowGrid(configuration: config,
     solidAtCellCentre: { p in (p*p).sum() < 1 })
 let initialProjection = try grid.project(timeStepSeconds: 0.01)
 let report = try grid.advance(timeStepSeconds: 0.01,
@@ -125,7 +125,7 @@ update cadence, asynchronous work and interpolation between updates are external
 Substeps enforce an advective distance limit of 0.75 cell (including a conservative
 forcing bound) and the explicit diffusion limit `dt ≤ h²/(6 nu)`. The caller caps
 substeps and pressure iterations. A call's supplied acceleration field is held
-fixed over its substeps; it is acceleration of the **air**, not a requested velocity.
+fixed over its substeps; it is acceleration of the **fluid**, not a requested velocity.
 Cost is O(substeps × cells × pressureIterations), plus O(cells) interpolation/stencil
 work, with O(cells) storage. The first implementation is serial CPU Swift; SIMD,
 parallel/GPU backends and more efficient pressure solvers remain possible improvements.
@@ -139,7 +139,7 @@ numerical contracts, not validated aircraft drag/stall or turbulence predictions
 
 ## Rotor forcing and load coupling
 
-``ActuatorDiskAccelerationField`` spreads prescribed disk thrust and air torque over
+``ActuatorDiskAccelerationField`` spreads prescribed disk thrust and fluid torque over
 a finite cylinder. Its continuous force and torque integrals match the inputs;
 face-sampled grid quadrature has discretization error. Use the same density as the
 grid, resolve radius/thickness with multiple cells, keep the source away from outer
@@ -148,9 +148,9 @@ lose that source contribution. This initial source is not discretely normalized 
 guarantee exact prescribed total thrust/torque on an arbitrary coarse grid.
 
 ```swift
-let cfdDisk = try ActuatorDiskPropwash(centreMetres: SIMD3(2, 0, 0),
+let cfdDisk = try ActuatorDiskSlipstream(centreMetres: SIMD3(2, 0, 0),
     downstreamAxis: SIMD3(-1, 0, 0), radiusMetres: 0.75,
-    thrustNewtons: 80, airTorqueNewtonMetres: 2,
+    thrustNewtons: 80, fluidTorqueNewtonMetres: 2,
     densityKilogramsPerCubicMetre: 1.2, upstreamAxialSpeedMetresPerSecond: 10)
 let source = try ActuatorDiskAccelerationField(disk: cfdDisk, thicknessMetres: 1)
 let report = try grid.advance(timeStepSeconds: 0.01,
@@ -163,14 +163,14 @@ one-way prescribed rotor forcing; it does not infer rotor loading from the alter
 inflow or close an engine/propeller operating-point solve.
 
 Sample the resulting velocity for existing wing/tail/body/drag-area evaluators.
-``LocalCFDGrid/pressureLoadsOnSolids(momentReferencePointMetres:)`` optionally
+``IncompressibleFlowGrid/pressureLoadsOnSolids(momentReferencePointMetres:)`` optionally
 integrates gauge pressure on voxel solids using one-sided linear reconstruction
 (falling back to adjacent-cell pressure where necessary). It includes lever arms,
 but no viscous shear or unresolved thin-wing lift. Choose which model owns each
 pressure/lift/wake contribution. Do not also add the same whole-body coefficient
 loads, buoyancy from the same pressure gradient, or a second wake correction.
 Sampled-flow coupling alone does not deposit wing forces back into the fluid;
-mutual coupling must supply consistent air forcing and account for discretization
+mutual coupling must supply consistent fluid forcing and account for discretization
 error. The library does not claim automatic conservation for arbitrary hybrid models.
 
 ## Budget measurement
@@ -178,7 +178,7 @@ error. The library does not claim automatic conservation for arbitrary hybrid mo
 Run the opt-in workload with an optimized build:
 
 ```sh
-swift run --disable-sandbox -c release -debug-info-format none AerodynamicsDemo --cfd
+swift run --disable-sandbox -c release -debug-info-format none FluidPhysicsDemo --cfd
 ```
 
 It reports 16³, 20³ and 32³ timings, pressure iterations, divergence and voxel
@@ -189,3 +189,8 @@ it is not a sustained real-time guarantee or a validated sphere drag coefficient
 Choose resolution, domain, tolerance, cadence and maximum work from measurements
 on the target hardware. Propwash and CFD are both optional; neither is scheduled
 automatically by other aerodynamic evaluators.
+
+The common solver does not require gas molecular properties for a liquid. Continuum
+applicability is a material/model responsibility. Hydrodynamics adds liquid-property
+and absolute-pressure reference helpers; see [Hydrodynamics](/documentation/hydrodynamics).
+Compressible flow uses a distinct conservation solver described in <doc:CompressibleFlow>.

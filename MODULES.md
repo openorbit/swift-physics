@@ -1,44 +1,37 @@
 # Module boundaries
 
-Keep the main package name. Atmospheric models live in the
-`Sources/Atmospheres` target and are shared by CelMek and Aerodynamics. Magnetic
-field evaluators live in `Sources/MagneticFields` and are consumed by CelMek. Add focused library products
-for selective consumption, while retaining the existing `Physics` product. Module
-responsibilities are defined below. Legacy atmosphere types are re-exported by
-Aerodynamics after extraction.
+The package is `swift-physics`. Seven focused targets share physical contracts
+without importing vehicle systems or rendering. There are no compatibility
+re-exports or old aerodynamic names for the shared fluid APIs.
 
 ## Package products and imports
 
-| SwiftPM library product | Included module targets | Target dependencies |
-| --- | --- | --- |
-| `CelMek` | `CelMek` | `Math`, `Atmospheres`, `MagneticFields`, `Aerodynamics` |
-| `Math` | `Math` | None |
-| `Aerodynamics` | `Aerodynamics` | `Yams`, `Atmospheres` |
-| `Atmospheres` | `Atmospheres` | None |
-| `MagneticFields` | `MagneticFields` | None |
-| `Physics` (existing bundle) | `CelMek`, `Aerodynamics`, `Math`, `Atmospheres`, `MagneticFields`, `Aerodynamics` | Dependencies of those targets |
+| SwiftPM product | Module dependencies |
+| --- | --- |
+| `FluidDynamics` | None |
+| `Hydrodynamics` | `FluidDynamics` |
+| `Aerodynamics` | `FluidDynamics`, `Atmospheres`, `Yams` |
+| `CelMek` | `Math`, `Atmospheres`, `MagneticFields`, `FluidDynamics` |
+| `Math` | None |
+| `Atmospheres` | None |
+| `MagneticFields` | None |
+| `Physics` | Bundles all seven module targets |
 
-`Physics` is a product name, not a Swift module: there is no `import Physics`.
-Imports include `import CelMek`, `import Math`, `import Aerodynamics`, `import Atmospheres`, and `import MagneticFields`. Applications
-that directly use Math types should declare the Math product explicitly as well.
-Existing consumers selecting Physics can keep their manifest and imports.
+`Physics` is a product name, not a module. Import each module whose APIs are used;
+importing Aerodynamics does not re-export FluidDynamics or Atmospheres. A consumer
+using hull and sail models imports Hydrodynamics, Aerodynamics and FluidDynamics.
+CelMek's `FluidWrench` accepts shared loads without linking Aerodynamics or Yams.
+SwiftPM still resolves package-level dependencies independently of product selection.
 
 For a local development dependency:
 
 ```swift
-// In the application's Package.swift:
 .package(path: "/path/to/swift-celmek")
-
-// In the application's target dependencies:
+// Target dependencies; the package identity here follows the local folder name.
 .product(name: "CelMek", package: "swift-celmek"),
-.product(name: "Math", package: "swift-celmek")
+.product(name: "FluidDynamics", package: "swift-celmek"),
+.product(name: "Hydrodynamics", package: "swift-celmek")
 ```
-
-CelMek consumes Aerodynamics through its aerodynamic wrench adapter, so selecting
-CelMek also brings in Aerodynamics and Yams. Aerodynamics remains independent of
-CelMek. The package manifest also declares the documentation plugin. Product selection is
-not a promise of offline resolution or separately downloadable packages. CelMek still
-compiles its built-in coefficient tables; optional model packaging is future work.
 
 ## Responsibilities and dependency direction
 
@@ -79,12 +72,27 @@ dependencies. WMM/IGRF coefficient loaders and Swift harmonic evaluators impleme
 CelMek adds body identity, epoch-to-calendar injection and orientation adapters;
 magnetic evaluators do not depend on ephemerides or spacecraft integration.
 
-**Aerodynamics** owns aerodynamic physics: validated coefficient data, airfoil/wing
-geometry, local flow, physical forces/moments and heat-flux contracts. It re-exports
-Atmospheres for existing callers and does not depend on CelMek. Vehicle assembly,
-deployment/reefing sequences, actuators, gas management and coupled subsystem state
-evolution belong to a separate systems-modeling package. CelMek depends directly on Atmospheres for body
-lookup and a spherical rotating-medium drag adapter, without acquiring Yams.
+**FluidDynamics** owns medium-neutral flow, force/moment/reference geometry,
+surface traction integration, displacement buoyancy, scalar tables, propeller
+slipstreams and shared Cartesian numerical infrastructure. Incompressible projection
+and compressible conservative solvers are separate formulations. Gas EOS and
+transport contracts are providers rather than atmosphere/body catalogues. It has
+no dependency on other package modules, YAML, clocks or rigid-body state.
+
+**Aerodynamics** owns gas/airfoil/wing physics, aerodynamic coefficient data,
+finite-wing models, rarefied gas traction and entry heating correlations. It consumes
+FluidDynamics and explicit Atmospheres samples, without owning generic fluid contracts.
+
+**Hydrodynamics** owns liquid property providers, calm-surface partial-immersion
+geometry, hydrostatic/restoring loads, submerged-body damping/added inertia and
+liquid-specific CFD pressure calibration. It reuses FluidDynamics propeller/CFD
+machinery without importing Aerodynamics. Fully filled liquid CFD is distinct from
+future evolving free-surface/wave/two-phase support.
+
+Vehicle assembly, deployment, ballast/flooding/gas management, actuators, failures
+and coupled subsystem evolution belong to a separate systems package. Fluid models
+may own fluid field state, geometric interfaces and their numerical timesteps;
+consumers own scheduling, rigid-body integration and frame/state orchestration.
 
 **Game/renderer adapters** belong in consumer applications or future optional targets.
 They consume CelMek and optionally Aerodynamics. Engine clocks, rendering axes,
@@ -101,12 +109,11 @@ and atmosphere-to-force adapters. Such a split must preserve one shared definiti
 of epoch, state and frame identity; it must not duplicate frame singletons or require
 mutual imports.
 
-A future split can move shared contracts to a lower target before moving implementations,
-with an explicit compatibility/migration plan. Until then, keep numerical implementations
+Extract shared contracts before implementations and preserve acyclic dependencies. Until then, keep numerical implementations
 in Swift and avoid adding runtime dependencies to compensate for missing algorithms.
 Reference tools may use external implementations for independent fixture generation;
 they are developer tooling rather than linked library dependencies.
 
-No package rename, source relocation, broad public-visibility expansion or namespace
-migration is part of this decision. New public APIs should expose validated contracts;
-legacy internal routines can be adapted as needed rather than exported wholesale.
+Shared vector helpers use package visibility; implementation helpers are not promoted
+to public APIs solely to cross a target boundary. New public APIs expose validated
+physical contracts rather than vehicle-system ownership.

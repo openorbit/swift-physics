@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -7,12 +8,12 @@ import Aerodynamics
     struct Polar: WingSectionCoefficientModel {
         var nonlinear = false
         func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients {
-            guard let alpha = query.angleOfAttackRadians else { throw AerodynamicError.missingFlowProperty }
+            guard let alpha = query.angleOfAttackRadians else { throw FluidError.missingFlowProperty }
             return AirfoilCoefficients(lift: nonlinear ? 3*sin(2*alpha) : 2*Double.pi*alpha,drag: 0.01,moment: -0.02)
         }
     }
-    func flow(alpha: Double = 0.08, speed: Double = 30) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed*cos(alpha),0,speed*sin(alpha)),
+    func flow(alpha: Double = 0.08, speed: Double = 30) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed*cos(alpha),0,speed*sin(alpha)),
             densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 340,dynamicViscosityPascalSeconds: 1.8e-5)
     }
     func segments(count: Int = 8, span: Double = 8, centre: SIMD3<Double> = .zero, nonlinear: Bool = false) throws -> [WingSegment] {
@@ -95,13 +96,13 @@ import Aerodynamics
     }
     @Test func failureIsExplicitAndNoInvalidFlowFallback() throws {
         let s = try segments()
-        #expect(throws: AerodynamicError.nonConvergence) {
+        #expect(throws: FluidError.nonConvergence) {
             try solver(s,iterations: 1).evaluate { _ in try flow() }
         }
-        #expect(throws: AerodynamicError.outsideCoverage) { try solver(s).evaluate { _ in try flow(speed: 200) } }
-        #expect(throws: AerodynamicError.invalidGeometry) { try solver([s[0],s[0]]) }
-        #expect(throws: AerodynamicError.invalidGeometry) { try solver(s,core: 1) }
+        #expect(throws: FluidError.outsideCoverage) { try solver(s).evaluate { _ in try flow(speed: 200) } }
+        #expect(throws: FluidError.invalidGeometry) { try solver([s[0],s[0]]) }
+        #expect(throws: FluidError.invalidGeometry) { try solver(s,core: 1) }
         let wing = try solver(s)
-        #expect(throws: AerodynamicError.invalidParameter) { try wing.inducedAirVelocity(at: .zero,circulation: []) }
+        #expect(throws: FluidError.invalidParameter) { try wing.inducedAirVelocity(at: .zero,circulation: []) }
     }
 }

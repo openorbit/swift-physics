@@ -1,4 +1,4 @@
-"""Build five module DocC archives and merge a package archive.
+"""Build module DocC archives and merge a package archive.
 Usage: python3 Tools/Documentation/build.py [--disable-sandbox]
 Requires a Swift toolchain with DocC merge support (Xcode 16 or newer).
 """
@@ -22,7 +22,7 @@ if not docc:
 help_text = subprocess.check_output([docc, "convert", "--help"], text=True)
 # Older plugin releases inject --index, which newer DocC toolchains removed.
 index_flags = ["--disable-indexing", "--emit-lmdb-index"] if "--emit-lmdb-index" in help_text else []
-modules = ["CelMek", "Math", "Aerodynamics", "Atmospheres", "MagneticFields"]
+modules = ["FluidDynamics", "Hydrodynamics", "CelMek", "Math", "Aerodynamics", "Atmospheres", "MagneticFields"]
 archives = []
 for module in modules:
     archive = output / f"{module}.doccarchive"

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
 
 @Suite struct EntrySurfaceHeatingTests {
     let data = CoverageDataTests()
-    func flow(speed: Double = 2000, density: Double = 0.001, path: Double = 1e-6) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),densityKilogramsPerCubicMetre: density,
+    func flow(speed: Double = 2000, density: Double = 0.001, path: Double = 1e-6) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),densityKilogramsPerCubicMetre: density,
             pressurePascals: 100,temperatureKelvin: 400,speedOfSoundMetresPerSecond: 400,dynamicViscosityPascalSeconds: 2e-5,meanFreePathMetres: path)
     }
     func coverage() throws -> StagnationHeatingCoverage {
@@ -27,23 +28,23 @@ import Aerodynamics
             #expect(abs(result.stantonNumber-st) < 1e-14)
             #expect(abs(result.wattsPerSquareMetre-2*st*(2e6-wall)) < 1e-8)
         }
-        #expect(throws: AerodynamicError.unsupportedQuery) {
+        #expect(throws: FluidError.unsupportedQuery) {
             try model.evaluate(EnthalpySurfaceHeatingQuery(edgeFlow: flow(),gasIdentifier: "other",distanceFromLeadingEdgeMetres: 1,
                 adiabaticWallEnthalpyJoulesPerKilogram: 2e6,wallEnthalpyJoulesPerKilogram: 1e6,surfacePositionMetres: .zero))
         }
-        #expect(throws: AerodynamicError.outsideCoverage) {
+        #expect(throws: FluidError.outsideCoverage) {
             try model.evaluate(EnthalpySurfaceHeatingQuery(edgeFlow: flow(),gasIdentifier: "test",distanceFromLeadingEdgeMetres: 1,
                 adiabaticWallEnthalpyJoulesPerKilogram: 1e8,wallEnthalpyJoulesPerKilogram: 1e6,surfacePositionMetres: .zero))
         }
-        #expect(throws: AerodynamicError.outsideCoverage) {
+        #expect(throws: FluidError.outsideCoverage) {
             try model.evaluate(EnthalpySurfaceHeatingQuery(edgeFlow: flow(path: 1),gasIdentifier: "test",distanceFromLeadingEdgeMetres: 1,
                 adiabaticWallEnthalpyJoulesPerKilogram: 2e6,wallEnthalpyJoulesPerKilogram: 1e6,surfacePositionMetres: .zero))
         }
     }
     struct SphereReference: ConvectiveHeatingModel {
-        func heatFlux(for query: StagnationHeatingQuery) throws -> AerodynamicHeatFlux {
-            guard query.noseRadiusMetres == 0.3048, query.gasIdentifier == "earth-air", query.wall == nil else { throw AerodynamicError.unsupportedQuery }
-            return try AerodynamicHeatFlux(wattsPerSquareMetre: 1000,surfacePositionMetres: query.surfacePositionMetres)
+        func heatFlux(for query: StagnationHeatingQuery) throws -> SurfaceHeatFlux {
+            guard query.noseRadiusMetres == 0.3048, query.gasIdentifier == "earth-air", query.wall == nil else { throw FluidError.unsupportedQuery }
+            return try SurfaceHeatFlux(wattsPerSquareMetre: 1000,surfacePositionMetres: query.surfacePositionMetres)
         }
     }
     @Test func sweptLeadingEdgeReferenceRadiusAndSweep() throws {
@@ -56,12 +57,12 @@ import Aerodynamics
         #expect(abs(swept.wattsPerSquareMetre-659.753955386447) < 1e-9)
         #expect(try model.heatFlux(for: query,effectiveSweepRadians: -.pi/3).wattsPerSquareMetre == swept.wattsPerSquareMetre)
         #expect(swept.surfacePositionMetres == SIMD3(1,2,3))
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.heatFlux(for: query,effectiveSweepRadians: 1.1) }
-        #expect(throws: AerodynamicError.invalidGeometry) { try LeadingEdgeHeatingQuery(stagnation: query,effectiveSweepRadians: .pi/2) }
+        #expect(throws: FluidError.outsideCoverage) { try model.heatFlux(for: query,effectiveSweepRadians: 1.1) }
+        #expect(throws: FluidError.invalidGeometry) { try LeadingEdgeHeatingQuery(stagnation: query,effectiveSweepRadians: .pi/2) }
         let wrongGas = try StagnationHeatingQuery(flow: flow(),gasIdentifier: "other",noseRadiusMetres: 0.0762,surfacePositionMetres: .zero)
-        #expect(throws: AerodynamicError.unsupportedQuery) { try model.heatFlux(for: wrongGas,effectiveSweepRadians: 0) }
+        #expect(throws: FluidError.unsupportedQuery) { try model.heatFlux(for: wrongGas,effectiveSweepRadians: 0) }
         let rarefied = try StagnationHeatingQuery(flow: flow(path: 1),gasIdentifier: "earth-air",noseRadiusMetres: 0.0762,surfacePositionMetres: .zero)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.heatFlux(for: rarefied,effectiveSweepRadians: 0) }
+        #expect(throws: FluidError.outsideCoverage) { try model.heatFlux(for: rarefied,effectiveSweepRadians: 0) }
     }
     @Test func suppliedRadiationIsIndependentIncomingFlux() throws {
         let axes = try [data.axis("speed",[1000,5000],units: "m/s"),data.axis("density",[1e-4,0.01],units: "kg/m^3"),
@@ -70,13 +71,13 @@ import Aerodynamics
         let model = try TabulatedRadiativeHeating(gasIdentifier: "test",flux: table,coverage: coverage(),freestreamTemperatureKelvin: 300...500)
         let query = try StagnationHeatingQuery(flow: flow(),gasIdentifier: "test",noseRadiusMetres: 0.5,surfacePositionMetres: .zero)
         #expect(abs(try model.heatFlux(for: query).wattsPerSquareMetre-200006) < 1e-7)
-        let hotFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(2000,0,0),densityKilogramsPerCubicMetre: 0.001,
+        let hotFlow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(2000,0,0),densityKilogramsPerCubicMetre: 0.001,
             temperatureKelvin: 600,speedOfSoundMetresPerSecond: 400,meanFreePathMetres: 1e-6)
         let hotQuery = try StagnationHeatingQuery(flow: hotFlow,gasIdentifier: "test",noseRadiusMetres: 0.5,surfacePositionMetres: .zero)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.heatFlux(for: hotQuery) }
+        #expect(throws: FluidError.outsideCoverage) { try model.heatFlux(for: hotQuery) }
         let wallQuery = try StagnationHeatingQuery(flow: flow(),gasIdentifier: "test",noseRadiusMetres: 0.5,
             surfacePositionMetres: .zero,wall: AerothermalWallState(temperatureKelvin: 300))
-        #expect(throws: AerodynamicError.unsupportedQuery) { try model.heatFlux(for: wallQuery) }
+        #expect(throws: FluidError.unsupportedQuery) { try model.heatFlux(for: wallQuery) }
     }
     @Test func fullyTurbulentFlatPlateAndIntegratedDistribution() throws {
         let model = TurbulentFlatPlateHeating()
@@ -101,6 +102,6 @@ import Aerodynamics
         let start = try model.evaluate(fixture.query(x: 1))
         #expect(abs(start.wattsPerSquareMetre/end.wattsPerSquareMetre-pow(2,0.2)) < 1e-12)
         #expect(try model.evaluate(fixture.query(x: 2,wall: 330,edge: 300)).wattsPerSquareMetre < 0)
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.evaluate(fixture.query(x: 0.1)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.evaluate(fixture.query(x: 0.1)) }
     }
 }

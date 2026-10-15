@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-import Aerodynamics
+import FluidDynamics
 import Atmospheres
 import Math
 import Testing
 @testable import CelMek
 
-@Suite struct AerodynamicWrenchTests {
+@Suite struct FluidWrenchTests {
     @Test func rotatesForceTransfersMomentAndSubtractsAirVelocity() throws {
         let frame = Frame(name: "Aero inertial", pseudoInertial: true)
         let body = Frame(parent: frame, name: "Aero body", pseudoInertial: false)
@@ -19,20 +19,20 @@ import Testing
             principalMomentsKilogramSquareMetres: SIMD3(2, 3, 4)), bodyFrame: body,
             referenceContext: ForceEvaluationContext(frame: frame, origin: .earth))
         let ambient = try ISAAtmosphere().properties(at: 0)
-        let flow = try state.aerodynamicFlow(airVelocityReferenceMetresPerSecond: SIMD3(0, 637.1, 0),
+        let flow = try state.fluidFlow(mediumVelocityReferenceMetresPerSecond: SIMD3(0, 637.1, 0),
                                             properties: ambient)
         #expect(abs(flow.relativeVelocityMetresPerSecond.x-100) < 1e-10)
         #expect(abs(flow.relativeVelocityMetresPerSecond.y) < 1e-10)
         let sample = try AtmosphereSample(epoch: .j2000, frame: frame, origin: .earth,
             densityKilogramsPerCubicMetre: ambient.densityKilogramsPerCubicMetre,
             velocityMetresPerSecond: SIMD3(0, 637.1, 0))
-        let checked = try state.aerodynamicFlow(atmosphere: sample, origin: .earth, properties: ambient)
+        let checked = try state.fluidFlow(atmosphere: sample, origin: .earth, properties: ambient)
         #expect(checked.relativeVelocityMetresPerSecond == flow.relativeVelocityMetresPerSecond)
         #expect(throws: EnvironmentalForceError.originMismatch) {
-            try state.aerodynamicFlow(atmosphere: sample, origin: .mars, properties: ambient)
+            try state.fluidFlow(atmosphere: sample, origin: .mars, properties: ambient)
         }
-        let adapter = try AerodynamicWrench(bodyFrame: body, centreOfMassBodyMetres: SIMD3(1, 0, 0)) { _, _ in
-            try AerodynamicLoads(forceNewtons: SIMD3(-10, 0, -20),
+        let adapter = try FluidWrench(bodyFrame: body, centreOfMassBodyMetres: SIMD3(1, 0, 0)) { _, _ in
+            try FluidLoads(forceNewtons: SIMD3(-10, 0, -20),
                 momentNewtonMetres: SIMD3(0, 3, 0), referencePointMetres: SIMD3(2, 0, 0))
         }
         let wrench = try adapter.contribution(for: state, in: context)
@@ -46,9 +46,9 @@ import Testing
         #expect(derivative.translation.velocityRateMetresPerSecondSquared.z == -0.2)
         #expect(abs(derivative.rotation.angularAccelerationBodyRadiansPerSecondSquared.y-23.0/3) < 1e-12)
         let wrongBody = Frame(name: "Other body", pseudoInertial: false)
-        let wrong = try AerodynamicWrench(bodyFrame: wrongBody) { _, _ in
+        let wrong = try FluidWrench(bodyFrame: wrongBody) { _, _ in
             Issue.record("Frame mismatch must fail before evaluation")
-            return try AerodynamicLoads(forceNewtons: .zero, momentNewtonMetres: .zero)
+            return try FluidLoads(forceNewtons: .zero, momentNewtonMetres: .zero)
         }
         #expect(throws: AttitudeError.frameMismatch) { try wrong.contribution(for: state, in: context) }
     }

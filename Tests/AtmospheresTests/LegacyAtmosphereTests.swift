@@ -1,5 +1,5 @@
 import Testing
-import Aerodynamics
+import Atmospheres
 @Suite struct AtmosphereTest {
     @Test func legacyFacadeUsesSI() {
         let atm = EarthAtmosphere()

@@ -40,7 +40,7 @@ let downstreamFlow = try incidentFlow.replacingRelativeVelocity(
     incidentFlow.relativeVelocityMetresPerSecond - airWake)
 ```
 
-Both vectors must share axes, units and frame. ``AerodynamicFlow/replacingRelativeVelocity(_:)``
+Both vectors must share axes, units and frame. `FluidFlow/replacingRelativeVelocity(_:)`
 also works with body, panel and parachute providers. For mutually interacting
 lifting surfaces, put all their strips in one solver; successive isolated solves
 provide only one-way interaction. Body shielding, wake deficits and arbitrary

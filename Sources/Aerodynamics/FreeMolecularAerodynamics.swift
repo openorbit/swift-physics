@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// Ideal single-species Maxwellian gas parameter, with R in J/(kg K).
@@ -10,7 +11,7 @@ public struct FreeMolecularGas: Sendable {
     public init(identifier: String, specificGasConstantJoulesPerKilogramKelvin: Double, source: String) throws {
         guard [identifier,source].allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
               specificGasConstantJoulesPerKilogramKelvin.isFinite, specificGasConstantJoulesPerKilogramKelvin > 0 else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         self.identifier = identifier; self.specificGasConstantJoulesPerKilogramKelvin = specificGasConstantJoulesPerKilogramKelvin
         self.source = source
@@ -23,7 +24,7 @@ public struct GasSurfaceReflection: Sendable {
     public let wallTemperatureKelvin: Double
     public init(specularFraction: Double, wallTemperatureKelvin: Double) throws {
         guard specularFraction.isFinite, (0...1).contains(specularFraction),
-              wallTemperatureKelvin.isFinite, wallTemperatureKelvin > 0 else { throw AerodynamicError.invalidParameter }
+              wallTemperatureKelvin.isFinite, wallTemperatureKelvin > 0 else { throw FluidError.invalidParameter }
         self.specularFraction = specularFraction; self.wallTemperatureKelvin = wallTemperatureKelvin
     }
 }
@@ -36,21 +37,21 @@ public struct MaxwellianFreeMolecularTraction: SurfaceTractionModel {
     public let surface: GasSurfaceReflection
     public let minimumKnudsenNumber: Double
     public init(gas: FreeMolecularGas, surface: GasSurfaceReflection, minimumKnudsenNumber: Double = 10) throws {
-        guard minimumKnudsenNumber.isFinite, minimumKnudsenNumber >= 10 else { throw AerodynamicError.invalidParameter }
+        guard minimumKnudsenNumber.isFinite, minimumKnudsenNumber >= 10 else { throw FluidError.invalidParameter }
         self.gas = gas; self.surface = surface; self.minimumKnudsenNumber = minimumKnudsenNumber
     }
-    public func traction(panel: AerodynamicSurfacePanel, flow: AerodynamicFlow,
+    public func traction(panel: FluidSurfacePanel, flow: FluidFlow,
                          referenceLengthMetres: Double) throws -> SurfaceTraction {
         guard let temperature = flow.temperatureKelvin,
-              let kn = try flow.knudsenNumber(referenceLengthMetres: referenceLengthMetres) else { throw AerodynamicError.missingFlowProperty }
-        guard kn >= minimumKnudsenNumber else { throw AerodynamicError.outsideCoverage }
+              let kn = try flow.knudsenNumber(referenceLengthMetres: referenceLengthMetres) else { throw FluidError.missingFlowProperty }
+        guard kn >= minimumKnudsenNumber else { throw FluidError.outsideCoverage }
         let r = gas.specificGasConstantJoulesPerKilogramKelvin
         let sigma = sqrt(r)*sqrt(temperature), wallSigma = sqrt(r)*sqrt(surface.wallTemperatureKelvin)
-        guard sigma.isFinite, sigma > 0, wallSigma.isFinite else { throw AerodynamicError.nonFiniteResult }
+        guard sigma.isFinite, sigma > 0, wallSigma.isFinite else { throw FluidError.nonFiniteResult }
         let normalVelocity = (flow.relativeVelocityMetresPerSecond*panel.outwardNormal).sum()
         let a = normalVelocity/sigma
         // Explicit numerical coverage bound; not a Mach or physical gas validity limit.
-        guard a.isFinite, abs(a) <= 1e6 else { throw AerodynamicError.outsideCoverage }
+        guard a.isFinite, abs(a) <= 1e6 else { throw FluidError.outsideCoverage }
         if !panel.exposedToFlow { return try SurfaceTraction(gaugePressurePascals: 0,shearPascals: .zero) }
         let phi = exp(-0.5*a*a)/sqrt(2*Double.pi)
         let massMoment: Double, pressureMoment: Double
@@ -71,8 +72,8 @@ public struct MaxwellianFreeMolecularTraction: SurfaceTractionModel {
         let specular = surface.specularFraction, diffuse = 1-specular
         let reflectedDiffusePressure = incidentMassFlux*wallSigma*sqrt(Double.pi/2)
         let pressure = (1+specular)*incidentPressure+diffuse*reflectedDiffusePressure-ambientPressure
-        let tangentVelocity = aeroCross(panel.outwardNormal,
-            aeroCross(flow.relativeVelocityMetresPerSecond,panel.outwardNormal))
+        let tangentVelocity = fluidCross(panel.outwardNormal,
+            fluidCross(flow.relativeVelocityMetresPerSecond,panel.outwardNormal))
         let shear = -tangentVelocity*(diffuse*incidentMassFlux)
         return try SurfaceTraction(gaugePressurePascals: pressure,shearPascals: shear)
     }

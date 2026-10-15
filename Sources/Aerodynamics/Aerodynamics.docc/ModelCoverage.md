@@ -19,11 +19,11 @@ Select the physical approximation and data coverage explicitly, then assess nume
 | SuttonGravesHeating / mixture / H₂-He | Distinct gas-specific stagnation correlations with their own bounds and wall assumptions | O(1) per point |
 | SweptCylinderStagnationHeating | Idealized laminar Earth-air stagnation line, supplied sphere model, bounded effective sweep | One sphere evaluation plus O(1) |
 | TabulatedRadiativeHeating | Supplied cold-wall shock-layer radiation data and gas-specific continuum coverage | At most 8 corners |
-| ActuatorDiskPropwash | Prescribed axial thrust/torque, ideal contracting top-hat slipstream and swirl; no body deflection | O(1) per point |
-| LocalCFDGrid | Constant-density incompressible MAC grid, Mach ≤ 0.3, Kn_cell ≤ 0.01, fixed free-slip solids and prescribed box boundary velocities | O(substeps × cells × pressureIterations) |
-| DragAreaAerodynamics / buoyancy | Supplied current drag area/coefficient and displaced volume/local pressure gradient | Provider cost plus O(1) |
+| ActuatorDiskSlipstream | Prescribed axial thrust/torque, ideal contracting top-hat slipstream and swirl; no body deflection | O(1) per point |
+| IncompressibleFlowGrid | Constant-density incompressible MAC grid, Mach ≤ 0.3, caller-established continuum applicability, fixed free-slip solids and prescribed box boundary velocities | O(substeps × cells × pressureIterations) |
+| DragAreaForces / buoyancy | Supplied current drag area/coefficient and displaced volume/local pressure gradient | Provider cost plus O(1) |
 
-Tables carry source, version and assumptions. ``AerodynamicScalarTable`` supports
+Tables carry source, version and assumptions. `FluidScalarTable` supports
 1–8 named/unit-labelled axes, strict ordering, finite values and complete grids,
 with last-axis-fastest storage, multilinear interpolation and no extrapolation.
 JSON decoding revalidates structure. Physical wrappers additionally check axis
@@ -42,7 +42,7 @@ Mach numbers. No validated generic capsule/spaceplane database is bundled.
 
 ## Gas and transport
 
-``PerfectGasMixture`` stores explicit mass fractions of ``PerfectGasSpecies`` and
+`PerfectGasMixture` stores explicit mass fractions of `PerfectGasSpecies` and
 mass-weights cp and R. Each species declares a constant-cp temperature range; the
 mixture uses their intersection. It supplies ideal-gas density and sound speed and
 can construct film transport properties with **caller-supplied** viscosity and
@@ -72,7 +72,7 @@ provider is unavailable. Buoyancy is evaluated independently of airspeed.
 
 ## Runnable entry comparison
 
-Run `swift run AerodynamicsDemo`. In addition to wing/control/parachute/balloon
+Run `swift run FluidPhysicsDemo`. In addition to wing/control/parachute/balloon
 examples it integrates 25 seconds of planar prescribed-attitude entry for a
 lifting capsule and a pressure-panel wing. The harness owns RK4, gravity, mass,
 attitude prescription and heat-load integration. Aerodynamics only returns loads
@@ -91,13 +91,14 @@ this harness does not assess trim, structural response or closed-loop guidance.
 Step refinement measures integration sensitivity, not physical accuracy. Other
 tests separately compare spanwise convergence, classical lifting-line references,
 independent molecular quadrature, published stagnation-heating CFD and similarity
-heat-transfer values. Supplied-data tests establish interpolation and contracts;
+heat-transfer values. The shared fluid implementations and their numerical tests now belong to FluidDynamics.
+Supplied-data tests establish interpolation and contracts;
 real vehicle data still needs independent calibration/validation.
 
 ## Deliberate limits and later fidelity
 
 The initial physics/API workstream includes replaceable providers for the remaining
-regimes. The optional local incompressible solver is described in <doc:PropwashAndCFD>.
+regimes. The optional local incompressible solver is described in [shared propwash/CFD guide](/documentation/fluiddynamics/propellersandcfd).
 It does not include a general compressible CFD/DSMC/radiation solver or universal
 validated vehicle datasets. Free-wake rollup, swept/separated-wing fidelity,
 chemistry-resolved transport and high-enthalpy/transitional/radiative databases

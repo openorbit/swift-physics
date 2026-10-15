@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// Columns of the six-coefficient derivative with respect to pHat, qHat, rHat.
 /// Signed derivatives may describe damping or excitation; no stability is inferred.
 public struct BodyAerodynamicRateDerivatives: Sendable {
-    public let rollRate: AerodynamicCoefficients
-    public let pitchRate: AerodynamicCoefficients
-    public let yawRate: AerodynamicCoefficients
-    public init(rollRate: AerodynamicCoefficients, pitchRate: AerodynamicCoefficients,
-                yawRate: AerodynamicCoefficients) {
+    public let rollRate: FluidCoefficients
+    public let pitchRate: FluidCoefficients
+    public let yawRate: FluidCoefficients
+    public init(rollRate: FluidCoefficients, pitchRate: FluidCoefficients,
+                yawRate: FluidCoefficients) {
         self.rollRate = rollRate; self.pitchRate = pitchRate; self.yawRate = yawRate
     }
-    public func increment(nondimensionalRates rates: SIMD3<Double>) throws -> AerodynamicCoefficients {
-        guard aeroFinite(rates) else { throw AerodynamicError.invalidParameter }
-        return try AerodynamicCoefficients(force: rollRate.force*rates.x+pitchRate.force*rates.y+yawRate.force*rates.z,
+    public func increment(nondimensionalRates rates: SIMD3<Double>) throws -> FluidCoefficients {
+        guard fluidFinite(rates) else { throw FluidError.invalidParameter }
+        return try FluidCoefficients(force: rollRate.force*rates.x+pitchRate.force*rates.y+yawRate.force*rates.z,
             moment: rollRate.moment*rates.x+pitchRate.moment*rates.y+yawRate.moment*rates.z)
     }
 }
@@ -47,18 +48,18 @@ public struct ConstantBodyRateDerivatives: BodyAerodynamicRateDerivativeModel {
               [incidenceRangeRadians.lowerBound,incidenceRangeRadians.upperBound].allSatisfy({ $0.isFinite && abs($0) <= .pi }),
               [sideslipRangeRadians.lowerBound,sideslipRangeRadians.upperBound].allSatisfy({ $0.isFinite && abs($0) <= .pi/2 }),
               [momentLengthsMetres.x,momentLengthsMetres.y,momentLengthsMetres.z].allSatisfy({ $0.isFinite && $0 > 0 }),
-              reynoldsReferenceLengthMetres.isFinite, reynoldsReferenceLengthMetres > 0 else { throw AerodynamicError.invalidParameter }
+              reynoldsReferenceLengthMetres.isFinite, reynoldsReferenceLengthMetres > 0 else { throw FluidError.invalidParameter }
         self.value = value; self.source = source; self.version = version; self.machRange = machRange; self.reynoldsRange = reynoldsRange
         self.incidenceRangeRadians = incidenceRangeRadians; self.sideslipRangeRadians = sideslipRangeRadians
         self.momentLengthsMetres = momentLengthsMetres; self.reynoldsReferenceLengthMetres = reynoldsReferenceLengthMetres
     }
     public func derivatives(for query: BodyAerodynamicQuery) throws -> BodyAerodynamicRateDerivatives {
         guard query.momentLengthsMetres == momentLengthsMetres,
-              query.reynoldsReferenceLengthMetres == reynoldsReferenceLengthMetres else { throw AerodynamicError.invalidGeometry }
+              query.reynoldsReferenceLengthMetres == reynoldsReferenceLengthMetres else { throw FluidError.invalidGeometry }
         guard let mach = query.machNumber, let re = try query.reynoldsNumber(),
-              let alpha = query.angleOfAttackRadians, let beta = query.sideslipRadians else { throw AerodynamicError.missingFlowProperty }
+              let alpha = query.angleOfAttackRadians, let beta = query.sideslipRadians else { throw FluidError.missingFlowProperty }
         guard machRange.contains(mach), reynoldsRange.contains(re), incidenceRangeRadians.contains(alpha),
-              sideslipRangeRadians.contains(beta) else { throw AerodynamicError.outsideCoverage }
+              sideslipRangeRadians.contains(beta) else { throw FluidError.outsideCoverage }
         return value
     }
 }
@@ -79,24 +80,24 @@ public struct LinearBodyRateAerodynamics: BodyAerodynamicCoefficientModel {
                 minimumSpeedMetresPerSecond: Double,
                 maximumAbsoluteNondimensionalRates: SIMD3<Double>) throws {
         guard minimumSpeedMetresPerSecond.isFinite, minimumSpeedMetresPerSecond > 0,
-              aeroFinite(maximumAbsoluteNondimensionalRates),
+              fluidFinite(maximumAbsoluteNondimensionalRates),
               [maximumAbsoluteNondimensionalRates.x,maximumAbsoluteNondimensionalRates.y,
-               maximumAbsoluteNondimensionalRates.z].allSatisfy({ $0 >= 0 }) else { throw AerodynamicError.invalidParameter }
+               maximumAbsoluteNondimensionalRates.z].allSatisfy({ $0 >= 0 }) else { throw FluidError.invalidParameter }
         self.staticModel = staticModel; self.derivativeModel = derivativeModel; self.rateReference = rateReference
         self.minimumSpeedMetresPerSecond = minimumSpeedMetresPerSecond
         self.maximumAbsoluteNondimensionalRates = maximumAbsoluteNondimensionalRates
     }
-    public func coefficients(for query: BodyAerodynamicQuery) throws -> AerodynamicCoefficients {
-        guard query.angularRateReference == rateReference else { throw AerodynamicError.unsupportedQuery }
+    public func coefficients(for query: BodyAerodynamicQuery) throws -> FluidCoefficients {
+        guard query.angularRateReference == rateReference else { throw FluidError.unsupportedQuery }
         guard query.flow.speedMetresPerSecond >= minimumSpeedMetresPerSecond,
-              let rates = query.nondimensionalAngularRates else { throw AerodynamicError.outsideCoverage }
+              let rates = query.nondimensionalAngularRates else { throw FluidError.outsideCoverage }
         let bounds = maximumAbsoluteNondimensionalRates
-        guard abs(rates.x) <= bounds.x, abs(rates.y) <= bounds.y, abs(rates.z) <= bounds.z else { throw AerodynamicError.outsideCoverage }
+        guard abs(rates.x) <= bounds.x, abs(rates.y) <= bounds.y, abs(rates.z) <= bounds.z else { throw FluidError.outsideCoverage }
         let staticQuery = try BodyAerodynamicQuery(flow: query.flow,
             reynoldsReferenceLengthMetres: query.reynoldsReferenceLengthMetres,
             momentLengthsMetres: query.momentLengthsMetres, angularRateReference: rateReference)
         let base = try staticModel.coefficients(for: staticQuery)
         let increment = try derivativeModel.derivatives(for: staticQuery).increment(nondimensionalRates: rates)
-        return try AerodynamicCoefficients(force: base.force+increment.force, moment: base.moment+increment.moment)
+        return try FluidCoefficients(force: base.force+increment.force, moment: base.moment+increment.moment)
     }
 }

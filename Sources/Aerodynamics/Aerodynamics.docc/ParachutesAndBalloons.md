@@ -6,14 +6,14 @@ opening shock, gas inventory or thermal evolution.
 
 ## Steady drag
 
-``DragAreaAerodynamics`` applies `F = −velocityDirection q Cd area` at an explicit
+`DragAreaForces` applies `F = −velocityDirection q Cd area` at an explicit
 force application point and transfers the resulting moment to the requested point.
 ``ParachuteAerodynamics`` uses this contract for a supplied current canopy.
 Area must follow the coefficient dataset's definition, such as nominal canopy area
 or projected area. Supply shape, reefing and wake effects through the current area
 or a calibrated coefficient provider; count each correction once.
 
-``DragCoefficientModel`` permits custom providers. ``TabulatedDragCoefficients``
+`DragCoefficientModel` permits custom providers. `TabulatedDragCoefficients`
 validates a complete rectangular Mach/Reynolds grid, nonnegative coefficients,
 source and version, and interpolates linearly in each coordinate. It rejects queries
 outside the grid and requires sound speed and viscosity. A supplied axis points
@@ -30,7 +30,7 @@ let data = try TabulatedDragCoefficients(samples: [
     DragCoefficientSample(machNumber: 0.5, reynoldsNumber: 1e4, dragCoefficient: 1.5),
     DragCoefficientSample(machNumber: 0.5, reynoldsNumber: 1e6, dragCoefficient: 1.5)
 ], source: "Synthetic demonstration coefficients", version: "1")
-let drag = try DragAreaAerodynamics(areaSquareMetres: 20, referenceLengthMetres: 5,
+let drag = try DragAreaForces(areaSquareMetres: 20, referenceLengthMetres: 5,
     forceApplicationPointMetres: SIMD3(0, 0, -2), model: data)
 let parachute = ParachuteAerodynamics(drag: drag)
 let loads = try parachute.evaluate(flow: flow)
@@ -50,10 +50,10 @@ no transient inflation loads or opening-load prediction.
 
 ## Displaced-volume buoyancy
 
-``Buoyancy`` accepts volume in m³ and centre of buoyancy in metres. Under local
+`Buoyancy` accepts volume in m³ and centre of buoyancy in metres. Under local
 hydrostatic conditions, it returns `F = −ρ volume gravity`. Alternatively, with an
 approximately uniform pressure gradient, it returns `F = −volume gradientPressure`.
-``BuoyancyField`` selects one description. The gradient includes the full ambient
+`BuoyancyField` selects one description. The gradient includes the full ambient
 pressure field and is not added to a second hydrostatic buoyancy force. Density is
 used by the gravity form; the gradient form uses the supplied gradient directly.
 For significant atmospheric rotation or other departures from static hydrostatic

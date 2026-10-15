@@ -4,7 +4,7 @@ Evaluate bounded laminar or fully turbulent flat-plate heat transfer separately 
 
 ``SurfaceConvectiveHeatingModel`` accepts local boundary-layer-edge flow, distance
 along the streamline from the leading edge, a supplied wall temperature and
-``AerothermalTransportProperties``. The latter carries gas identity/provenance and
+`ThermalTransportProperties`. The latter carries gas identity/provenance and
 film-temperature density, viscosity, conductivity and specific heat. No body-specific
 transport defaults or chemistry are inferred. Film temperature is `(Te + Tw)/2`;
 the evaluator checks the supplied property temperature.
@@ -15,7 +15,7 @@ attached parallel-flow approximation `Nu_x = 0.332 sqrt(Re_x) Pr^(1/3)`, with
 The edge-flow density/viscosity are not used in place of film properties.
 ``SurfaceConvectionResult`` retains signed `q = h_x (Te - Tw)`: positive heats the
 wall and negative cools it. This differs deliberately from the incoming-only
-``AerodynamicHeatFlux`` used by stagnation correlations. Do not clamp cooling to
+`SurfaceHeatFlux` used by stagnation correlations. Do not clamp cooling to
 zero or add this flux to a stagnation correlation at the same point.
 
 Implementation bounds are Mach ≤ 0.3, local Reynolds 1,000–500,000, Prandtl
@@ -29,13 +29,13 @@ Zero speed is outside forced-convection coverage; no natural-convection estimate
 is substituted. The singular leading edge at x=0 is rejected.
 
 ```swift
-let transport = try AerothermalTransportProperties(
+let transport = try ThermalTransportProperties(
     gasIdentifier: "supplied-air", source: "caller property dataset",
     temperatureKelvin: 315, densityKilogramsPerCubicMetre: 1.12,
     dynamicViscosityPascalSeconds: 1.92e-5,
     thermalConductivityWattsPerMetreKelvin: 0.0274,
     specificHeatJoulesPerKilogramKelvin: 1007)
-let edge = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(10, 0, 0),
+let edge = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(10, 0, 0),
     densityKilogramsPerCubicMetre: 1.07, temperatureKelvin: 330,
     speedOfSoundMetresPerSecond: 364, meanFreePathMetres: 7e-8)
 let result = try LaminarFlatPlateHeating().evaluate(SurfaceHeatingQuery(

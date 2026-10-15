@@ -17,6 +17,7 @@
 //
 
 
+import FluidDynamics
 import Foundation
 
 // NACA: 4 digits describing airfoil
@@ -36,7 +37,7 @@ public struct NACA4: Sendable {
     self.maximumThicknessPercentage = maximumThicknessPercentage
   }
   public init(validatingCamberPercentage camberPercentage: Int, maximumCamber: Int, maximumThicknessPercentage: Int) throws {
-    guard Self.valid(camberPercentage, maximumCamber, maximumThicknessPercentage) else { throw AerodynamicError.invalidGeometry }
+    guard Self.valid(camberPercentage, maximumCamber, maximumThicknessPercentage) else { throw FluidError.invalidGeometry }
     self.camberPercentage = camberPercentage; self.maximumCamber = maximumCamber
     self.maximumThicknessPercentage = maximumThicknessPercentage
   }
@@ -81,7 +82,7 @@ public struct NACA4: Sendable {
 
   /// Checked surface evaluation for caller-owned geometry input.
   public func surfaceCoordinates(atChordFraction x: Double) throws -> (SIMD2<Double>, SIMD2<Double>) {
-    guard x.isFinite, (0...1).contains(x) else { throw AerodynamicError.invalidGeometry }
+    guard x.isFinite, (0...1).contains(x) else { throw FluidError.invalidGeometry }
     return surfaceCoord(x: x)
   }
 

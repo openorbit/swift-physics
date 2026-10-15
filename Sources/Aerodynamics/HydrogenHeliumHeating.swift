@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// Published baseline and approximate composition scalings from Carroll–Brandis 2022.
@@ -22,7 +23,7 @@ public enum HydrogenHeliumHeatingMixture: Sendable {
 }
 
 public struct HydrogenHeliumHeatingResult: Sendable {
-    public let heatFlux: AerodynamicHeatFlux
+    public let heatFlux: SurfaceHeatFlux
     public let fittedStagnationPressurePascals: Double
     public let fittedEnthalpyDifferenceJoulesPerKilogram: Double
     /// K₂, with source units kg/(s m^1.5 atm^0.5).
@@ -42,7 +43,7 @@ public struct HydrogenHeliumColdWallHeating: ConvectiveHeatingModel {
     /// Conservative piecewise log-density envelope through table-2 end points.
     /// Interior values interpolate coverage, not CFD data or a certified accuracy bound.
     public func supportedSpeedRange(densityKilogramsPerCubicMetre density: Double) throws -> ClosedRange<Double> {
-        guard density.isFinite, (1e-5...0.1).contains(density) else { throw AerodynamicError.outsideCoverage }
+        guard density.isFinite, (1e-5...0.1).contains(density) else { throw FluidError.outsideCoverage }
         let levels: [(Double, Double, Double)] = [(-5,15000,45000),(-4,7000,45000),
             (-3,7000,27000),(-2,7000,23000),(-1,7000,23000)]
         let logarithm = log10(density)
@@ -55,23 +56,23 @@ public struct HydrogenHeliumColdWallHeating: ConvectiveHeatingModel {
         }
         return 7000...23000
     }
-    public func heatFlux(for query: StagnationHeatingQuery) throws -> AerodynamicHeatFlux {
+    public func heatFlux(for query: StagnationHeatingQuery) throws -> SurfaceHeatFlux {
         try evaluate(query).heatFlux
     }
     public func evaluate(_ query: StagnationHeatingQuery) throws -> HydrogenHeliumHeatingResult {
-        guard query.gasIdentifier == mixture.gasIdentifier else { throw AerodynamicError.unsupportedQuery }
+        guard query.gasIdentifier == mixture.gasIdentifier else { throw FluidError.unsupportedQuery }
         // Nil explicitly adopts the model's fixed 300 K wall. A specified wall must match.
         guard query.wall.map({ abs($0.temperatureKelvin-300) <= 1e-6 }) ?? true,
-              query.gasState == nil else { throw AerodynamicError.unsupportedQuery }
+              query.gasState == nil else { throw FluidError.unsupportedQuery }
         let flow = query.flow, v = flow.speedMetresPerSecond, rho = flow.densityKilogramsPerCubicMetre
-        guard (0.2...1).contains(query.noseRadiusMetres) else { throw AerodynamicError.outsideCoverage }
+        guard (0.2...1).contains(query.noseRadiusMetres) else { throw FluidError.outsideCoverage }
         guard let temperature = flow.temperatureKelvin, let mach = flow.machNumber,
               let kn = try flow.knudsenNumber(referenceLengthMetres: query.noseRadiusMetres) else {
-            throw AerodynamicError.missingFlowProperty
+            throw FluidError.missingFlowProperty
         }
-        guard abs(temperature-141.2) <= 1e-6 else { throw AerodynamicError.unsupportedQuery }
+        guard abs(temperature-141.2) <= 1e-6 else { throw FluidError.unsupportedQuery }
         guard try supportedSpeedRange(densityKilogramsPerCubicMetre: rho).contains(v),
-              mach >= 5, kn <= 0.003 else { throw AerodynamicError.outsideCoverage }
+              mach >= 5, kn <= 0.003 else { throw FluidError.outsideCoverage }
         let u = v/45000, radius = query.noseRadiusMetres, densityTerm = log10(rho)/(-5)
         let high = v >= 29000
         let scaledFlux: Double
@@ -84,8 +85,8 @@ public struct HydrogenHeliumColdWallHeating: ConvectiveHeatingModel {
         let difference = 0.5024*v*v-166.9*v
         let coefficient = scaledFlux/difference*1e6*mixture.scaling
         let flux = scaledFlux*1e6*sqrt((pressure/101325)/radius)*mixture.scaling
-        guard flux.isFinite, coefficient.isFinite, flux >= 0 else { throw AerodynamicError.nonFiniteResult }
-        return HydrogenHeliumHeatingResult(heatFlux: try AerodynamicHeatFlux(wattsPerSquareMetre: flux,
+        guard flux.isFinite, coefficient.isFinite, flux >= 0 else { throw FluidError.nonFiniteResult }
+        return HydrogenHeliumHeatingResult(heatFlux: try SurfaceHeatFlux(wattsPerSquareMetre: flux,
             surfacePositionMetres: query.surfacePositionMetres), fittedStagnationPressurePascals: pressure,
             fittedEnthalpyDifferenceJoulesPerKilogram: difference,
             enthalpyCoefficient: coefficient, usesHighSpeedFit: high)

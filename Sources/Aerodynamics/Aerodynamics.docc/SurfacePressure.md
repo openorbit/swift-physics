@@ -1,13 +1,13 @@
 # Hypersonic surface pressure
 
-``SurfacePressureAerodynamics`` integrates gauge pressure over supplied flat
-``AerodynamicSurfacePanel`` elements. Each panel has area in m², an outward normal,
+`SurfacePressureIntegration` integrates gauge pressure over supplied flat
+`FluidSurfacePanel` elements. Each panel has area in m², an outward normal,
 a centre in metres and a caller-supplied exposure flag. Geometry and flow use the
 same body axes. Subdivision is caller-selected; evaluation costs O(panel count).
 It returns per-panel pressure coefficients and gauge pressures plus force and
 moment about an explicit point, ready for CelMek's aerodynamic wrench adapter.
 
-``SurfacePressureCoefficientModel`` permits replacement pressure laws. The initial
+`SurfacePressureCoefficientModel` permits replacement pressure laws. The initial
 ``ModifiedNewtonianPressure`` approximation uses a calorically perfect gas with
 explicit specific-heat ratio γ. It computes downstream normal-shock Mach and static
 pressure, then isentropically decelerates to obtain stagnation pressure. The law is:
@@ -23,12 +23,12 @@ loads, not total structural pressure loads. Leeward, tangent and explicitly
 unexposed panels have zero pressure coefficient in this approximation.
 
 ```swift
-let panel = try AerodynamicSurfacePanel(areaSquareMetres: 1,
+let panel = try FluidSurfacePanel(areaSquareMetres: 1,
     centreMetres: SIMD3(2, 0, 0), outwardNormal: SIMD3(1, 0, 0))
 let pressureModel = try ModifiedNewtonianPressure(specificHeatRatio: 1.4)
-let surface = try SurfacePressureAerodynamics(panels: [panel],
+let surface = try SurfacePressureIntegration(panels: [panel],
     referenceLengthMetres: 1, model: pressureModel)
-let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(1000, 0, 0),
+let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(1000, 0, 0),
     densityKilogramsPerCubicMetre: 0.02, speedOfSoundMetresPerSecond: 100,
     meanFreePathMetres: 0.001)
 let result = try surface.evaluate(flow: flow)

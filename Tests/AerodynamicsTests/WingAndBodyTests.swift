@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -9,7 +10,7 @@ import Aerodynamics
         func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients { value }
     }
     private struct ThrowingSection: WingSectionCoefficientModel {
-        func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients { throw AerodynamicError.outsideCoverage }
+        func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients { throw FluidError.outsideCoverage }
     }
     private struct ControlledSection: WingSectionCoefficientModel {
         func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients {
@@ -21,8 +22,8 @@ import Aerodynamics
             AirfoilCoefficients(lift:1,drag:0.1,moment:0)
         }
     }
-    private func flow(_ v: SIMD3<Double> = SIMD3(10,0,0)) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond:v,densityKilogramsPerCubicMetre:2,
+    private func flow(_ v: SIMD3<Double> = SIMD3(10,0,0)) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond:v,densityKilogramsPerCubicMetre:2,
             speedOfSoundMetresPerSecond:100,dynamicViscosityPascalSeconds:0.02)
     }
     @Test(arguments:[1,8,64]) func uniformWingMatchesAnalyticAreaAndMoment(segmentCount:Int) throws {
@@ -71,31 +72,31 @@ import Aerodynamics
         #expect(abs(sampled.loads.momentNewtonMetres.x+800) < 1e-12)
         let vertical = try WingSectionAxes(forward:SIMD3(1,0,0),span:SIMD3(0,0,-1))
         #expect(vertical.bodyVector(fromSection:SIMD3(0,0,-1)) == SIMD3(0,-1,0))
-        #expect(throws:AerodynamicError.invalidGeometry) { try WingSectionAxes(forward:SIMD3(1,0,0),span:SIMD3(1,1,0)) }
+        #expect(throws:FluidError.invalidGeometry) { try WingSectionAxes(forward:SIMD3(1,0,0),span:SIMD3(1,1,0)) }
     }
     @Test func zeroFlowControlsAndCoverage() throws {
         let axes = try WingSectionAxes()
         let inactive = try WingSegment(positionMetres:.zero,axes:axes,chordMetres:1,areaSquareMetres:1,model:ThrowingSection())
         #expect(try inactive.evaluate(bodyFlow:flow(.zero)).coefficients == nil)
         #expect(try inactive.evaluate(bodyFlow:flow(SIMD3(0,10,0))).loads.forceNewtons == .zero)
-        #expect(throws:AerodynamicError.outsideCoverage) { try inactive.evaluate(bodyFlow:flow()) }
+        #expect(throws:FluidError.outsideCoverage) { try inactive.evaluate(bodyFlow:flow()) }
         let controlled = try WingSegment(positionMetres:.zero,axes:axes,chordMetres:1,areaSquareMetres:1,
             controlDeflectionRadians:0.3,model:ControlledSection())
         #expect(try controlled.evaluate(bodyFlow:flow()).loads.forceNewtons.z == -30)
         let polarModel = AirfoilWingSectionModel(airfoil:FixedPolar())
         let unsupported = try WingSegment(positionMetres:.zero,axes:axes,chordMetres:1,areaSquareMetres:1,
             controlDeflectionRadians:0.3,model:polarModel)
-        #expect(throws:AerodynamicError.unsupportedQuery) { try unsupported.evaluate(bodyFlow:flow()) }
-        let missing = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(10,0,0),densityKilogramsPerCubicMetre:2)
+        #expect(throws:FluidError.unsupportedQuery) { try unsupported.evaluate(bodyFlow:flow()) }
+        let missing = try FluidFlow(relativeVelocityMetresPerSecond:SIMD3(10,0,0),densityKilogramsPerCubicMetre:2)
         let ordinary = try WingSegment(positionMetres:.zero,axes:axes,chordMetres:1,areaSquareMetres:1,model:polarModel)
-        #expect(throws:AerodynamicError.missingFlowProperty) { try ordinary.evaluate(bodyFlow:missing) }
+        #expect(throws:FluidError.missingFlowProperty) { try ordinary.evaluate(bodyFlow:missing) }
     }
     private func samples() throws -> [BodyCoefficientSample] {
         var records = [BodyCoefficientSample]()
         for alpha in [-0.2,0.2] { for beta in [-0.1,0.1] { for mach in [0.1,0.5] { for re in [100.0,500.0] {
             let f = alpha+2*beta+3*mach+re/100
             records.append(BodyCoefficientSample(angleOfAttackRadians:alpha,sideslipRadians:beta,machNumber:mach,reynoldsNumber:re,
-                coefficients:try AerodynamicCoefficients(force:SIMD3(-f,2*f,-3*f),moment:SIMD3(f,2*f,3*f))))
+                coefficients:try FluidCoefficients(force:SIMD3(-f,2*f,-3*f),moment:SIMD3(f,2*f,3*f))))
         } } } }
         return records
     }
@@ -104,29 +105,29 @@ import Aerodynamics
         let value = try model.coefficients(angleOfAttackRadians:0.05,sideslipRadians:0.025,machNumber:0.3,reynoldsNumber:300)
         #expect(abs(value.force.x+4) < 1e-12)
         #expect(abs(value.moment.z-12) < 1e-12)
-        let geometry = try AerodynamicReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(repeating:1))
+        let geometry = try FluidReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(repeating:1))
         let body = try WholeBodyAerodynamics(geometry:geometry,reynoldsReferenceLengthMetres:1,model:model)
-        let localFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(10,0,0),
+        let localFlow = try FluidFlow(relativeVelocityMetresPerSecond:SIMD3(10,0,0),
             densityKilogramsPerCubicMetre:0.6,speedOfSoundMetresPerSecond:100,dynamicViscosityPascalSeconds:0.02)
         let loads = try body.evaluate(flow:localFlow)
         // alpha=beta=0, Mach=.1, Re=300 gives Cx=-3.3 and q*S=60.
         #expect(abs(loads.forceNewtons.x+198) < 1e-10)
         #expect(try body.evaluate(flow:flow(.zero)).forceNewtons == .zero)
-        #expect(throws:AerodynamicError.outsideCoverage) { try body.evaluate(flow:flow()) }
+        #expect(throws:FluidError.outsideCoverage) { try body.evaluate(flow:flow()) }
         let clamped = try TabulatedBodyCoefficients(samples:model.samples,boundaryPolicy:.clamp,source:"Test",version:"1")
         let boundary = try clamped.coefficients(angleOfAttackRadians:0.3,sideslipRadians:0.2,machNumber:0.6,reynoldsNumber:600)
         #expect(abs(boundary.force.x+6.9) < 1e-12)
 
         let decoded = try BodyCoefficientTableLoader.json(JSONEncoder().encode(model))
         #expect(try decoded.coefficients(angleOfAttackRadians:0.05,sideslipRadians:0.025,machNumber:0.3,reynoldsNumber:300).force == value.force)
-        #expect(throws:AerodynamicError.outsideCoverage) {
+        #expect(throws:FluidError.outsideCoverage) {
             try model.coefficients(angleOfAttackRadians:0.3,sideslipRadians:0,machNumber:0.3,reynoldsNumber:300)
         }
-        #expect(throws:AerodynamicError.incompleteGrid) {
+        #expect(throws:FluidError.incompleteGrid) {
             try TabulatedBodyCoefficients(samples:Array(samples().dropLast()),source:"Test",version:"1")
         }
         let duplicate = try samples()
-        #expect(throws:AerodynamicError.duplicateCondition) {
+        #expect(throws:FluidError.duplicateCondition) {
             try TabulatedBodyCoefficients(samples:duplicate+[duplicate[0]],source:"Test",version:"1")
         }
     }
@@ -134,7 +135,7 @@ import Aerodynamics
         let wind = try WindForceCoefficients(drag:1,lift:0.5)
         let coefficients = try wind.bodyCoefficients(angleOfAttackRadians:0,sideslipRadians:0,momentBody:SIMD3(0,0.1,0))
         let model = try ConstantBodyCoefficients(value:coefficients,source:"Synthetic lifting capsule",version:"1")
-        let geometry = try AerodynamicReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(repeating:3),
+        let geometry = try FluidReferenceGeometry(areaSquareMetres:2,momentLengthsMetres:SIMD3(repeating:3),
             momentReferencePointMetres:SIMD3(2,0,0))
         let capsule = try WholeBodyAerodynamics(geometry:geometry,reynoldsReferenceLengthMetres:3,model:model)
         let loads = try capsule.evaluate(flow:flow(),momentReferencePointMetres:.zero)

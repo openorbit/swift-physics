@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
 
 @Suite struct LiftingLineTests {
-    func flow(alpha: Double = 0.1, speed: Double = 50, sideways: Double = 0) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed*cos(alpha),sideways,speed*sin(alpha)),
+    func flow(alpha: Double = 0.1, speed: Double = 50, sideways: Double = 0) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed*cos(alpha),sideways,speed*sin(alpha)),
             densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 300,dynamicViscosityPascalSeconds: 0.001)
     }
     func wing(count: Int = 8, ellipse: Bool = true, asymmetricTwist: Double = 0,
@@ -60,11 +61,11 @@ import Aerodynamics
     }
     @Test func coverageAndMissingProperties() throws {
         let wing = try wing()
-        #expect(throws: AerodynamicError.outsideCoverage) { try wing.evaluate(flow: flow(speed: 100)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try wing.evaluate(flow: flow(sideways: 1)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try wing.evaluate(flow: flow(alpha: 0.34)) }
-        #expect(throws: AerodynamicError.missingFlowProperty) {
-            try wing.evaluate(flow: AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(50,0,0),densityKilogramsPerCubicMetre: 1))
+        #expect(throws: FluidError.outsideCoverage) { try wing.evaluate(flow: flow(speed: 100)) }
+        #expect(throws: FluidError.outsideCoverage) { try wing.evaluate(flow: flow(sideways: 1)) }
+        #expect(throws: FluidError.outsideCoverage) { try wing.evaluate(flow: flow(alpha: 0.34)) }
+        #expect(throws: FluidError.missingFlowProperty) {
+            try wing.evaluate(flow: FluidFlow(relativeVelocityMetresPerSecond: SIMD3(50,0,0),densityKilogramsPerCubicMetre: 1))
         }
     }
 }

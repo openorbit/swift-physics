@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Testing
 import Aerodynamics
 
@@ -8,12 +9,12 @@ import Aerodynamics
             [100.0,10000.0].map { DragCoefficientSample(machNumber: mach,reynoldsNumber: $0,dragCoefficient: 2) }
         }, source: "Synthetic drag reference",version: "1",maximumAxisAngleRadians: maximumAngle)
     }
-    func flow(_ v: SIMD3<Double> = SIMD3(10,0,0), density: Double = 2) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond: v,densityKilogramsPerCubicMetre: density,
+    func flow(_ v: SIMD3<Double> = SIMD3(10,0,0), density: Double = 2) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond: v,densityKilogramsPerCubicMetre: density,
             speedOfSoundMetresPerSecond: 100,dynamicViscosityPascalSeconds: 0.02)
     }
     @Test func steadyParachuteDragDirectionAndMoment() throws {
-        let drag = try DragAreaAerodynamics(areaSquareMetres: 3,referenceLengthMetres: 1,
+        let drag = try DragAreaForces(areaSquareMetres: 3,referenceLengthMetres: 1,
             forceApplicationPointMetres: SIMD3(0,2,0),axis: SIMD3(2,0,0),model: coefficients(maximumAngle: 0.2))
         let chute = ParachuteAerodynamics(drag: drag)
         let loads = try chute.evaluate(flow: flow())
@@ -21,13 +22,13 @@ import Aerodynamics
         #expect(loads.momentNewtonMetres == SIMD3(0,0,1200))
         let shifted = try chute.evaluate(flow: flow(),momentReferencePointMetres: SIMD3(0,2,0))
         #expect(shifted.momentNewtonMetres == .zero)
-        #expect(throws: AerodynamicError.outsideCoverage) { try chute.evaluate(flow: flow(SIMD3(-10,0,0))) }
+        #expect(throws: FluidError.outsideCoverage) { try chute.evaluate(flow: flow(SIMD3(-10,0,0))) }
         // Coefficients are orientation-invariant when no angle coverage is declared.
-        let oblique = try DragAreaAerodynamics(areaSquareMetres: 2,referenceLengthMetres: 1,model: coefficients())
+        let oblique = try DragAreaForces(areaSquareMetres: 2,referenceLengthMetres: 1,model: coefficients())
         #expect(try oblique.evaluate(flow: flow(SIMD3(3,4,0))).forceNewtons == SIMD3(-60,-80,0))
     }
     @Test func terminalDescentBalancesExternalWeight() throws {
-        let chute = ParachuteAerodynamics(drag: try DragAreaAerodynamics(areaSquareMetres: 2,
+        let chute = ParachuteAerodynamics(drag: try DragAreaForces(areaSquareMetres: 2,
             referenceLengthMetres: 1,model: coefficients()))
         // m=20 kg, g=10, rho=1, Cd=2, A=2 -> terminal speed 10 m/s.
         let loads = try chute.evaluate(flow: flow(SIMD3(0,0,10),density: 1))
@@ -45,7 +46,7 @@ import Aerodynamics
         #expect(a.momentNewtonMetres == b.momentNewtonMetres)
         // Total external mass=displaced air mass (20 kg) gives equilibrium at rest.
         #expect(a.forceNewtons+SIMD3(0,0,200) == .zero)
-        let balloon = BalloonAerodynamics(buoyancy: buoyancy,drag: try DragAreaAerodynamics(
+        let balloon = BalloonAerodynamics(buoyancy: buoyancy,drag: try DragAreaForces(
             areaSquareMetres: 3,referenceLengthMetres: 1,forceApplicationPointMetres: SIMD3(0,2,0),model: coefficients()))
         let total = try balloon.evaluate(flow: flow(),field: gravity)
         #expect(total.forceNewtons == SIMD3(-600,0,-200))
@@ -56,22 +57,22 @@ import Aerodynamics
             [1000.0,10000.0].map { DragCoefficientSample(machNumber: mach,reynoldsNumber: $0,
                 dragCoefficient: 0.1+2*mach+$0/10000) }
         },source: "Synthetic affine coefficients",version: "1")
-        let local = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(50,0,0),
+        let local = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(50,0,0),
             densityKilogramsPerCubicMetre: 1,speedOfSoundMetresPerSecond: 100,dynamicViscosityPascalSeconds: 0.01)
         #expect(abs((try table.dragCoefficient(for: DragCoefficientQuery(flow: local,referenceLengthMetres: 1)))-1.6) < 1e-12)
-        let rest = try AerodynamicFlow(relativeVelocityMetresPerSecond: .zero,densityKilogramsPerCubicMetre: 2)
-        let drag = try DragAreaAerodynamics(areaSquareMetres: 1,referenceLengthMetres: 1,model: table)
+        let rest = try FluidFlow(relativeVelocityMetresPerSecond: .zero,densityKilogramsPerCubicMetre: 2)
+        let drag = try DragAreaForces(areaSquareMetres: 1,referenceLengthMetres: 1,model: table)
         #expect(try drag.evaluate(flow: rest).forceNewtons == .zero)
-        let collapsed = try DragAreaAerodynamics(areaSquareMetres: 0,referenceLengthMetres: 1,model: table)
+        let collapsed = try DragAreaForces(areaSquareMetres: 0,referenceLengthMetres: 1,model: table)
         #expect(try collapsed.evaluate(flow: flow()).forceNewtons == .zero)
-        #expect(throws: AerodynamicError.missingFlowProperty) {
-            try drag.evaluate(flow: AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(10,0,0),densityKilogramsPerCubicMetre: 1))
+        #expect(throws: FluidError.missingFlowProperty) {
+            try drag.evaluate(flow: FluidFlow(relativeVelocityMetresPerSecond: SIMD3(10,0,0),densityKilogramsPerCubicMetre: 1))
         }
-        #expect(throws: AerodynamicError.invalidGeometry) { try Buoyancy(displacedVolumeCubicMetres: -1) }
-        #expect(throws: AerodynamicError.invalidGeometry) {
-            try DragAreaAerodynamics(areaSquareMetres: 1,referenceLengthMetres: 1,axis: .zero,model: table)
+        #expect(throws: FluidError.invalidGeometry) { try Buoyancy(displacedVolumeCubicMetres: -1) }
+        #expect(throws: FluidError.invalidGeometry) {
+            try DragAreaForces(areaSquareMetres: 1,referenceLengthMetres: 1,axis: .zero,model: table)
         }
-        #expect(throws: AerodynamicError.incompleteGrid) {
+        #expect(throws: FluidError.incompleteGrid) {
             try TabulatedDragCoefficients(samples: [DragCoefficientSample(machNumber: 0,reynoldsNumber: 1,dragCoefficient: 1),
                 DragCoefficientSample(machNumber: 1,reynoldsNumber: 2,dragCoefficient: 1)],source: "Incomplete",version: "1")
         }

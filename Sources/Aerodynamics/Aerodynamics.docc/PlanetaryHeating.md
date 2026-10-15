@@ -63,7 +63,7 @@ Source: [Carroll and Brandis, 2022](https://ntrs.nasa.gov/api/citations/20220018
 ```swift
 let mixture = HydrogenHeliumHeatingMixture.neptuneReference
 let model = HydrogenHeliumColdWallHeating(mixture: mixture)
-let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(19000, 0, 0),
+let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(19000, 0, 0),
     densityKilogramsPerCubicMetre: 1e-4, temperatureKelvin: 141.2,
     speedOfSoundMetresPerSecond: 1000, meanFreePathMetres: 1e-5)
 let query = try StagnationHeatingQuery(flow: flow, gasIdentifier: mixture.gasIdentifier,

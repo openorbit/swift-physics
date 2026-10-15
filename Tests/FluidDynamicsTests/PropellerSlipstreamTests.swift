@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
-import Aerodynamics
 
-@Suite struct PropwashTests {
-    func disk(speed: Double = 0, torque: Double = 10, axis: SIMD3<Double> = SIMD3(1,0,0)) throws -> ActuatorDiskPropwash {
-        try ActuatorDiskPropwash(centreMetres: .zero,downstreamAxis: axis,radiusMetres: 1,
-            thrustNewtons: 200,airTorqueNewtonMetres: torque,densityKilogramsPerCubicMetre: 2,
+@Suite struct PropellerSlipstreamTests {
+    func disk(speed: Double = 0, torque: Double = 10, axis: SIMD3<Double> = SIMD3(1,0,0)) throws -> ActuatorDiskSlipstream {
+        try ActuatorDiskSlipstream(centreMetres: .zero,downstreamAxis: axis,radiusMetres: 1,
+            thrustNewtons: 200,fluidTorqueNewtonMetres: torque,densityKilogramsPerCubicMetre: 2,
             upstreamAxialSpeedMetresPerSecond: speed)
     }
     @Test func hoverAndForwardFlightMomentumReferences() throws {
@@ -45,22 +45,7 @@ import Aerodynamics
         #expect(loads.forceNewtons == SIMD3(-200,0,0))
         #expect(loads.momentNewtonMetres == SIMD3(-10,0,-200))
     }
-    @Test func localWingResponseAndVelocityComposition() throws {
-        struct Section: WingSectionCoefficientModel {
-            func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients {
-                AirfoilCoefficients(lift: 1,drag: 0.1,moment: 0)
-            }
-        }
-        let rotor = try disk(speed: 10,axis: SIMD3(-1,0,0))
-        let field = try SuperposedAirVelocityField(backgroundMetresPerSecond: SIMD3(-10,0,0),increments: [rotor])
-        let segment = try WingSegment(positionMetres: SIMD3(-2,0,0),axes: WingSectionAxes(),chordMetres: 1,
-            areaSquareMetres: 1,model: Section())
-        let base = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(10,0,0),densityKilogramsPerCubicMetre: 2)
-        let local = try base.replacingRelativeVelocity(-field.velocityMetresPerSecond(at: segment.positionMetres))
-        #expect(try segment.evaluate(bodyFlow: local).loads.forceNewtons.z < segment.evaluate(bodyFlow: base).loads.forceNewtons.z)
-        #expect(try rotor.velocityMetresPerSecond(at: SIMD3(1,0,0)) == .zero)
-        #expect(try rotor.velocityMetresPerSecond(at: SIMD3(-1,2,0)) == .zero)
-    }
+
     @Test func volumeSourceForceAndTorqueIntegrals() throws {
         let rotor = try disk(), source = try ActuatorDiskAccelerationField(disk: rotor,thicknessMetres: 0.5)
         // Continuous cylinder quadrature, independent radial integration of torque.
@@ -77,11 +62,11 @@ import Aerodynamics
         #expect(try source.accelerationMetresPerSecondSquared(at: SIMD3(2,0,0)) == .zero)
     }
     @Test func zeroThrustAndInvalidInputs() throws {
-        let off = try ActuatorDiskPropwash(centreMetres: .zero,downstreamAxis: SIMD3(1,0,0),radiusMetres: 1,
+        let off = try ActuatorDiskSlipstream(centreMetres: .zero,downstreamAxis: SIMD3(1,0,0),radiusMetres: 1,
             thrustNewtons: 0,densityKilogramsPerCubicMetre: 1,upstreamAxialSpeedMetresPerSecond: 0)
         #expect(try off.velocityMetresPerSecond(at: .zero) == .zero)
-        #expect(throws: AerodynamicError.invalidParameter) { try disk(axis: .zero) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try disk().wakeRadiusMetres(downstreamDistanceMetres: -1) }
-        #expect(throws: AerodynamicError.invalidParameter) { try disk().velocityMetresPerSecond(at: SIMD3(.nan,0,0)) }
+        #expect(throws: FluidError.invalidParameter) { try disk(axis: .zero) }
+        #expect(throws: FluidError.outsideCoverage) { try disk().wakeRadiusMetres(downstreamDistanceMetres: -1) }
+        #expect(throws: FluidError.invalidParameter) { try disk().velocityMetresPerSecond(at: SIMD3(.nan,0,0)) }
     }
 }

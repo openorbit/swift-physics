@@ -16,6 +16,7 @@
 // limitations under the License.
 //
 
+import FluidDynamics
 import Foundation
 import Yams
 
@@ -51,7 +52,7 @@ public struct ParametricAirfoil: Airfoil, Codable, Sendable {
   }
 
   public init(validatingReynoldsNumber reynoldsNumber: Double, coefficients: [AirfoilCoefficients]) throws {
-    guard coefficients.count == 361 else { throw AerodynamicError.invalidCoefficients }
+    guard coefficients.count == 361 else { throw FluidError.invalidCoefficients }
     let samples = coefficients.enumerated().map {
       AirfoilSample(angleOfAttackRadians: Double($0.offset-180) * .pi/180, coefficients: $0.element)
     }

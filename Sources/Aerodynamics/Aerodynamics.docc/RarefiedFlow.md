@@ -1,9 +1,9 @@
 # Free-molecular surface loads
 
-``SurfaceTractionModel`` returns signed gauge pressure and tangential stress in Pa.
-``SurfaceTractionAerodynamics`` integrates these over supplied surface panels,
+`SurfaceTractionModel` returns signed gauge pressure and tangential stress in Pa.
+`SurfaceTractionIntegration` integrates these over supplied surface panels,
 including force lever arms and moment-reference transfer. It validates that shear
-is tangential to each panel. ``PressureOnlyTraction`` adapts existing continuum
+is tangential to each panel. `PressureOnlyTraction` adapts existing continuum
 pressure laws into the same contract with zero shear; it is an alternative evaluator,
 not an additional force to count alongside pressure-only integration.
 
@@ -65,11 +65,11 @@ let gas = try FreeMolecularGas(identifier: "Supplied single-species gas",
     specificGasConstantJoulesPerKilogramKelvin: 300, source: "Caller gas dataset")
 let surface = try GasSurfaceReflection(specularFraction: 0.2, wallTemperatureKelvin: 300)
 let model = try MaxwellianFreeMolecularTraction(gas: gas, surface: surface)
-let panel = try AerodynamicSurfacePanel(areaSquareMetres: 1,
+let panel = try FluidSurfacePanel(areaSquareMetres: 1,
     centreMetres: SIMD3(1, 0, 0), outwardNormal: SIMD3(1, 0, 0))
-let evaluator = try SurfaceTractionAerodynamics(panels: [panel],
+let evaluator = try SurfaceTractionIntegration(panels: [panel],
     referenceLengthMetres: 1, model: model)
-let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(7000, 0, 0),
+let flow = try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(7000, 0, 0),
     densityKilogramsPerCubicMetre: 1e-8, temperatureKelvin: 200, meanFreePathMetres: 20)
 let loads = try evaluator.evaluate(flow: flow).loads
 ```
@@ -89,7 +89,7 @@ and [NASA rarefied-flow regime definitions](https://www.nas.nasa.gov/assets/nas/
 
 ## Supplied transitional traction
 
-``TabulatedRarefiedTraction`` uses matched pressure/shear ``AerodynamicScalarTable``
+``TabulatedRarefiedTraction`` uses matched pressure/shear `FluidScalarTable`
 axes, ordered `log10Kn`, `incidenceCosine`, `speedRatio`, `wallTemperatureRatio`,
 all dimensionless. Incidence cosine is outward normal dotted with body-relative
 velocity direction; speed ratio is `V / sqrt(R T)`, and temperature ratio is

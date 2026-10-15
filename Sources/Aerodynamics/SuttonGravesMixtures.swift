@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// Molecular weights and Mγ transport products from NASA TR R-376, table I.
@@ -32,7 +33,7 @@ public struct SuttonGravesMixtureParameters: Sendable {
     public init(gasIdentifier: String, massFractions: [SuttonGravesBaseGas: Double]) throws {
         guard !gasIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !massFractions.isEmpty, massFractions.values.allSatisfy({ $0.isFinite && $0 >= 0 }),
-              abs(massFractions.values.reduce(0,+)-1) <= 1e-10 else { throw AerodynamicError.invalidParameter }
+              abs(massFractions.values.reduce(0,+)-1) <= 1e-10 else { throw FluidError.invalidParameter }
         self.gasIdentifier = gasIdentifier; self.massFractions = massFractions
         let sum = SuttonGravesBaseGas.allCases.reduce(0.0) {
             $0 + (massFractions[$1] ?? 0)/$1.molecularWeightTransportProduct
@@ -41,7 +42,7 @@ public struct SuttonGravesMixtureParameters: Sendable {
     }
     public init(gasIdentifier: String, moleFractions: [SuttonGravesBaseGas: Double]) throws {
         guard !moleFractions.isEmpty, moleFractions.values.allSatisfy({ $0.isFinite && $0 >= 0 }),
-              abs(moleFractions.values.reduce(0,+)-1) <= 1e-10 else { throw AerodynamicError.invalidParameter }
+              abs(moleFractions.values.reduce(0,+)-1) <= 1e-10 else { throw FluidError.invalidParameter }
         let mass = moleFractions.reduce(0.0) { $0+$1.value*$1.key.molecularWeight }
         try self.init(gasIdentifier: gasIdentifier, massFractions: moleFractions.reduce(into: [:]) {
             $0[$1.key] = $1.value*$1.key.molecularWeight/mass
@@ -64,24 +65,24 @@ public struct SuttonGravesMixtureHeating: ConvectiveHeatingModel {
     public init(parameters: SuttonGravesMixtureParameters, coverage: StagnationHeatingCoverage) {
         self.parameters = parameters; self.coverage = coverage
     }
-    public func heatFlux(for query: StagnationHeatingQuery) throws -> AerodynamicHeatFlux {
-        guard query.gasIdentifier == parameters.gasIdentifier, query.wall == nil else { throw AerodynamicError.unsupportedQuery }
-        guard coverage.noseRadiusMetres.contains(query.noseRadiusMetres) else { throw AerodynamicError.outsideCoverage }
+    public func heatFlux(for query: StagnationHeatingQuery) throws -> SurfaceHeatFlux {
+        guard query.gasIdentifier == parameters.gasIdentifier, query.wall == nil else { throw FluidError.unsupportedQuery }
+        guard coverage.noseRadiusMetres.contains(query.noseRadiusMetres) else { throw FluidError.outsideCoverage }
         if query.flow.speedMetresPerSecond == 0 {
-            return try AerodynamicHeatFlux(wattsPerSquareMetre: 0, surfacePositionMetres: query.surfacePositionMetres)
+            return try SurfaceHeatFlux(wattsPerSquareMetre: 0, surfacePositionMetres: query.surfacePositionMetres)
         }
         guard let state = query.gasState, let mach = query.flow.machNumber,
               let kn = try query.flow.knudsenNumber(referenceLengthMetres: query.noseRadiusMetres) else {
-            throw AerodynamicError.missingFlowProperty
+            throw FluidError.missingFlowProperty
         }
         guard coverage.speedMetresPerSecond.contains(query.flow.speedMetresPerSecond),
               coverage.densityKilogramsPerCubicMetre.contains(query.flow.densityKilogramsPerCubicMetre),
               coverage.machNumber.contains(mach), kn <= coverage.maximumKnudsenNumber,
               (101.325...10_132_500).contains(state.pressurePascals),
-              (2.3e6...116.2e6).contains(state.edgeSpecificEnthalpyJoulesPerKilogram) else { throw AerodynamicError.outsideCoverage }
+              (2.3e6...116.2e6).contains(state.edgeSpecificEnthalpyJoulesPerKilogram) else { throw FluidError.outsideCoverage }
         let flux = parameters.enthalpyCoefficient*sqrt((state.pressurePascals/101325)/query.noseRadiusMetres)
             * state.edgeSpecificEnthalpyJoulesPerKilogram
-        guard flux.isFinite else { throw AerodynamicError.nonFiniteResult }
-        return try AerodynamicHeatFlux(wattsPerSquareMetre: flux, surfacePositionMetres: query.surfacePositionMetres)
+        guard flux.isFinite else { throw FluidError.nonFiniteResult }
+        return try SurfaceHeatFlux(wattsPerSquareMetre: flux, surfacePositionMetres: query.surfacePositionMetres)
     }
 }

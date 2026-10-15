@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Testing
 import Aerodynamics
 
@@ -11,7 +12,7 @@ import Aerodynamics
     func query(speed: Double = 3535, density: Double = 3.1459e-4, radius: Double = 1,
                path: Double? = 1e-4, gas: String = "earth-air",
                wall: AerothermalWallState? = nil) throws -> StagnationHeatingQuery {
-        try StagnationHeatingQuery(flow: AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),
+        try StagnationHeatingQuery(flow: FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),
             densityKilogramsPerCubicMetre: density, speedOfSoundMetresPerSecond: 300, meanFreePathMetres: path),
             gasIdentifier: gas, noseRadiusMetres: radius, surfacePositionMetres: SIMD3(2,0,0), wall: wall)
     }
@@ -27,7 +28,7 @@ import Aerodynamics
     }
     @Test func explicitGasSelectionAndCustomParameters() throws {
         let earth = try model()
-        #expect(throws: AerodynamicError.unsupportedQuery) { try earth.heatFlux(for: query(gas: "titan-mixture")) }
+        #expect(throws: FluidError.unsupportedQuery) { try earth.heatFlux(for: query(gas: "titan-mixture")) }
         let parameters = try SuttonGravesParameters(gasIdentifier: "synthetic", coefficientSI: 2e-4,
             source: "Synthetic algebraic reference", version: "1")
         let custom = try model(parameters: parameters)
@@ -36,15 +37,15 @@ import Aerodynamics
     }
     @Test func missingPropertiesCoverageAndWallState() throws {
         let heating = try model()
-        #expect(throws: AerodynamicError.missingFlowProperty) { try heating.heatFlux(for: query(path: nil)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try heating.heatFlux(for: query(path: 0.02)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try heating.heatFlux(for: query(speed: 900)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try heating.heatFlux(for: query(density: 0)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try heating.heatFlux(for: query(radius: 20)) }
-        #expect(throws: AerodynamicError.unsupportedQuery) {
+        #expect(throws: FluidError.missingFlowProperty) { try heating.heatFlux(for: query(path: nil)) }
+        #expect(throws: FluidError.outsideCoverage) { try heating.heatFlux(for: query(path: 0.02)) }
+        #expect(throws: FluidError.outsideCoverage) { try heating.heatFlux(for: query(speed: 900)) }
+        #expect(throws: FluidError.outsideCoverage) { try heating.heatFlux(for: query(density: 0)) }
+        #expect(throws: FluidError.outsideCoverage) { try heating.heatFlux(for: query(radius: 20)) }
+        #expect(throws: FluidError.unsupportedQuery) {
             try heating.heatFlux(for: query(wall: AerothermalWallState(temperatureKelvin: 1000)))
         }
         #expect(try heating.heatFlux(for: query(speed: 0,path: nil)).wattsPerSquareMetre == 0)
-        #expect(throws: AerodynamicError.invalidParameter) { try query(radius: 0) }
+        #expect(throws: FluidError.invalidParameter) { try query(radius: 0) }
     }
 }

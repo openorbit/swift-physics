@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 import Testing
 import Aerodynamics
@@ -39,13 +40,13 @@ import Aerodynamics
     }
     @Test func boundsAndWorkLimits() throws {
         let finite = try model()
-        #expect(throws:AerodynamicError.outsideCoverage) { try finite.solve(angleOfAttackRadians:0.3,reynoldsNumber:1e6,machNumber:0.1) }
-        #expect(throws:AerodynamicError.outsideCoverage) { try finite.solve(angleOfAttackRadians:0.1,reynoldsNumber:1e6,machNumber:0.4) }
+        #expect(throws:FluidError.outsideCoverage) { try finite.solve(angleOfAttackRadians:0.3,reynoldsNumber:1e6,machNumber:0.1) }
+        #expect(throws:FluidError.outsideCoverage) { try finite.solve(angleOfAttackRadians:0.1,reynoldsNumber:1e6,machNumber:0.4) }
         #expect(throws:FiniteWingError.iterationLimit) { try model(iterations:1).solve(angleOfAttackRadians:0.1,reynoldsNumber:1e6,machNumber:0.1) }
         let narrow = try FiniteWingAirfoil(airfoil:LinearPolar(),aspectRatio:8,spanEfficiency:1,
             effectiveAngleRangeRadians:-0.01...0.01,operatingAngleRangeRadians:-0.2...0.2)
         #expect(throws:FiniteWingError.unbracketedSolution) { try narrow.solve(angleOfAttackRadians:0.1,reynoldsNumber:1e6,machNumber:0.1) }
-        #expect(throws:AerodynamicError.invalidParameter) {
+        #expect(throws:FluidError.invalidParameter) {
             try FiniteWingAirfoil(airfoil:LinearPolar(),aspectRatio:0,spanEfficiency:1,
                 effectiveAngleRangeRadians:-0.2...0.2,operatingAngleRangeRadians:-0.2...0.2)
         }
@@ -53,7 +54,7 @@ import Aerodynamics
     @Test func uniformStripIntegrationAvoidsResolutionDependentCorrection() throws {
         let finite = try model(), section = AirfoilWingSectionModel(airfoil:finite)
         let angle = 0.1
-        let flow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(10*cos(angle),0,10*sin(angle)),
+        let flow = try FluidFlow(relativeVelocityMetresPerSecond:SIMD3(10*cos(angle),0,10*sin(angle)),
             densityKilogramsPerCubicMetre:2,speedOfSoundMetresPerSecond:100,dynamicViscosityPascalSeconds:0.001)
         let expected = try finite.coefficients(angleOfAttackRadians:angle,reynoldsNumber:20000,machNumber:0.1)
         for count in [1,8,32] {

@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Testing
 import Aerodynamics
 
 @Suite struct BodyRateTests {
-    func flow(speed: Double = 10) throws -> AerodynamicFlow {
-        try AerodynamicFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),densityKilogramsPerCubicMetre: 2,
+    func flow(speed: Double = 10) throws -> FluidFlow {
+        try FluidFlow(relativeVelocityMetresPerSecond: SIMD3(speed,0,0),densityKilogramsPerCubicMetre: 2,
             speedOfSoundMetresPerSecond: 100,dynamicViscosityPascalSeconds: 0.02)
     }
     func model(reference: BodyAerodynamicRateReference = .inertialReference) throws -> LinearBodyRateAerodynamics {
-        let zero = try AerodynamicCoefficients(force: .zero,moment: .zero)
+        let zero = try FluidCoefficients(force: .zero,moment: .zero)
         let derivatives = BodyAerodynamicRateDerivatives(
-            rollRate: try AerodynamicCoefficients(force: SIMD3(0,1,0),moment: SIMD3(-2,0,0)),
-            pitchRate: try AerodynamicCoefficients(force: SIMD3(0,0,1),moment: SIMD3(0,-3,0)),
-            yawRate: try AerodynamicCoefficients(force: SIMD3(0,1,0),moment: SIMD3(0,0,-4)))
+            rollRate: try FluidCoefficients(force: SIMD3(0,1,0),moment: SIMD3(-2,0,0)),
+            pitchRate: try FluidCoefficients(force: SIMD3(0,0,1),moment: SIMD3(0,-3,0)),
+            yawRate: try FluidCoefficients(force: SIMD3(0,1,0),moment: SIMD3(0,0,-4)))
         return try LinearBodyRateAerodynamics(staticModel: ConstantBodyCoefficients(value: zero,source: "Synthetic static",version: "1"),
             derivativeModel: ConstantBodyRateDerivatives(value: derivatives,source: "Synthetic derivatives",version: "1",
                 machRange: 0...1,reynoldsRange: 100...10000,incidenceRangeRadians: -0.2...0.2,sideslipRangeRadians: -0.2...0.2,
@@ -20,7 +21,7 @@ import Aerodynamics
             minimumSpeedMetresPerSecond: 1,maximumAbsoluteNondimensionalRates: SIMD3(repeating: 0.2))
     }
     @Test func analyticDampingLoadsOpposeRotation() throws {
-        let geometry = try AerodynamicReferenceGeometry(areaSquareMetres: 2,momentLengthsMetres: SIMD3(4,2,4))
+        let geometry = try FluidReferenceGeometry(areaSquareMetres: 2,momentLengthsMetres: SIMD3(4,2,4))
         let body = try WholeBodyAerodynamics(geometry: geometry,reynoldsReferenceLengthMetres: 2,model: model())
         let rates = SIMD3<Double>(0.5,1,0.5) // All normalized rates = 0.1.
         let loads = try body.evaluate(flow: flow(),angularVelocityRadiansPerSecond: rates)
@@ -44,17 +45,17 @@ import Aerodynamics
             try BodyAerodynamicQuery(flow: flow(speed: speed),reynoldsReferenceLengthMetres: 2,
                 momentLengthsMetres: lengths,angularVelocityRadiansPerSecond: rates,angularRateReference: reference)
         }
-        #expect(throws: AerodynamicError.unsupportedQuery) { try model.coefficients(for: query(reference: .inertialReference)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.coefficients(for: query(speed: 0.5)) }
-        #expect(throws: AerodynamicError.outsideCoverage) { try model.coefficients(for: query(rates: SIMD3(2,0,0))) }
-        #expect(throws: AerodynamicError.invalidGeometry) { try model.coefficients(for: query(lengths: SIMD3(repeating: 1))) }
+        #expect(throws: FluidError.unsupportedQuery) { try model.coefficients(for: query(reference: .inertialReference)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.coefficients(for: query(speed: 0.5)) }
+        #expect(throws: FluidError.outsideCoverage) { try model.coefficients(for: query(rates: SIMD3(2,0,0))) }
+        #expect(throws: FluidError.invalidGeometry) { try model.coefficients(for: query(lengths: SIMD3(repeating: 1))) }
         #expect(try model.coefficients(for: query()).moment == .zero)
     }
     struct ZeroRateStatic: BodyAerodynamicCoefficientModel {
         let source = "Zero-rate query check", version = "1"
-        func coefficients(for query: BodyAerodynamicQuery) throws -> AerodynamicCoefficients {
+        func coefficients(for query: BodyAerodynamicQuery) throws -> FluidCoefficients {
             #expect(query.angularVelocityRadiansPerSecond == .zero)
-            return try AerodynamicCoefficients(force: SIMD3(-1,0,-0.5),moment: SIMD3(0,0.2,0))
+            return try FluidCoefficients(force: SIMD3(-1,0,-0.5),moment: SIMD3(0,0.2,0))
         }
     }
     @Test func preservesStaticLiftAndRestoringMomentWithoutDoubleCounting() throws {

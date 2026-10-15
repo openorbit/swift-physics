@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// Declared applicability, not a guarantee of accuracy. All conditions are conjunctive.
-public struct AerodynamicFlowCoverage: Sendable {
+public struct GasFlowCoverage: Sendable {
     public let machNumber: ClosedRange<Double>
     public let reynoldsNumber: ClosedRange<Double>
     public let angleOfAttackRadians: ClosedRange<Double>
@@ -16,21 +17,21 @@ public struct AerodynamicFlowCoverage: Sendable {
               machNumber.lowerBound >= 0, reynoldsNumber.lowerBound > 0, knudsenNumber.lowerBound >= 0,
               angleOfAttackRadians.lowerBound >= -.pi, angleOfAttackRadians.upperBound <= .pi,
               sideslipRadians.lowerBound >= -.pi/2, sideslipRadians.upperBound <= .pi/2 else {
-            throw AerodynamicError.invalidParameter
+            throw FluidError.invalidParameter
         }
         self.machNumber = machNumber; self.reynoldsNumber = reynoldsNumber
         self.angleOfAttackRadians = angleOfAttackRadians; self.sideslipRadians = sideslipRadians
         self.knudsenNumber = knudsenNumber
     }
-    public func validate(flow: AerodynamicFlow, referenceLengthMetres: Double) throws {
+    public func validate(flow: FluidFlow, referenceLengthMetres: Double) throws {
         guard let mach = flow.machNumber, let re = try flow.reynoldsNumber(referenceLengthMetres: referenceLengthMetres),
               let kn = try flow.knudsenNumber(referenceLengthMetres: referenceLengthMetres),
               let alpha = flow.angleOfAttackRadians, let beta = flow.sideslipRadians else {
-            throw AerodynamicError.missingFlowProperty
+            throw FluidError.missingFlowProperty
         }
         guard machNumber.contains(mach), reynoldsNumber.contains(re), knudsenNumber.contains(kn),
               angleOfAttackRadians.contains(alpha), sideslipRadians.contains(beta) else {
-            throw AerodynamicError.outsideCoverage
+            throw FluidError.outsideCoverage
         }
     }
 }
@@ -39,23 +40,23 @@ public struct AerodynamicFlowCoverage: Sendable {
 /// Particularly useful for measured/CFD tables across transonic and high-incidence flow.
 public struct CoveredBodyCoefficients: BodyAerodynamicCoefficientModel {
     public let model: any BodyAerodynamicCoefficientModel
-    public let coverage: AerodynamicFlowCoverage
+    public let coverage: GasFlowCoverage
     public let reynoldsReferenceLengthMetres: Double
     public let momentLengthsMetres: SIMD3<Double>
     public var source: String { model.source }
     public var version: String { model.version }
-    public init(model: any BodyAerodynamicCoefficientModel, coverage: AerodynamicFlowCoverage,
+    public init(model: any BodyAerodynamicCoefficientModel, coverage: GasFlowCoverage,
                 reynoldsReferenceLengthMetres: Double, momentLengthsMetres: SIMD3<Double>) throws {
         guard reynoldsReferenceLengthMetres.isFinite, reynoldsReferenceLengthMetres > 0,
               [momentLengthsMetres.x,momentLengthsMetres.y,momentLengthsMetres.z].allSatisfy({ $0.isFinite && $0 > 0 }) else {
-            throw AerodynamicError.invalidGeometry
+            throw FluidError.invalidGeometry
         }
         self.model = model; self.coverage = coverage
         self.reynoldsReferenceLengthMetres = reynoldsReferenceLengthMetres; self.momentLengthsMetres = momentLengthsMetres
     }
-    public func coefficients(for query: BodyAerodynamicQuery) throws -> AerodynamicCoefficients {
+    public func coefficients(for query: BodyAerodynamicQuery) throws -> FluidCoefficients {
         guard query.reynoldsReferenceLengthMetres == reynoldsReferenceLengthMetres,
-              query.momentLengthsMetres == momentLengthsMetres else { throw AerodynamicError.unsupportedQuery }
+              query.momentLengthsMetres == momentLengthsMetres else { throw FluidError.unsupportedQuery }
         try coverage.validate(flow: query.flow,referenceLengthMetres: reynoldsReferenceLengthMetres)
         return try model.coefficients(for: query)
     }
@@ -74,11 +75,11 @@ public struct MachRegimeBodyCoefficients: BodyAerodynamicCoefficientModel {
         guard !models.isEmpty, models.count == machThresholds.count+1,
               machThresholds.allSatisfy({ $0.isFinite && $0 > 0 }),
               zip(machThresholds,machThresholds.dropFirst()).allSatisfy({ $0 < $1 }),
-              !source.isEmpty, !version.isEmpty else { throw AerodynamicError.invalidParameter }
+              !source.isEmpty, !version.isEmpty else { throw FluidError.invalidParameter }
         self.models = models; self.machThresholds = machThresholds; self.source = source; self.version = version
     }
-    public func coefficients(for query: BodyAerodynamicQuery) throws -> AerodynamicCoefficients {
-        guard let mach = query.machNumber else { throw AerodynamicError.missingFlowProperty }
+    public func coefficients(for query: BodyAerodynamicQuery) throws -> FluidCoefficients {
+        guard let mach = query.machNumber else { throw FluidError.missingFlowProperty }
         return try models[machThresholds.prefix(while: { mach >= $0 }).count].coefficients(for: query)
     }
 }

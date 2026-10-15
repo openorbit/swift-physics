@@ -3,27 +3,17 @@
 Local flow, coefficient data, airfoil geometry and physical aerodynamic loads.
 
 Aerodynamics provides parametric and thin-airfoil models, NACA geometry and YAML
-coefficient input. Atmospheric profiles live in the Atmospheres module, which
-Aerodynamics re-exports for compatibility.
+coefficient input. Atmospheric profiles live in Atmospheres. Shared flow, load, propeller and CFD
+contracts live in [FluidDynamics](/documentation/fluiddynamics); import those modules explicitly.
 
 ## Topics
 
 ### Physics foundations
 - <doc:ModelCoverage>
-- ``AerodynamicTableAxis``
-- ``AerodynamicScalarTable``
-- ``AerodynamicFlowCoverage``
+- ``GasFlowCoverage``
 - ``CoveredBodyCoefficients``
 - ``MachRegimeBodyCoefficients``
-- ``PerfectGasSpecies``
-- ``PerfectGasMassFraction``
-- ``PerfectGasMixture``
 - <doc:Foundations>
-- ``AerodynamicFlow``
-- ``AerodynamicReferenceGeometry``
-- ``AerodynamicCoefficients``
-- ``AerodynamicLoads``
-- ``AerodynamicHeatFlux``
 
 ### Checked coefficient models
 - ``AirfoilCoefficientModel``
@@ -75,17 +65,8 @@ Aerodynamics re-exports for compatibility.
 
 ### Hypersonic surface pressure
 - <doc:SurfacePressure>
-- ``AerodynamicSurfacePanel``
-- ``SurfacePressureCoefficientModel``
 - ``ModifiedNewtonianPressure``
-- ``SurfacePressureAerodynamics``
-- ``SurfacePressureResult``
 - <doc:RarefiedFlow>
-- ``SurfaceTraction``
-- ``SurfaceTractionModel``
-- ``SurfaceTractionAerodynamics``
-- ``SurfaceTractionResult``
-- ``PressureOnlyTraction``
 - ``FreeMolecularGas``
 - ``GasSurfaceReflection``
 - ``MaxwellianFreeMolecularTraction``
@@ -93,7 +74,6 @@ Aerodynamics re-exports for compatibility.
 
 ### Aerothermal physics
 - <doc:SurfaceHeating>
-- ``AerothermalTransportProperties``
 - ``SurfaceHeatingQuery``
 - ``SurfaceConvectiveHeatingModel``
 - ``SurfaceConvectionResult``
@@ -128,25 +108,9 @@ Aerodynamics re-exports for compatibility.
 - ``HydrogenHeliumHeatingResult``
 
 ### Optional airflow simulation
-- <doc:PropwashAndCFD>
-- ``AirVelocityField``
-- ``InducedAirVelocityField``
-- ``SuperposedAirVelocityField``
-- ``ActuatorDiskPropwash``
-- ``ActuatorDiskAccelerationField``
-- ``LocalCFDConfiguration``
-- ``LocalCFDGrid``
-- ``CFDProjectionReport``
-- ``CFDStepReport``
+- [shared propwash/CFD guide](/documentation/fluiddynamics/propellersandcfd)
 
 ### Parachutes and balloons
 - <doc:ParachutesAndBalloons>
-- ``DragCoefficientQuery``
-- ``DragCoefficientModel``
-- ``DragCoefficientSample``
-- ``TabulatedDragCoefficients``
-- ``DragAreaAerodynamics``
 - ``ParachuteAerodynamics``
-- ``BuoyancyField``
-- ``Buoyancy``
 - ``BalloonAerodynamics``

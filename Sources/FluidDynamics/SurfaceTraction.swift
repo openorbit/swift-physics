@@ -7,46 +7,46 @@ public struct SurfaceTraction: Sendable {
     public let gaugePressurePascals: Double
     public let shearPascals: SIMD3<Double>
     public init(gaugePressurePascals: Double, shearPascals: SIMD3<Double>) throws {
-        guard gaugePressurePascals.isFinite, aeroFinite(shearPascals) else { throw AerodynamicError.nonFiniteResult }
+        guard gaugePressurePascals.isFinite, fluidFinite(shearPascals) else { throw FluidError.nonFiniteResult }
         self.gaugePressurePascals = gaugePressurePascals; self.shearPascals = shearPascals
     }
 }
 public protocol SurfaceTractionModel: Sendable {
-    func traction(panel: AerodynamicSurfacePanel, flow: AerodynamicFlow,
+    func traction(panel: FluidSurfacePanel, flow: FluidFlow,
                   referenceLengthMetres: Double) throws -> SurfaceTraction
 }
 public struct SurfaceTractionResult: Sendable {
     public let tractions: [SurfaceTraction]
-    public let loads: AerodynamicLoads
+    public let loads: FluidLoads
 }
 
 /// Pressure and shear quadrature; no additional pressure-only load is implied.
-public struct SurfaceTractionAerodynamics: Sendable {
-    public let panels: [AerodynamicSurfacePanel]
+public struct SurfaceTractionIntegration: Sendable {
+    public let panels: [FluidSurfacePanel]
     public let referenceLengthMetres: Double
     public let model: any SurfaceTractionModel
-    public init(panels: [AerodynamicSurfacePanel], referenceLengthMetres: Double,
+    public init(panels: [FluidSurfacePanel], referenceLengthMetres: Double,
                 model: any SurfaceTractionModel) throws {
-        guard !panels.isEmpty, referenceLengthMetres.isFinite, referenceLengthMetres > 0 else { throw AerodynamicError.invalidGeometry }
+        guard !panels.isEmpty, referenceLengthMetres.isFinite, referenceLengthMetres > 0 else { throw FluidError.invalidGeometry }
         self.panels = panels; self.referenceLengthMetres = referenceLengthMetres; self.model = model
     }
-    public func evaluate(flow: AerodynamicFlow, momentReferencePointMetres: SIMD3<Double> = .zero) throws -> SurfaceTractionResult {
+    public func evaluate(flow: FluidFlow, momentReferencePointMetres: SIMD3<Double> = .zero) throws -> SurfaceTractionResult {
         try evaluate(momentReferencePointMetres: momentReferencePointMetres) { _ in flow }
     }
     public func evaluate(momentReferencePointMetres: SIMD3<Double> = .zero,
-                         flowAtPanel: (AerodynamicSurfacePanel) throws -> AerodynamicFlow) throws -> SurfaceTractionResult {
-        var total = try AerodynamicLoads(forceNewtons: .zero,momentNewtonMetres: .zero,referencePointMetres: momentReferencePointMetres)
+                         flowAtPanel: (FluidSurfacePanel) throws -> FluidFlow) throws -> SurfaceTractionResult {
+        var total = try FluidLoads(forceNewtons: .zero,momentNewtonMetres: .zero,referencePointMetres: momentReferencePointMetres)
         var tractions = [SurfaceTraction]()
         for panel in panels {
             let traction = try model.traction(panel: panel,flow: flowAtPanel(panel),referenceLengthMetres: referenceLengthMetres)
             let scale = max(abs(traction.shearPascals.x),abs(traction.shearPascals.y),abs(traction.shearPascals.z))
             if scale > 0 {
                 guard abs(((traction.shearPascals/scale)*panel.outwardNormal).sum()) <= 1e-10 else {
-                    throw AerodynamicError.invalidCoefficients
+                    throw FluidError.invalidCoefficients
                 }
             }
             let force = (-panel.outwardNormal*traction.gaugePressurePascals+traction.shearPascals)*panel.areaSquareMetres
-            total = try total.adding(AerodynamicLoads(forceNewtons: force,momentNewtonMetres: .zero,
+            total = try total.adding(FluidLoads(forceNewtons: force,momentNewtonMetres: .zero,
                 referencePointMetres: panel.centreMetres))
             tractions.append(traction)
         }
@@ -59,7 +59,7 @@ public struct SurfaceTractionAerodynamics: Sendable {
 public struct PressureOnlyTraction: SurfaceTractionModel {
     public let pressureModel: any SurfacePressureCoefficientModel
     public init(_ pressureModel: any SurfacePressureCoefficientModel) { self.pressureModel = pressureModel }
-    public func traction(panel: AerodynamicSurfacePanel, flow: AerodynamicFlow,
+    public func traction(panel: FluidSurfacePanel, flow: FluidFlow,
                          referenceLengthMetres: Double) throws -> SurfaceTraction {
         let coefficient = try pressureModel.pressureCoefficient(panel: panel,flow: flow,referenceLengthMetres: referenceLengthMetres)
         return try SurfaceTraction(gaugePressurePascals: coefficient*flow.dynamicPressurePascals,shearPascals: .zero)

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import FluidDynamics
 import Foundation
 
 /// A checked incidence/Re/Mach dataset at one supplied geometric deflection.
@@ -6,7 +7,7 @@ public struct ControlSurfaceSetting: Sendable, Codable {
     public let deflectionRadians: Double
     public let airfoil: TabulatedAirfoil
     public init(deflectionRadians: Double, airfoil: TabulatedAirfoil) throws {
-        guard deflectionRadians.isFinite, abs(deflectionRadians) <= .pi else { throw AerodynamicError.invalidParameter }
+        guard deflectionRadians.isFinite, abs(deflectionRadians) <= .pi else { throw FluidError.invalidParameter }
         self.deflectionRadians = deflectionRadians; self.airfoil = airfoil
     }
     private enum CodingKeys: String, CodingKey { case deflectionRadians, airfoil }
@@ -34,24 +35,24 @@ public struct TabulatedControlSurface: WingSectionCoefficientModel, Sendable, Co
                 source: String, version: String, deflectionConvention: String,
                 momentReferenceDescription: String) throws {
         guard !settings.isEmpty, [source,version,deflectionConvention,momentReferenceDescription]
-            .allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { throw AerodynamicError.invalidParameter }
+            .allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { throw FluidError.invalidParameter }
         let ordered = settings.sorted { $0.deflectionRadians < $1.deflectionRadians }
         guard zip(ordered,ordered.dropFirst()).allSatisfy({ $0.deflectionRadians < $1.deflectionRadians }) else {
-            throw AerodynamicError.duplicateCondition
+            throw FluidError.duplicateCondition
         }
         // Keep the Re/Mach coordinate grid consistent across deflections. Angle
         // sampling can differ; interpolation uses the coverage of both neighbors.
         let reference = ordered[0].airfoil.polars
         let re = Set(reference.map(\.reynoldsNumber)), mach = Set(reference.map(\.machNumber))
         guard ordered.allSatisfy({ Set($0.airfoil.polars.map(\.reynoldsNumber)) == re
-            && Set($0.airfoil.polars.map(\.machNumber)) == mach }) else { throw AerodynamicError.incompleteGrid }
+            && Set($0.airfoil.polars.map(\.machNumber)) == mach }) else { throw FluidError.incompleteGrid }
         self.settings = ordered; self.deflectionBoundaryPolicy = deflectionBoundaryPolicy
         self.source = source; self.version = version; self.deflectionConvention = deflectionConvention
         self.momentReferenceDescription = momentReferenceDescription
     }
     public func coefficients(for query: WingSectionQuery) throws -> AirfoilCoefficients {
         guard let alpha = query.angleOfAttackRadians, let mach = query.machNumber,
-              let re = try query.reynoldsNumber() else { throw AerodynamicError.missingFlowProperty }
+              let re = try query.reynoldsNumber() else { throw FluidError.missingFlowProperty }
         let deflection = try boundedCoefficientCoordinate(query.controlDeflectionRadians,
             range: deflectionRangeRadians,policy: deflectionBoundaryPolicy)
         let lower = settings.lastIndex { $0.deflectionRadians <= deflection }!
@@ -81,7 +82,7 @@ public struct TabulatedControlSurface: WingSectionCoefficientModel, Sendable, Co
 public enum ControlSurfaceTableLoader {
     public static func load(data: Data) throws -> TabulatedControlSurface {
         do { return try JSONDecoder().decode(TabulatedControlSurface.self,from: data) }
-        catch let error as AerodynamicError { throw error }
-        catch { throw AerodynamicError.malformedData }
+        catch let error as FluidError { throw error }
+        catch { throw FluidError.malformedData }
     }
 }
