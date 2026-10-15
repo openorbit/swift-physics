@@ -28,6 +28,11 @@ Aerodynamics re-exports for compatibility.
 - <doc:FiniteWing>
 - ``FiniteWingAirfoil``
 - ``FiniteWingSolution``
+- <doc:LiftingLine>
+- ``LiftingLineWing``
+- ``LiftingLineSection``
+- ``LiftingLineResult``
+- ``LiftingLineStationResult``
 - ``SegmentedWing``
 - ``WingSegment``
 - ``WingSectionAxes``

@@ -20,6 +20,15 @@ let wingFlow = try AerodynamicFlow(relativeVelocityMetresPerSecond:SIMD3(40,0,0)
 let wingResult = try wing.evaluate(flow:wingFlow)
 print("Wing: \(wingResult.segments.count) strips; force N = \(wingResult.loads.forceNewtons); moment N m = \(wingResult.loads.momentNewtonMetres)")
 
+let coupledWing = try LiftingLineWing(spanMetres: 8,referenceAreaSquareMetres: 16,
+    stationCount: 16,source: "Synthetic linear rectangular wing",version: "1") { fraction in
+    try LiftingLineSection(chordMetres: 2,liftSlopePerRadian: 5,
+        geometricIncidenceRadians: 0.08-0.02*fraction,profileDragCoefficient: 0.02,
+        effectiveAngleRangeRadians: -0.2...0.2,reynoldsRange: 1e5...1e7)
+}
+let coupledWingResult = try coupledWing.evaluate(flow: wingFlow)
+print("Spanwise coupled wing: CL = \(coupledWingResult.liftCoefficient), CDi = \(coupledWingResult.inducedDragCoefficient); moment \(coupledWingResult.loads.momentNewtonMetres) N m")
+
 let controlSettings = try [-0.1,0.0,0.1].map { deflection in
     let controlledPolars = try polars.map { polar in
         try AirfoilPolar(reynoldsNumber: polar.reynoldsNumber,machNumber: polar.machNumber,
