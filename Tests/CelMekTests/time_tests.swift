@@ -25,7 +25,7 @@ struct time_tests {
   func testDateTime() throws {
     let dt0 = try #require(DateTime(isoDate: "2020-12-12"))
     #expect(dt0.date.year == 2020)
-    #expect(dt0.date.month == Month.December)
+    #expect(dt0.date.month == Month.december)
     #expect(dt0.date.day == 12)
     
     let dt1 = DateTime(isoDate: "2020-0-12")

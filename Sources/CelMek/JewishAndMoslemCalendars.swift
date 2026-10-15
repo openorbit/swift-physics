@@ -39,19 +39,19 @@ fileprivate let jewishMonthLength: [JewishYearClassifier : [Int]] = [
 extension JewishMonth: CustomStringConvertible {
   public var description: String {
     switch self {
-    case .Tishri: return "Tishri"
-    case .Heshvan: return "Heshvan"
-    case .Kislev: return "Kislev"
-    case .Tevet: return "Tevet"
-    case .Shevat: return "Shevat"
-    case .Adar: return "Adar"
-    case .Veadar: return "Vedar"
-    case .Nisan: return "Nisan"
-    case .Iyar: return "Iyar"
-    case .Sivan: return "Sivan"
-    case .Tammuz: return "Tammuz"
-    case .Av: return "Av"
-    case .Elul: return "Elul"
+    case .tishri: return "Tishri"
+    case .heshvan: return "Heshvan"
+    case .kislev: return "Kislev"
+    case .tevet: return "Tevet"
+    case .shevat: return "Shevat"
+    case .adar: return "Adar"
+    case .veadar: return "Vedar"
+    case .nisan: return "Nisan"
+    case .iyar: return "Iyar"
+    case .sivan: return "Sivan"
+    case .tammuz: return "Tammuz"
+    case .av: return "Av"
+    case .elul: return "Elul"
     }
   }
 }
@@ -105,7 +105,7 @@ public func jewishEaster(julianYear: Int) -> JulianDate {
   let A = X + 3760
   let D = jewishEaster(hebrewYear: A, julianCalendar: true)
   return JulianDate(year:julianYear,
-                    month: D > 31 ? .April : .March,
+                    month: D > 31 ? .april : .march,
                     day: D > 31 ? Double(D - 31) : Double(D))
 
 }
@@ -115,7 +115,7 @@ public func jewishEaster(gregorianYear: Int) -> GregorianDate {
   let A = X + 3760
   let D = jewishEaster(hebrewYear: A, julianCalendar: false)
   return GregorianDate(year:gregorianYear,
-                       month: D > 31 ? .April : .March,
+                       month: D > 31 ? .april : .march,
                        day: D > 31 ? Double(D - 31) : Double(D))
 }
 
@@ -158,29 +158,29 @@ public struct MoslemDate {
 extension MoslemMonth: CustomStringConvertible {
   public var description: String {
     switch self {
-    case .Muharram:
+    case .muharram:
       return "Muharram"
-    case .Safar:
+    case .safar:
       return "Safar"
-    case .RabiAlAwwal:
+    case .rabiAlAwwal:
       return "Rabi'al-Awwal"
-    case .RabiAthThani:
+    case .rabiAthThani:
       return "Rabi'ath-Thani"
-    case .JumadaLUla:
+    case .jumadaLUla:
       return "Jumada l-Ula"
-    case .JumadaTTania:
+    case .jumadaTTania:
       return "Jumada t-Tania"
-    case .Rajab:
+    case .rajab:
       return "Rajab"
-    case .ShaBan:
+    case .shaBan:
       return "Sha'ban"
-    case .Ramadan:
+    case .ramadan:
       return "Ramadan"
-    case .Shawwal:
+    case .shawwal:
       return "Shawwal"
-    case .DhuLQaDa:
+    case .dhuLQaDa:
       return "Dhu l-Qa'da"
-    case .DhuLHijja:
+    case .dhuLHijja:
       return "Dhu l-Hijja"
     }
   }

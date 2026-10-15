@@ -26,32 +26,32 @@ struct dayOfEaster_tests {
     // Meeus, p68
     let date_0 = gregorianDateOfEaster(year: 1991)
     #expect(date_0.year == 1991)
-    #expect(date_0.month == .March)
+    #expect(date_0.month == .march)
     #expect(date_0.day == 31)
 
     let date_1 = gregorianDateOfEaster(year: 1992)
     #expect(date_1.year == 1992)
-    #expect(date_1.month == .April)
+    #expect(date_1.month == .april)
     #expect(date_1.day == 19)
 
     let date_2 = gregorianDateOfEaster(year: 1993)
     #expect(date_2.year == 1993)
-    #expect(date_2.month == .April)
+    #expect(date_2.month == .april)
     #expect(date_2.day == 11)
 
     let date_3 = gregorianDateOfEaster(year: 1954)
     #expect(date_3.year == 1954)
-    #expect(date_3.month == .April)
+    #expect(date_3.month == .april)
     #expect(date_3.day == 18)
 
     let date_4 = gregorianDateOfEaster(year: 2000)
     #expect(date_4.year == 2000)
-    #expect(date_4.month == .April)
+    #expect(date_4.month == .april)
     #expect(date_4.day == 23)
 
     let date_5 = gregorianDateOfEaster(year: 1818)
     #expect(date_5.year == 1818)
-    #expect(date_5.month == .March)
+    #expect(date_5.month == .march)
     #expect(date_5.day == 22)
   }
   
@@ -59,17 +59,17 @@ struct dayOfEaster_tests {
   func testJulianDateOfEaster() {
     let date_0 = julianDateOfEaster(year: 179)
     #expect(date_0.year == 179)
-    #expect(date_0.month == .April)
+    #expect(date_0.month == .april)
     #expect(date_0.day == 12)
 
     let date_1 = julianDateOfEaster(year: 711)
     #expect(date_1.year == 711)
-    #expect(date_1.month == .April)
+    #expect(date_1.month == .april)
     #expect(date_1.day == 12)
 
     let date_2 = julianDateOfEaster(year: 1243)
     #expect(date_2.year == 1243)
-    #expect(date_2.month == .April)
+    #expect(date_2.month == .april)
     #expect(date_2.day == 12)
   }
 }

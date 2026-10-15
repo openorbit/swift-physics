@@ -87,7 +87,7 @@ public struct WaypointThermalEnvelope: Equatable, Sendable {
 public struct WaypointRoutePhysicalConstraints {
     public let thrustCone: WaypointThrustCone?
     public let thermalEnvelope: WaypointThermalEnvelope?
-    public static let unconstrained = WaypointRoutePhysicalConstraints()
+    public static var unconstrained: Self { Self() }
     public init(thrustCone: WaypointThrustCone? = nil, thermalEnvelope: WaypointThermalEnvelope? = nil) {
         self.thrustCone = thrustCone; self.thermalEnvelope = thermalEnvelope
     }

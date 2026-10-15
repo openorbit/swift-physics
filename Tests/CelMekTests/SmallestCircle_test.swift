@@ -28,27 +28,27 @@ struct SmallestCircle_tests {
     let mercury = EquatorialCoordinate(rightAscension:
                                     HourAngle(hours: 12,
                                               minutes: 41,
-                                              seconds: 8.63).toRad(),
+                                              seconds: 8.63).radians,
                                   declination:
                                     AngleOfArc(degrees: -5,
                                                minutes: 37,
-                                               seconds: 54.2).toRad())
+                                               seconds: 54.2).radians)
     let jupiter = EquatorialCoordinate(rightAscension:
                                     HourAngle(hours: 12,
                                               minutes: 52,
-                                              seconds: 5.21).toRad(),
+                                              seconds: 5.21).radians,
                                   declination:
                                     AngleOfArc(degrees: -4,
                                                minutes: 22,
-                                               seconds: 26.2).toRad())
+                                               seconds: 26.2).radians)
     let saturn = EquatorialCoordinate(rightAscension:
                                     HourAngle(hours: 12,
                                               minutes: 39,
-                                              seconds: 28.11).toRad(),
+                                              seconds: 28.11).radians,
                                   declination:
                                     AngleOfArc(degrees: -1,
                                                minutes: 50,
-                                               seconds: 3.7).toRad())
+                                               seconds: 3.7).radians)
     let d = smallestCircle(mercury, jupiter, saturn)
 
     #expect(abs((d) - (4.26364.deg)) <= 0.000005)

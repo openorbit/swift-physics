@@ -2,32 +2,37 @@ name: Swift
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  macos:
-    runs-on: macos-13
+  build-and-test:
+    name: Swift 6.4 on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04, windows-latest]
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v1
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
-  linux:
-    runs-on: ubuntu-latest
-    container:
-      image: swift:5.9
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Setup Swift
-      uses: swift-actions/setup-swift@v1
-    - name: Build
-      run: swift build -v
-    - name: Run tests
-      run: swift test -v
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Swift 6.4
+        if: runner.os != 'Windows'
+        uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: "6.4"
+      - name: Set up Swift 6.4 on Windows
+        if: runner.os == 'Windows'
+        uses: SwiftyLab/setup-swift@v1.14.0
+        with:
+          swift-version: "6.4"
+      - name: Show Swift version
+        run: swift --version
+      - name: Build
+        run: swift build -v
+      - name: Run tests
+        run: swift test -v

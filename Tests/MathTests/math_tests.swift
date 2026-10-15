@@ -49,20 +49,20 @@ struct math_tests {
   func testHourAngleToDeg() {
     // Meeus, Astronomical Algorithms 2nd edition, Example 1.a
     let ra = HourAngle(hours: 9, minutes: 14, seconds: 55.8)
-    #expect(abs((ra.toDeg()) - (138.73250)) <= 0.000005);
+    #expect(abs((ra.degrees) - (138.73250)) <= 0.000005);
   }
   
   @Test
   func testHourAngleToRad() {
     // Meeus, p8 Example 1.a
     let ra = HourAngle(hours: 9, minutes: 14, seconds: 55.8)
-    #expect(abs((ra.toRad()) - (2.4213389045)) <= 1.0e-6);
+    #expect(abs((ra.radians) - (2.4213389045)) <= 1.0e-6);
   }
   
   @Test
   func testAngleOfArcToDeg() {
     let angle = AngleOfArc(degrees: -14, minutes: 43, seconds: 8.2)
-    #expect(abs((angle.toDeg()) - (-14.718944)) <= 0.0000005)
+    #expect(abs((angle.totalDegrees) - (-14.718944)) <= 0.0000005)
 
   }
 

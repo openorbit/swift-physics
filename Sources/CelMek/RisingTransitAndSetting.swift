@@ -24,9 +24,9 @@ import Math
 // dT: difference between TD - UT in seconds
 // h0: standard altitude, geometric altitude of center of body
 let MEAN_ATMOSPHERIC_REFRACTION_ARC = AngleOfArc(degrees: 0, minutes: 34, seconds: 0)
-let MEAN_ATMOSPHERIC_REFRACTION = MEAN_ATMOSPHERIC_REFRACTION_ARC.toRad()
+let MEAN_ATMOSPHERIC_REFRACTION = MEAN_ATMOSPHERIC_REFRACTION_ARC.radians
 let MEAN_ATMOSPHERIC_REFRACTION_SUN_ARC = AngleOfArc(degrees: 0, minutes: 50, seconds: 0)
-let MEAN_ATMOSPHERIC_REFRACTION_SUN = MEAN_ATMOSPHERIC_REFRACTION_SUN_ARC.toRad()
+let MEAN_ATMOSPHERIC_REFRACTION_SUN = MEAN_ATMOSPHERIC_REFRACTION_SUN_ARC.radians
 let MEAN_ATMOSPHERIC_REFRACTION_MOON = 0.125.deg
 
 func angleForRiseOrSet(declination: Double, observerLatitude: Double) -> Double {

@@ -21,7 +21,7 @@ struct TimeAndCalendarRegressionTests {
     let value = try #require(DateTime(isoDate: input))
     #expect(value.isValid())
     #expect(value.date.year == 2024)
-    #expect(value.date.month == .February)
+    #expect(value.date.month == .february)
     #expect(value.date.day == 29)
     #expect(value.time.hh == 23)
     #expect(value.time.mm == 59)
@@ -32,7 +32,7 @@ struct TimeAndCalendarRegressionTests {
 
   @Test
   func validatesRawCalendarFields() {
-    #expect(!Date(year: 2024, month: .January, day: 0).isValid())
+    #expect(!Date(year: 2024, month: .january, day: 0).isValid())
     for second in [-1.0, 60, .nan, .infinity] {
       #expect(!Time(hh: 23, mm: 59, sec: second).isValid())
     }
@@ -76,14 +76,14 @@ struct TimeAndCalendarRegressionTests {
 
   @Test
   func weekdayChangesAtMidnightRatherThanNoon() {
-    #expect(2451544.499.weekday == .Friday)
-    #expect(2451544.5.weekday == .Saturday)
-    #expect(2451545.0.weekday == .Saturday)
-    #expect(2451545.499.weekday == .Saturday)
-    #expect(2451545.5.weekday == .Sunday)
-    #expect((-0.5).weekday == .Monday)
-    #expect((-1.5).weekday == .Sunday)
-    #expect((-2.5).weekday == .Saturday)
+    #expect(2451544.499.weekday == .friday)
+    #expect(2451544.5.weekday == .saturday)
+    #expect(2451545.0.weekday == .saturday)
+    #expect(2451545.499.weekday == .saturday)
+    #expect(2451545.5.weekday == .sunday)
+    #expect((-0.5).weekday == .monday)
+    #expect((-1.5).weekday == .sunday)
+    #expect((-2.5).weekday == .saturday)
   }
 
   @Test(arguments: [2415020.0, 2451545.0, 2488070.0])

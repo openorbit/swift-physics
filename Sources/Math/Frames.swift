@@ -21,25 +21,44 @@ import Foundation
 
 /*
  Frames are related to parent frames with a transformation of:
-  Position, Velocity and Accelleration
-  Rotation, Rotational Velocity and Rotational Accelleration
+  Position, Velocity and Acceleration
+  Rotation, Rotational Velocity and Rotational Acceleration
  */
 
-public struct Transformation {
+public struct Transformation: Sendable {
   public let date: Double
   public let position: SIMD3<Double>
   public let velocity: SIMD3<Double>
-  public let accelleration: SIMD3<Double>
+  public let acceleration: SIMD3<Double>
 
   public let quaternion: Quaternion
   public var rotationMatrix: Matrix3x3 {
     return quaternion.matrix
   }
   public let rotationRate: SIMD3<Double>
-  public let rotationAccelleration: SIMD3<Double>
+  public let rotationAcceleration: SIMD3<Double>
+
+  public init(date: Double, position: SIMD3<Double>, velocity: SIMD3<Double>,
+              acceleration: SIMD3<Double>, quaternion: Quaternion,
+              rotationRate: SIMD3<Double>, rotationAcceleration: SIMD3<Double>) {
+    self.date = date
+    self.position = position
+    self.velocity = velocity
+    self.acceleration = acceleration
+    self.quaternion = quaternion
+    self.rotationRate = rotationRate
+    self.rotationAcceleration = rotationAcceleration
+  }
+
+  @available(*, deprecated, renamed: "acceleration")
+  public var accelleration: SIMD3<Double> { acceleration }
+
+  @available(*, deprecated, renamed: "rotationAcceleration")
+  public var rotationAccelleration: SIMD3<Double> { rotationAcceleration }
 }
 
-public class Frame {
+/// Immutable reference-frame identity. Equality is determined by object identity.
+public final class Frame: Sendable {
   public let parent: Frame?
   public let depth: Int
   public let name: String

@@ -18,7 +18,7 @@
 
 import Foundation
 
-public struct Matrix3x3 {
+public struct Matrix3x3: Sendable {
   var elements: [SIMD3<Double>]
 
   public init() {

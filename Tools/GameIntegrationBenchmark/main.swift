@@ -27,6 +27,7 @@ func now() -> UInt64 { DispatchTime.now().uptimeNanoseconds }
 func magnitude(_ v: SIMD3<Double>) -> Double { sqrt((v*v).sum()) }
 var checksum = 0.0, timings: [Timing] = []
 let repetitions = 7
+@MainActor
 func measure(_ name: String, operations: Int, prepare: () throws -> Void = {},
              work: () throws -> Double) throws {
     try prepare(); checksum += try work() // Warmup outside timing.

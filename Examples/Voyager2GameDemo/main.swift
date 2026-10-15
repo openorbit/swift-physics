@@ -29,6 +29,7 @@ let coefficients = [earth,jupiter,saturn,uranus,neptune]
 let ephemerides = try coefficients.map { try VSOP87Ephemeris(body: $0,coverage: coverage,tdbModel: tdb,accuracy: .full) }
 let sunEphemeris = try VSOP87Ephemeris(body: sun,coverage: coverage,tdbModel: tdb,accuracy: .full)
 let heliocentric = Frame(name: "Sun origin; VSOP87E native axes",pseudoInertial: true)
+@MainActor
 func bodyState(_ body: Int,_ epoch: Epoch) throws -> CartesianState {
     let planet = try ephemerides[body].checkedState(at: epoch), centre = try sunEphemeris.checkedState(at: epoch)
     guard planet.frame === centre.frame else { throw EphemerisError.frameMismatch }
@@ -120,6 +121,7 @@ struct Sample: Encodable {
     let heliocentricPositionMetres,heliocentricVelocityMetresPerSecond: [Double]
 }
 var samples: [Sample] = []
+@MainActor
 func append(_ state: CartesianState,_ phase: String) throws {
     samples.append(Sample(phase: phase,utc: try label(state.epoch),secondsFromLaunch: try state.epoch.duration(since: launch).seconds,
         heliocentricPositionMetres: array(state.position),heliocentricVelocityMetresPerSecond: array(state.velocity)))
@@ -164,6 +166,7 @@ for (i,f) in allFlybys.enumerated() {
 }
 // Playback selects a bounded coast explicitly; exact patch epochs use the following leg.
 let playbackCoasts = try selected.legs.map { try $0.trajectory() }
+@MainActor
 func spacecraft(at epoch: Epoch) throws -> CartesianState {
     guard epoch >= launch, epoch <= lastCentre.epoch else { throw LambertTransferPlanningError.outsideFlight }
     for i in 0..<4 where epoch < selected.legs[i].arrivalState.epoch || i == 3 {
@@ -183,6 +186,7 @@ struct Playback: Encodable {
 }
 var clock = try SimulationClock(epoch: launch,rate: 365*86400,coverage: launch...lastCentre.epoch)
 var playback: [Playback] = []
+@MainActor
 func capture(_ mode: String) throws {
     let epoch = clock.epoch, remaining = try lastCentre.epoch.duration(since: epoch)
     let lookAhead = try CelMek.Duration(seconds: 30*86400)

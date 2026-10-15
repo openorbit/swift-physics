@@ -10,8 +10,8 @@ struct FastNutationAccuracyTests {
   func dailyComparisonWithFullModelFrom1900Through2100() {
     // Empirical regression budgets on this sampled interval, not universal
     // accuracy guarantees or a comparison with modern observed orientation.
-    let start = GregorianDate(year: 1900, month: .January, day: 1).toJD()
-    let end = GregorianDate(year: 2100, month: .December, day: 31).toJD()
+    let start = GregorianDate(year: 1900, month: .january, day: 1).toJD()
+    let end = GregorianDate(year: 2100, month: .december, day: 31).toJD()
     var maximum = SIMD3<Double>.zero
     var worstEpoch = SIMD3<Double>.zero
     var squareSum = SIMD3<Double>.zero

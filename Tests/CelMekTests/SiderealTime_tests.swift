@@ -27,8 +27,8 @@ struct SiderealTime_tests {
     // Meeus, example 12.a
     // TODO: Calculate also apperent time
     let 𝛩₀ = meanSideralTimeUT0(jd: 2446895.5)
-    let expected = HourAngle(hours: 13, minutes: 10, seconds: 46.3668).toDeg()
-    #expect(abs((𝛩₀.toDeg()) - (expected)) <= 0.000005)
+    let expected = HourAngle(hours: 13, minutes: 10, seconds: 46.3668).degrees
+    #expect(abs((𝛩₀.degrees) - (expected)) <= 0.000005)
     #expect(𝛩₀.hours == 13)
     #expect(𝛩₀.minutes == 10)
     #expect(abs((𝛩₀.seconds) - (46.3668)) <= 0.00005)
@@ -58,8 +58,8 @@ struct SiderealTime_tests {
     // Meeus, example 12.a
     // TODO: Calculate also apperent time
     let 𝛩₀ = apparentSiderealTimeUT0(jd: 2446895.5)
-    let expected = HourAngle(hours: 13, minutes: 10, seconds: 46.1351).toDeg()
-    #expect(abs((𝛩₀.toDeg()) - (expected)) <= 0.000005)
+    let expected = HourAngle(hours: 13, minutes: 10, seconds: 46.1351).degrees
+    #expect(abs((𝛩₀.degrees) - (expected)) <= 0.000005)
     #expect(𝛩₀.hours == 13)
     #expect(𝛩₀.minutes == 10)
     #expect(abs((𝛩₀.seconds) - (46.1351)) <= 0.00005)
@@ -69,7 +69,7 @@ struct SiderealTime_tests {
   func testApparentSiderealTimeDegreesUT0() {
     // Meeus, example 12.a
     let 𝛩₀ = apparentSiderealTimeDegreesUT0(jd: 2446895.5)
-    let expected = HourAngle(hours: 13, minutes: 10, seconds: 46.1351).toDeg()
+    let expected = HourAngle(hours: 13, minutes: 10, seconds: 46.1351).degrees
     #expect(abs((𝛩₀) - (expected)) <= 0.005)
   }
 }

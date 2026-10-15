@@ -16,11 +16,7 @@
 // limitations under the License.
 //
 
-#if os(Linux)
-import Glibc
-#else
-import Darwin
-#endif
+import Foundation
 
 fileprivate let month_length : [Int] = [31, 28, 31, 30, 31, 30,
                                         31, 31, 30, 31, 30, 31];
@@ -33,90 +29,181 @@ fileprivate let month_offset_leap : [Int]  = [  0,  31,  60,  91, 121, 152,
                                                 182, 213, 244, 274, 305, 335];
 
 // Ordered in work week order, but numbered to simplify calculations
-public enum Weekday : Int {
-  case Monday = 1
-  case Tuesday = 2
-  case Wednesday = 3
-  case Thursday = 4
-  case Friday = 5
-  case Saturday = 6
-  case Sunday = 0
+public enum Weekday: Int, Sendable {
+  case monday = 1
+  case tuesday = 2
+  case wednesday = 3
+  case thursday = 4
+  case friday = 5
+  case saturday = 6
+  case sunday = 0
 
+  @available(*, deprecated, renamed: "monday")
+  public static var Monday: Self { .monday }
+  @available(*, deprecated, renamed: "tuesday")
+  public static var Tuesday: Self { .tuesday }
+  @available(*, deprecated, renamed: "wednesday")
+  public static var Wednesday: Self { .wednesday }
+  @available(*, deprecated, renamed: "thursday")
+  public static var Thursday: Self { .thursday }
+  @available(*, deprecated, renamed: "friday")
+  public static var Friday: Self { .friday }
+  @available(*, deprecated, renamed: "saturday")
+  public static var Saturday: Self { .saturday }
+  @available(*, deprecated, renamed: "sunday")
+  public static var Sunday: Self { .sunday }
 }
-public enum Month : Int {
-  case January = 1;
-  case February = 2;
-  case March = 3;
-  case April = 4;
-  case May = 5;
-  case June = 6;
-  case July = 7;
-  case August = 8;
-  case September = 9;
-  case October = 10;
-  case November = 11;
-  case December = 12;
+public enum Month: Int, Sendable {
+  case january = 1
+  case february = 2
+  case march = 3
+  case april = 4
+  case may = 5
+  case june = 6
+  case july = 7
+  case august = 8
+  case september = 9
+  case october = 10
+  case november = 11
+  case december = 12
+
+  @available(*, deprecated, renamed: "january")
+  public static var January: Self { .january }
+  @available(*, deprecated, renamed: "february")
+  public static var February: Self { .february }
+  @available(*, deprecated, renamed: "march")
+  public static var March: Self { .march }
+  @available(*, deprecated, renamed: "april")
+  public static var April: Self { .april }
+  @available(*, deprecated, renamed: "may")
+  public static var May: Self { .may }
+  @available(*, deprecated, renamed: "june")
+  public static var June: Self { .june }
+  @available(*, deprecated, renamed: "july")
+  public static var July: Self { .july }
+  @available(*, deprecated, renamed: "august")
+  public static var August: Self { .august }
+  @available(*, deprecated, renamed: "september")
+  public static var September: Self { .september }
+  @available(*, deprecated, renamed: "october")
+  public static var October: Self { .october }
+  @available(*, deprecated, renamed: "november")
+  public static var November: Self { .november }
+  @available(*, deprecated, renamed: "december")
+  public static var December: Self { .december }
 }
 extension Month: CustomStringConvertible {
   public var description: String {
     switch self {
-    case .January:
+    case .january:
       return "January"
-    case .February:
+    case .february:
       return "February"
-    case .March:
+    case .march:
       return "March"
-    case .April:
+    case .april:
       return "April"
-    case .May:
+    case .may:
       return "May"
-    case .June:
+    case .june:
       return "June"
-    case .July:
+    case .july:
       return "July"
-    case .August:
+    case .august:
       return "August"
-    case .September:
+    case .september:
       return "September"
-    case .October:
+    case .october:
       return "October"
-    case .November:
+    case .november:
       return "November"
-    case .December:
+    case .december:
       return "December"
     }
   }
 }
 
-public enum JewishMonth : Int {
-  case Tishri = 1;
-  case Heshvan = 2;
-  case Kislev = 3;
-  case Tevet = 4;
-  case Shevat = 5;
-  case Adar = 6;
-  case Veadar = 7;
-  case Nisan = 8;
-  case Iyar = 9;
-  case Sivan = 10;
-  case Tammuz = 11;
-  case Av = 12;
-  case Elul = 13;
+public enum JewishMonth: Int, Sendable {
+  case tishri = 1
+  case heshvan = 2
+  case kislev = 3
+  case tevet = 4
+  case shevat = 5
+  case adar = 6
+  case veadar = 7
+  case nisan = 8
+  case iyar = 9
+  case sivan = 10
+  case tammuz = 11
+  case av = 12
+  case elul = 13
+
+  @available(*, deprecated, renamed: "tishri")
+  public static var Tishri: Self { .tishri }
+  @available(*, deprecated, renamed: "heshvan")
+  public static var Heshvan: Self { .heshvan }
+  @available(*, deprecated, renamed: "kislev")
+  public static var Kislev: Self { .kislev }
+  @available(*, deprecated, renamed: "tevet")
+  public static var Tevet: Self { .tevet }
+  @available(*, deprecated, renamed: "shevat")
+  public static var Shevat: Self { .shevat }
+  @available(*, deprecated, renamed: "adar")
+  public static var Adar: Self { .adar }
+  @available(*, deprecated, renamed: "veadar")
+  public static var Veadar: Self { .veadar }
+  @available(*, deprecated, renamed: "nisan")
+  public static var Nisan: Self { .nisan }
+  @available(*, deprecated, renamed: "iyar")
+  public static var Iyar: Self { .iyar }
+  @available(*, deprecated, renamed: "sivan")
+  public static var Sivan: Self { .sivan }
+  @available(*, deprecated, renamed: "tammuz")
+  public static var Tammuz: Self { .tammuz }
+  @available(*, deprecated, renamed: "av")
+  public static var Av: Self { .av }
+  @available(*, deprecated, renamed: "elul")
+  public static var Elul: Self { .elul }
 }
 
-public enum MoslemMonth : Int {
-  case Muharram = 1;
-  case Safar = 2;
-  case RabiAlAwwal = 3;
-  case RabiAthThani = 4;
-  case JumadaLUla = 5;
-  case JumadaTTania = 6;
-  case Rajab = 7;
-  case ShaBan = 8;
-  case Ramadan = 9;
-  case Shawwal = 10;
-  case DhuLQaDa = 11;
-  case DhuLHijja = 12;
+public enum MoslemMonth: Int, Sendable {
+  case muharram = 1
+  case safar = 2
+  case rabiAlAwwal = 3
+  case rabiAthThani = 4
+  case jumadaLUla = 5
+  case jumadaTTania = 6
+  case rajab = 7
+  case shaBan = 8
+  case ramadan = 9
+  case shawwal = 10
+  case dhuLQaDa = 11
+  case dhuLHijja = 12
+
+  @available(*, deprecated, renamed: "muharram")
+  public static var Muharram: Self { .muharram }
+  @available(*, deprecated, renamed: "safar")
+  public static var Safar: Self { .safar }
+  @available(*, deprecated, renamed: "rabiAlAwwal")
+  public static var RabiAlAwwal: Self { .rabiAlAwwal }
+  @available(*, deprecated, renamed: "rabiAthThani")
+  public static var RabiAthThani: Self { .rabiAthThani }
+  @available(*, deprecated, renamed: "jumadaLUla")
+  public static var JumadaLUla: Self { .jumadaLUla }
+  @available(*, deprecated, renamed: "jumadaTTania")
+  public static var JumadaTTania: Self { .jumadaTTania }
+  @available(*, deprecated, renamed: "rajab")
+  public static var Rajab: Self { .rajab }
+  @available(*, deprecated, renamed: "shaBan")
+  public static var ShaBan: Self { .shaBan }
+  @available(*, deprecated, renamed: "ramadan")
+  public static var Ramadan: Self { .ramadan }
+  @available(*, deprecated, renamed: "shawwal")
+  public static var Shawwal: Self { .shawwal }
+  @available(*, deprecated, renamed: "dhuLQaDa")
+  public static var DhuLQaDa: Self { .dhuLQaDa }
+  @available(*, deprecated, renamed: "dhuLHijja")
+  public static var DhuLHijja: Self { .dhuLHijja }
 }
 
 /// A Gregorian calendar date; this legacy type does not identify a time scale.

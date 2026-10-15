@@ -26,27 +26,27 @@ struct ParallaticAngle_tests {
   func testEclipticAndHorizon() {
     // Meeus, p99
     let (_, I0) = eclipticAndHorizon(
-      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 26, seconds: 0).toRad(),
-      geographicLatitudeOfObserver: AngleOfArc(degrees: 48, minutes: 0, seconds: 0).toRad(),
+      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 26, seconds: 0).radians,
+      geographicLatitudeOfObserver: AngleOfArc(degrees: 48, minutes: 0, seconds: 0).radians,
       localSiderealTime: 90.deg)
 
-    #expect(abs((I0) - (AngleOfArc(degrees: 65, minutes: 26, seconds: 0).toRad())) <= 0.000000005)
+    #expect(abs((I0) - (AngleOfArc(degrees: 65, minutes: 26, seconds: 0).radians)) <= 0.000000005)
     
     let (_, I1) = eclipticAndHorizon(
-      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 26, seconds: 0).toRad(),
-      geographicLatitudeOfObserver: AngleOfArc(degrees: 48, minutes: 0, seconds: 0).toRad(),
+      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 26, seconds: 0).radians,
+      geographicLatitudeOfObserver: AngleOfArc(degrees: 48, minutes: 0, seconds: 0).radians,
       localSiderealTime: 270.deg)
     
-    #expect(abs((I1) - (AngleOfArc(degrees: 18, minutes: 34, seconds: 0).toRad())) <= 0.000000005)
+    #expect(abs((I1) - (AngleOfArc(degrees: 18, minutes: 34, seconds: 0).radians)) <= 0.000000005)
     
     
     // Meeus, Example 14.a
     let (L, I2) = eclipticAndHorizon(
-      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 44, seconds: 0).toRad(),
+      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 44, seconds: 0).radians,
       geographicLatitudeOfObserver: 51.deg,
-      localSiderealTime: HourAngle(hours: 5, minutes: 0, seconds: 0).toRad())
+      localSiderealTime: HourAngle(hours: 5, minutes: 0, seconds: 0).radians)
     
-    #expect(abs((normalize(radians: L)) - (AngleOfArc(degrees: 349, minutes: 21, seconds: 0).toRad())) <= 0.005)
+    #expect(abs((normalize(radians: L)) - (AngleOfArc(degrees: 349, minutes: 21, seconds: 0).radians)) <= 0.005)
 
     #expect(abs((normalize(radians: I2)) - (62.deg)) <= 0.005)
   }
@@ -56,11 +56,11 @@ struct ParallaticAngle_tests {
   func testEclipticExtremeAngles() {
     // Meeus, p99
     let (I0, I1) = extremeEclipticHorizonAngles(
-      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 26, seconds: 0).toRad(),
-      geographicLatitudeOfObserver: AngleOfArc(degrees: 48, minutes: 0, seconds: 0).toRad())
+      obliquityOfEcliptic: AngleOfArc(degrees: 23, minutes: 26, seconds: 0).radians,
+      geographicLatitudeOfObserver: AngleOfArc(degrees: 48, minutes: 0, seconds: 0).radians)
 
-    #expect(abs((I0) - (AngleOfArc(degrees: 65, minutes: 26, seconds: 0).toRad())) <= 0.000000005)
-    #expect(abs((I1) - (AngleOfArc(degrees: 18, minutes: 34, seconds: 0).toRad())) <= 0.000000005)
+    #expect(abs((I0) - (AngleOfArc(degrees: 65, minutes: 26, seconds: 0).radians)) <= 0.000000005)
+    #expect(abs((I1) - (AngleOfArc(degrees: 18, minutes: 34, seconds: 0).radians)) <= 0.000000005)
 
   }
 

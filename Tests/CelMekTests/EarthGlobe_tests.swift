@@ -60,12 +60,12 @@ struct EarthGlobe_tests {
   func testGeodesicDistanceFast() {
     // Meeus, Example 11.c
     let paris = GeographicCoordinate(
-      latitude: AngleOfArc(degrees: 48, minutes: 50, seconds: 11).toRad(),
-      longitude: AngleOfArc(degrees: -2, minutes: 20, seconds: 14).toRad())
+      latitude: AngleOfArc(degrees: 48, minutes: 50, seconds: 11).radians,
+      longitude: AngleOfArc(degrees: -2, minutes: 20, seconds: 14).radians)
     
     let washington = GeographicCoordinate(
-      latitude: AngleOfArc(degrees: 38, minutes: 55, seconds: 17).toRad(),
-      longitude: AngleOfArc(degrees: 77, minutes: 3, seconds: 56).toRad())
+      latitude: AngleOfArc(degrees: 38, minutes: 55, seconds: 17).radians,
+      longitude: AngleOfArc(degrees: 77, minutes: 3, seconds: 56).radians)
     let s = geodesicDistanceFast(p0: paris, p1: washington)
     #expect(abs((s) - (6166)) <= 0.5)
   }
@@ -74,12 +74,12 @@ struct EarthGlobe_tests {
   func testGeodesicDistance() {
     // Meeus, Example 11.c
     let paris = GeographicCoordinate(
-      latitude: AngleOfArc(degrees: 48, minutes: 50, seconds: 11).toRad(),
-      longitude: AngleOfArc(degrees: -2, minutes: 20, seconds: 14).toRad())
+      latitude: AngleOfArc(degrees: 48, minutes: 50, seconds: 11).radians,
+      longitude: AngleOfArc(degrees: -2, minutes: 20, seconds: 14).radians)
     
     let washington = GeographicCoordinate(
-      latitude: AngleOfArc(degrees: 38, minutes: 55, seconds: 17).toRad(),
-      longitude: AngleOfArc(degrees: 77, minutes: 3, seconds: 56).toRad())
+      latitude: AngleOfArc(degrees: 38, minutes: 55, seconds: 17).radians,
+      longitude: AngleOfArc(degrees: 77, minutes: 3, seconds: 56).radians)
     let s = geodesicDistance(p0: paris, p1: washington)
     #expect(abs((s) - (6181.63)) <= 0.005)
   }

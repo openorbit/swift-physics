@@ -19,7 +19,7 @@
 import Foundation
 import Math
 
-public enum vsop87_body_id : Int {
+public enum vsop87_body_id: Int, Sendable {
   case vsop87_sun
   case vsop87_mercury
   case vsop87_venus
@@ -31,7 +31,7 @@ public enum vsop87_body_id : Int {
   case vsop87_neptune
 }
 
-public class vsop87_body {
+public final class vsop87_body: Sendable {
   let body_id: vsop87_body_id
   let terms_x: [[(Double,Double,Double)]];
   let terms_y: [[(Double,Double,Double)]];

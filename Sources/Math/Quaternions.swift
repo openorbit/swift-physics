@@ -18,7 +18,7 @@
 
 import Foundation
 
-public struct Quaternion {
+public struct Quaternion: Sendable {
   var elements: SIMD4<Double>
   public var x : Double { get { return elements.x } set { elements.x = newValue }}
   public var y : Double { get { return elements.y } set { elements.y = newValue }}

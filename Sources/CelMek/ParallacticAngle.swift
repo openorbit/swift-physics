@@ -22,7 +22,7 @@ public func parallacticAngle(geographicLatitudeOfObserver: Double, declination: 
   // Meeus, Equation 14.1
   let 𝜑 = geographicLatitudeOfObserver
   let 𝛿 = declination
-  let H = rightAscension.toRad()
+  let H = rightAscension.radians
 
   let q = atan2(sin(H), tan(𝜑) * cos(𝛿) - sin(𝛿) * cos(H))
   return q

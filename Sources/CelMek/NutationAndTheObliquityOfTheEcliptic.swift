@@ -180,7 +180,7 @@ public func fastMeanObliquityOfTheEcliptic(jd: Double) -> Double {
   let T = julianCenturiesFromJ2000(jd: jd)
   let T2 = T * T
   let T3 = T * T * T
-  let e0 = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).toRad() - 46.8150.arcsec * T - 0.00059.arcsec * T2 + 0.001813.arcsec * T3
+  let e0 = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).radians - 46.8150.arcsec * T - 0.00059.arcsec * T2 + 0.001813.arcsec * T3
   return e0
 }
 
@@ -199,7 +199,7 @@ public func meanObliquityOfTheEcliptic(jd: Double) -> Double {
   let U10 = U5 * U5
 
 
-  let a = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).toRad()
+  let a = AngleOfArc(degrees: 23, minutes: 26, seconds: 21.448).radians
   let b = -4680.93 * U
     - 1.55 * U2
     + 1999.25 * U3

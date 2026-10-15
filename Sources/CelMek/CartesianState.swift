@@ -50,7 +50,7 @@ public enum CartesianStateError: Error, Equatable, Sendable {
 /// Position and its time derivatives at an epoch, expressed in one reference frame.
 /// Stored units are always metres, metres/second, and metres/second².
 /// A nil acceleration means unavailable, not zero. Frame identity is object identity.
-public struct CartesianState: Equatable {
+public struct CartesianState: Equatable, Sendable {
   public let epoch: Epoch
   public let frame: Frame
   public let position: SIMD3<Double>

@@ -50,8 +50,8 @@ struct TransformationOfCoordinates_tests {
   func testGalacticFromEquatorial() {
     // Meeus, p 96 exercise
     let eq = EquatorialCoordinate(
-      rightAscension: HourAngle(hours: 17, minutes: 48, seconds: 59.74).toRad(),
-      declination: AngleOfArc(degrees: -14, minutes: 43, seconds: 8.2).toRad())
+      rightAscension: HourAngle(hours: 17, minutes: 48, seconds: 59.74).radians,
+      declination: AngleOfArc(degrees: -14, minutes: 43, seconds: 8.2).radians)
     let gal = GalacticCoordinate(equatorial: eq)
     
     
