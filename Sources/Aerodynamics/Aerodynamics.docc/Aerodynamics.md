@@ -79,6 +79,12 @@ Aerodynamics re-exports for compatibility.
 - ``MaxwellianFreeMolecularTraction``
 
 ### Aerothermal physics
+- <doc:SurfaceHeating>
+- ``AerothermalTransportProperties``
+- ``SurfaceHeatingQuery``
+- ``SurfaceConvectiveHeatingModel``
+- ``SurfaceConvectionResult``
+- ``LaminarFlatPlateHeating``
 - <doc:Aerothermal>
 - ``StagnationHeatingQuery``
 - ``AerothermalWallState``

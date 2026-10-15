@@ -1,0 +1,116 @@
+// SPDX-License-Identifier: Apache-2.0
+import Foundation
+
+/// Caller-supplied gas properties at the film temperature (edge + wall)/2.
+/// Composition and property evaluation remain with the gas-property provider.
+public struct AerothermalTransportProperties: Sendable {
+    public let gasIdentifier: String
+    public let source: String
+    public let temperatureKelvin: Double
+    public let densityKilogramsPerCubicMetre: Double
+    public let dynamicViscosityPascalSeconds: Double
+    public let thermalConductivityWattsPerMetreKelvin: Double
+    public let specificHeatJoulesPerKilogramKelvin: Double
+    public var prandtlNumber: Double {
+        (dynamicViscosityPascalSeconds/thermalConductivityWattsPerMetreKelvin)*specificHeatJoulesPerKilogramKelvin
+    }
+    public init(gasIdentifier: String, source: String, temperatureKelvin: Double,
+                densityKilogramsPerCubicMetre: Double, dynamicViscosityPascalSeconds: Double,
+                thermalConductivityWattsPerMetreKelvin: Double, specificHeatJoulesPerKilogramKelvin: Double) throws {
+        guard [gasIdentifier,source].allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
+              [temperatureKelvin,densityKilogramsPerCubicMetre,dynamicViscosityPascalSeconds,
+               thermalConductivityWattsPerMetreKelvin,specificHeatJoulesPerKilogramKelvin]
+                .allSatisfy({ $0.isFinite && $0 > 0 }) else { throw AerodynamicError.invalidParameter }
+        self.gasIdentifier = gasIdentifier; self.source = source; self.temperatureKelvin = temperatureKelvin
+        self.densityKilogramsPerCubicMetre = densityKilogramsPerCubicMetre
+        self.dynamicViscosityPascalSeconds = dynamicViscosityPascalSeconds
+        self.thermalConductivityWattsPerMetreKelvin = thermalConductivityWattsPerMetreKelvin
+        self.specificHeatJoulesPerKilogramKelvin = specificHeatJoulesPerKilogramKelvin
+        guard prandtlNumber.isFinite, prandtlNumber > 0 else { throw AerodynamicError.nonFiniteResult }
+    }
+}
+
+/// Local boundary-layer-edge flow, not freestream flow across an intervening shock.
+/// Distance follows the surface streamline from the thermal/aerodynamic leading edge.
+public struct SurfaceHeatingQuery: Sendable {
+    public let edgeFlow: AerodynamicFlow
+    public let distanceFromLeadingEdgeMetres: Double
+    public let surfacePositionMetres: SIMD3<Double>
+    public let wall: AerothermalWallState
+    public let transport: AerothermalTransportProperties
+    public init(edgeFlow: AerodynamicFlow, distanceFromLeadingEdgeMetres: Double,
+                surfacePositionMetres: SIMD3<Double>, wall: AerothermalWallState,
+                transport: AerothermalTransportProperties) throws {
+        guard distanceFromLeadingEdgeMetres.isFinite, distanceFromLeadingEdgeMetres > 0 else {
+            throw AerodynamicError.invalidGeometry
+        }
+        guard aeroFinite(surfacePositionMetres) else { throw AerodynamicError.invalidGeometry }
+        self.edgeFlow = edgeFlow; self.distanceFromLeadingEdgeMetres = distanceFromLeadingEdgeMetres
+        self.surfacePositionMetres = surfacePositionMetres; self.wall = wall; self.transport = transport
+    }
+}
+
+/// Signed convection: positive into the wall, negative cooling into the gas.
+/// Unlike incoming-only AerodynamicHeatFlux, this retains convective cooling.
+public struct SurfaceConvectionResult: Sendable {
+    public let wattsPerSquareMetre: Double
+    public let surfacePositionMetres: SIMD3<Double>
+    public let heatTransferCoefficientWattsPerSquareMetreKelvin: Double
+    public let localNusseltNumber: Double
+    public let localReynoldsNumber: Double
+    public let prandtlNumber: Double
+    public init(wattsPerSquareMetre: Double, surfacePositionMetres: SIMD3<Double>,
+                heatTransferCoefficientWattsPerSquareMetreKelvin: Double,
+                localNusseltNumber: Double, localReynoldsNumber: Double, prandtlNumber: Double) throws {
+        guard wattsPerSquareMetre.isFinite, aeroFinite(surfacePositionMetres),
+              [heatTransferCoefficientWattsPerSquareMetreKelvin,localNusseltNumber,localReynoldsNumber,prandtlNumber]
+                .allSatisfy({ $0.isFinite && $0 > 0 }) else { throw AerodynamicError.nonFiniteResult }
+        self.wattsPerSquareMetre = wattsPerSquareMetre; self.surfacePositionMetres = surfacePositionMetres
+        self.heatTransferCoefficientWattsPerSquareMetreKelvin = heatTransferCoefficientWattsPerSquareMetreKelvin
+        self.localNusseltNumber = localNusseltNumber; self.localReynoldsNumber = localReynoldsNumber
+        self.prandtlNumber = prandtlNumber
+    }
+}
+
+/// Replaceable local surface convection, separate from blunt-body stagnation heating.
+public protocol SurfaceConvectiveHeatingModel: Sendable {
+    func evaluate(_ query: SurfaceHeatingQuery) throws -> SurfaceConvectionResult
+}
+
+/// Isothermal flat plate, attached laminar parallel flow with zero pressure gradient.
+/// Nu_x = 0.332 sqrt(Re_x) Pr^(1/3). O(1) per point; no surface mesh or thermal state.
+/// Conservative implementation limits: Mach ≤ 0.3, 1000 ≤ Re_x ≤ 500000,
+/// 0.6 ≤ Pr ≤ 15, Kn_x ≤ 0.01 and 0.8 ≤ Tw/Te ≤ 1.25.
+/// The caller must establish the plate/flow assumptions; these bounds do not detect transition.
+public struct LaminarFlatPlateHeating: SurfaceConvectiveHeatingModel {
+    public init() {}
+    public var source: String {
+        "https://archive.nptel.ac.in/content/storage2/courses/112104159/module2/Lec8.pdf"
+    }
+    public func evaluate(_ query: SurfaceHeatingQuery) throws -> SurfaceConvectionResult {
+        let flow = query.edgeFlow, properties = query.transport, x = query.distanceFromLeadingEdgeMetres
+        guard let temperature = flow.temperatureKelvin, let mach = flow.machNumber,
+              let kn = try flow.knudsenNumber(referenceLengthMetres: x) else {
+            throw AerodynamicError.missingFlowProperty
+        }
+        let wallTemperature = query.wall.temperatureKelvin
+        let filmTemperature = 0.5*temperature+0.5*wallTemperature
+        guard abs(properties.temperatureKelvin-filmTemperature) <= 1e-8*filmTemperature else {
+            throw AerodynamicError.unsupportedQuery
+        }
+        // Transport properties are at film conditions, independently of edge-flow density/viscosity.
+        let re = properties.densityKilogramsPerCubicMetre*flow.speedMetresPerSecond*x/properties.dynamicViscosityPascalSeconds
+        let pr = properties.prandtlNumber
+        guard re.isFinite else { throw AerodynamicError.nonFiniteResult }
+        guard mach <= 0.3, (1000...500000).contains(re), (0.6...15).contains(pr),
+              kn <= 0.01, (0.8...1.25).contains(wallTemperature/temperature) else {
+            throw AerodynamicError.outsideCoverage
+        }
+        let nu = 0.332*sqrt(re)*pow(pr,1.0/3.0)
+        let h = nu*properties.thermalConductivityWattsPerMetreKelvin/x
+        return try SurfaceConvectionResult(wattsPerSquareMetre: h*(temperature-wallTemperature),
+            surfacePositionMetres: query.surfacePositionMetres,
+            heatTransferCoefficientWattsPerSquareMetreKelvin: h,
+            localNusseltNumber: nu, localReynoldsNumber: re, prandtlNumber: pr)
+    }
+}
