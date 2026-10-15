@@ -19,6 +19,8 @@ Select the physical approximation and data coverage explicitly, then assess nume
 | SuttonGravesHeating / mixture / H₂-He | Distinct gas-specific stagnation correlations with their own bounds and wall assumptions | O(1) per point |
 | SweptCylinderStagnationHeating | Idealized laminar Earth-air stagnation line, supplied sphere model, bounded effective sweep | One sphere evaluation plus O(1) |
 | TabulatedRadiativeHeating | Supplied cold-wall shock-layer radiation data and gas-specific continuum coverage | At most 8 corners |
+| ActuatorDiskPropwash | Prescribed axial thrust/torque, ideal contracting top-hat slipstream and swirl; no body deflection | O(1) per point |
+| LocalCFDGrid | Constant-density incompressible MAC grid, Mach ≤ 0.3, Kn_cell ≤ 0.01, fixed free-slip solids and prescribed box boundary velocities | O(substeps × cells × pressureIterations) |
 | DragAreaAerodynamics / buoyancy | Supplied current drag area/coefficient and displaced volume/local pressure gradient | Provider cost plus O(1) |
 
 Tables carry source, version and assumptions. ``AerodynamicScalarTable`` supports
@@ -56,7 +58,8 @@ multispecies free-molecular model.
 Checked constructors reject invalid geometry/nonfinite coefficients and incomplete
 data. Unsupported physical regimes throw `outsideCoverage`; missing state throws
 `missingFlowProperty`; incompatible identities/conventions throw `unsupportedQuery`.
-The nonlinear wake solver additionally reports `nonConvergence`.
+The nonlinear wake and CFD pressure solvers additionally report `nonConvergence`.
+CFD state updates are transactional; budget/coverage failure leaves the original grid unchanged.
 
 Whole-body/strip/drag-area evaluators return zero aerodynamic load at zero dynamic
 pressure without querying undefined incidence. The steady lifting-line solvers,
@@ -94,7 +97,8 @@ real vehicle data still needs independent calibration/validation.
 ## Deliberate limits and later fidelity
 
 The initial physics/API workstream includes replaceable providers for the remaining
-regimes. It does not include a general CFD/DSMC/radiation solver or universal
+regimes. The optional local incompressible solver is described in <doc:PropwashAndCFD>.
+It does not include a general compressible CFD/DSMC/radiation solver or universal
 validated vehicle datasets. Free-wake rollup, swept/separated-wing fidelity,
 chemistry-resolved transport and high-enthalpy/transitional/radiative databases
 remain specialist extensions. Atmosphere coverage above ISA, thermal response and

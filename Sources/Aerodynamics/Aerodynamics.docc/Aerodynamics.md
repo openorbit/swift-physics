@@ -127,6 +127,18 @@ Aerodynamics re-exports for compatibility.
 - ``HydrogenHeliumColdWallHeating``
 - ``HydrogenHeliumHeatingResult``
 
+### Optional airflow simulation
+- <doc:PropwashAndCFD>
+- ``AirVelocityField``
+- ``InducedAirVelocityField``
+- ``SuperposedAirVelocityField``
+- ``ActuatorDiskPropwash``
+- ``ActuatorDiskAccelerationField``
+- ``LocalCFDConfiguration``
+- ``LocalCFDGrid``
+- ``CFDProjectionReport``
+- ``CFDStepReport``
+
 ### Parachutes and balloons
 - <doc:ParachutesAndBalloons>
 - ``DragCoefficientQuery``

@@ -149,3 +149,5 @@ let wakeSolver = try NonlinearLiftingLine(segments: wakeSegments,wakeLengthMetre
 let wakeResult = try wakeSolver.evaluate { _ in wingFlow }
 print("Nonlinear fixed wake: \(wakeResult.iterations) iterations; residual \(wakeResult.maximumNormalizedCirculationResidual); force \(wakeResult.loads.forceNewtons) N")
 try runEntryComparison()
+try runPropwashExample()
+if CommandLine.arguments.contains("--cfd") { try runCFDBenchmark() }
