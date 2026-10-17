@@ -434,3 +434,62 @@ interpretation, retained snapshot ownership, frame-tree lifetime and provenance.
 
 For component synchronization, frame/asset lifetimes and actor isolation, see
 <doc:THREAD_SAFETY>.
+
+## Historical Jovian and Uranian satellite series
+
+`SatelliteEphemeris` adapts `LieskeE2x3` (Io, Europa, Ganymede,
+Callisto) and `GUST86` (Miranda, Ariel, Umbriel, Titania, Oberon) to the
+same `EphemerisProvider` and `EphemerisCollection` APIs as other models:
+
+```swift
+let frames = SatelliteEphemerisFrames() // retain/share these frame identities
+let io = try SatelliteEphemeris(
+  model: .lieskeE2x3(.io), frames: frames,
+  positionCoverage: start...end)
+let miranda = try SatelliteEphemeris(
+  model: .gust86(.miranda), frames: frames,
+  positionCoverage: start...end)
+let moons = try EphemerisCollection(providers: [io, miranda])
+let state = try moons.state(of: .io, at: epoch)
+```
+
+States use metres and metres/second, relative to the planet centre (599 or
+799), not its system barycentre. TT supplies the legacy ephemeris-time argument.
+Velocity uses a five-point Cartesian stencil; usable coverage excludes two
+velocity steps at either end. No acceleration or observer/light-time correction
+is supplied. Coverage is caller selected and does not certify physical accuracy.
+
+The default frame bundle creates independent native identities. Lieske returns
+Jupiter equatorial coordinates with x along the ascending node on the ecliptic
+of date; GUST86 returns coordinates in its native Uranus equatorial frame with
+the B1950 pole. Neither is ICRF or a rotating surface frame. To connect them to
+an existing tree, use `FrameTree.makeSatelliteEphemerisFrames` with
+planet-centred parents and explicit native-axis transform providers. These must
+include angular derivatives when converting velocities. Automatic B1950/J2000
+and Jupiter precession transforms remain outside this port.
+
+This ports the supplied 2012/2013 LGPL source coefficient sets, rather than
+substituting newer theories. Corrections to Lieske are: degree-aware trig,
+evaluation of Io, constant argument 52.225, Europa's own longitude in its
+latitude terms, mean Callisto longitude in the two longitude-series arguments,
+`atan` of the latitude series, and fractional radius corrections. The supplied
+fundamental arguments and amplitudes are retained, including their signs;
+these have not been independently checked against the E2x3 publication. A
+71492 km Jupiter radius supplies SI scaling. The unfinished final legacy
+rotation routine is replaced by explicit native-frame output.
+
+GUST86 retains the supplied amplitudes, phases, argument combinations and the
+initialization rule deriving secular frequencies from table 2a's first two
+columns. Supporting source tables remain in Swift for future work. The
+out-of-bounds eccentricity-phase lookup is corrected. Missing Cartesian
+conversion solves Kepler's equation with `M = lambda - varpi` and derives
+`a = a0 * (n0/n)^(2/3)` from table 5. Thus it needs no invented GM or circular
+fallback. It remains a port of an unfinished coefficient set, not a certified
+complete GUST86 implementation.
+
+Regression tests compare against independently compiled legacy C evaluators
+with the listed corrections, and check all nine provider identities, SI scales,
+velocities, query independence and coverage boundaries. These are port
+regressions and physical sanity checks, not independent astronomical validation.
+The native GUST86 epoch (JD 2444239.5) and element conventions were cross-checked
+against [Stellarium's GUST86 implementation](https://github.com/Stellarium/stellarium/blob/master/src/core/planetsephems/gust86.c).
