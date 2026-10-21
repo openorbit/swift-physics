@@ -1,6 +1,6 @@
 # Module boundaries
 
-The package is `swift-physics`. Seven public modules share physical contracts
+The package is `swift-physics`. Eight public modules share physical contracts
 without importing vehicle systems or rendering. There are no compatibility
 re-exports or old aerodynamic names for the shared fluid APIs.
 
@@ -11,11 +11,12 @@ re-exports or old aerodynamic names for the shared fluid APIs.
 | `FluidDynamics` | None |
 | `Hydrodynamics` | `FluidDynamics` |
 | `Aerodynamics` | `FluidDynamics`, `Atmospheres`, `Yams` |
+| `Mechanics` | `CelMek`, `Math` |
 | `CelMek` | `Math`, `ERFASwift` (internal), `Atmospheres`, `MagneticFields`, `FluidDynamics` |
 | `Math` | None |
 | `Atmospheres` | None |
 | `MagneticFields` | None |
-| `Physics` | Bundles all seven module targets |
+| `Physics` | Bundles all eight module targets |
 
 `Physics` is a product name, not a module. Import each module whose APIs are used;
 importing Aerodynamics does not re-export FluidDynamics or Atmospheres. A consumer
@@ -41,6 +42,13 @@ primitive. It does not depend on CelMek or Aerodynamics. Astronomical frame name
 epochs, units of physical state, ephemerides, and orientation models belong above it.
 Existing astronomical coordinate structs and the legacy `Transformation` remain
 here for compatibility; that is not a requirement to place new astronomy models here.
+
+**Mechanics** owns independent mechanical bodies, compliant ground contact,
+suspended driven wheels, tension-only tethers, gas cushions and harpoon anchors.
+These are not celestial/orbital models. It currently consumes CelMek's public
+epoch, inertial-frame and inertia primitives and Math's rotations; CelMek does not
+depend on Mechanics. Import Mechanics explicitly; no CelMek compatibility re-export
+is provided. Vehicle-specific controllers and rendering stay in the application.
 
 **ERFASwift** is an internal target, with no standalone product or public API.
 It isolates the ERFA-derived Earth-orientation and full Fairhead TDB routines and

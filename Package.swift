@@ -12,8 +12,9 @@ let package = Package(
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
             name: "Physics",
-            targets: ["CelMek", "Aerodynamics", "FluidDynamics", "Hydrodynamics", "Math", "Atmospheres", "MagneticFields"]),
+            targets: ["CelMek", "Mechanics", "Aerodynamics", "FluidDynamics", "Hydrodynamics", "Math", "Atmospheres", "MagneticFields"]),
         .library(name: "CelMek", targets: ["CelMek"]),
+        .library(name: "Mechanics", targets: ["Mechanics"]),
         .library(name: "Atmospheres", targets: ["Atmospheres"]),
         .library(name: "MagneticFields", targets: ["MagneticFields"]),
         .library(name: "Math", targets: ["Math"]),
@@ -34,6 +35,7 @@ let package = Package(
             name: "CelMek",
             dependencies: ["Math", "ERFASwift", "Atmospheres", "FluidDynamics",
                            "MagneticFields"]),
+        .target(name: "Mechanics", dependencies: ["CelMek", "Math"]),
         .target(name: "MagneticFields", resources: [.process("Resources")]),
         .target(name: "ERFASwift", dependencies: ["Math"], exclude: ["LICENSE.txt", "README.md"]),
         .target(name: "Atmospheres"),
@@ -77,6 +79,7 @@ let package = Package(
         .testTarget(
             name: "AerodynamicsTests",
             dependencies: ["Aerodynamics", "FluidDynamics", "Atmospheres"], resources: [.process("Resources")]),
+        .testTarget(name: "MechanicsTests", dependencies: ["Mechanics", "CelMek", "Math"]),
         .testTarget(name: "FluidDynamicsTests", dependencies: ["FluidDynamics"]),
         .testTarget(name: "HydrodynamicsTests", dependencies: ["Hydrodynamics", "FluidDynamics"]),
         .testTarget(name: "AtmospheresTests", dependencies: ["Atmospheres"]),

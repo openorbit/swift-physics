@@ -49,3 +49,5 @@ Winch payout/retraction is commanded mechanical work. Motor energy/force limits,
 capstan friction, subsurface stress distribution, temperature-dependent strength,
 foot screws and hold-down thrusters are outside this initial model. Event timing
 is resolved to the chosen mechanical substep, not continuously certified.
+
+Harpoon and tether/contact APIs belong to `Mechanics`; import it explicitly.

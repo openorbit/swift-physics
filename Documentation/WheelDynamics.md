@@ -44,3 +44,7 @@ API cap is not a stability guarantee. Open Orbit's declared original rover uses
 not a Pacejka tyre, deformable-soil, terramechanics or full articulated rocker-
 bogie solver. Sinkage, tread/rock collision, hub masses, wheel damage, motor
 power/energy/thermal limits and drivetrain compliance remain future extensions.
+
+The wheel and suspension APIs are in the `Mechanics` product/module, alongside
+compliant ground contact and tethers. Consumers must `import Mechanics`; these
+types are no longer exported from CelMek.

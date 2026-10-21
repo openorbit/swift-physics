@@ -2,6 +2,7 @@
 // Copyright 2026 Mattias Holm
 import Foundation
 import Math
+import CelMek
 
 public struct WheelCommand {
     public let motorTorqueNewtonMetres,brakeFraction,steeringRadians:Double
@@ -32,7 +33,7 @@ public struct SuspendedWheel {
     public init(id:String,mountBodyMetres:SIMD3<Double>,radiusMetres:Double=0.28,rotorInertia:Double=0.25,
         restLengthMetres:Double=0.24,travelMetres:Double=0.16,springNewtonsPerMetre:Double=3500,dampingNewtonSecondsPerMetre:Double=400,
         friction:Double=0.8,slipStiffnessNewtonSecondsPerMetre:Double=250,maximumBrakeTorque:Double=15,rollingResistance:Double=0.02) throws {
-        guard !id.isEmpty,attitudeFinite(mountBodyMetres),[radiusMetres,rotorInertia,restLengthMetres,travelMetres,springNewtonsPerMetre,slipStiffnessNewtonSecondsPerMetre].allSatisfy({$0.isFinite && $0>0}),
+        guard !id.isEmpty,mechanicsFinite(mountBodyMetres),[radiusMetres,rotorInertia,restLengthMetres,travelMetres,springNewtonsPerMetre,slipStiffnessNewtonSecondsPerMetre].allSatisfy({$0.isFinite && $0>0}),
               [dampingNewtonSecondsPerMetre,friction,maximumBrakeTorque,rollingResistance].allSatisfy({$0.isFinite && $0>=0}),travelMetres<restLengthMetres else {throw LandingMechanicsError.invalidParameter}
         self.id=id;self.mountBodyMetres=mountBodyMetres;self.radiusMetres=radiusMetres;self.rotorInertia=rotorInertia
         self.restLengthMetres=restLengthMetres;self.travelMetres=travelMetres;spring=springNewtonsPerMetre;damping=dampingNewtonSecondsPerMetre
@@ -59,14 +60,14 @@ public struct SuspendedWheel {
                 + spring*8*max(0,restLengthMetres-travelMetres-requiredLength)
             var forward=q.matrix*forwardBody;forward -= ground.normal*(forward*ground.normal).sum()
             forward /= sqrt((forward*forward).sum())
-            let side=attitudeCross(ground.normal,forward)
+            let side=mechanicsCross(ground.normal,forward)
             let effectiveRadius=radiusMetres*(axleWorld*side).sum()
             slip=effectiveRadius*state.spinRadiansPerSecond-(velocity*forward).sum();lateralSpeed=(velocity*side).sum()
             var longitudinal=slipStiffness*slip,lateral = -slipStiffness*lateralSpeed
             let demand=hypot(longitudinal,lateral),limit=friction*normalLoad
             if demand>limit && demand>0 {longitudinal *= limit/demand;lateral *= limit/demand}
             force=ground.normal*normalLoad+forward*longitudinal+side*lateral
-            groundTorque=(attitudeCross(-ground.normal*radiusMetres,force)*axleWorld).sum()
+            groundTorque=(mechanicsCross(-ground.normal*radiusMetres,force)*axleWorld).sum()
         }
         let rollingTorque=rollingResistance*normalLoad*radiusMetres*tanh(state.spinRadiansPerSecond/0.1)
         let freeTorque=command.motorTorqueNewtonMetres+groundTorque-rollingTorque
@@ -76,8 +77,8 @@ public struct SuspendedWheel {
         var wrench=MechanicalWrench();wrench.apply(force:force,at:point,to:body)
         let momentum=axleBody*(rotorInertia*state.spinRadiansPerSecond)
         let momentumRate=axleBody*(rotorInertia*acceleration)-forwardBody*(steeringRate*rotorInertia*state.spinRadiansPerSecond)
-        wrench.torqueBodyNewtonMetres -= momentumRate+attitudeCross(body.angularVelocityBody,momentum)
-        guard attitudeFinite(wrench.forceReferenceNewtons),attitudeFinite(wrench.torqueBodyNewtonMetres),[acceleration,normalLoad,slip,lateralSpeed].allSatisfy(\.isFinite) else {throw LandingMechanicsError.numericalRange}
+        wrench.torqueBodyNewtonMetres -= momentumRate+mechanicsCross(body.angularVelocityBody,momentum)
+        guard mechanicsFinite(wrench.forceReferenceNewtons),mechanicsFinite(wrench.torqueBodyNewtonMetres),[acceleration,normalLoad,slip,lateralSpeed].allSatisfy(\.isFinite) else {throw LandingMechanicsError.numericalRange}
         return WheelSample(wrench:wrench,spinAcceleration:acceleration,spinRate:state.spinRadiansPerSecond,steeringRate:steeringRate,
             centreBodyMetres:centre,normalLoad:normalLoad,compression:restLengthMetres-length,longitudinalSlip:slip,lateralSpeed:lateralSpeed)
     }

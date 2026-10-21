@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import CelMek
+import Mechanics
 import Math
 
 private func cometNorm(_ v:SIMD3<Double>)->Double {sqrt((v*v).sum())}

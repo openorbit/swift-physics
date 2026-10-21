@@ -2,6 +2,7 @@
 // Copyright 2026 Mattias Holm
 import Foundation
 import Math
+import CelMek
 
 public enum HarpoonPhase: String, Codable { case stowed, flying, anchored, rejected, pulledOut, misfire }
 public enum AnchorCableState: String, Codable { case connected, cut, broken }
@@ -39,7 +40,7 @@ public struct HarpoonAnchor {
     /// burial layer. Rejected impacts remain dynamic and can bounce away.
     @discardableResult public mutating func impact(pointMetres:SIMD3<Double>,in frame:Frame,
         massKilograms:Double,normalSpeedMetresPerSecond:Double,incidenceCosine:Double,substrate:HarpoonSubstrate) throws -> Bool {
-        guard phase == .flying,frame === surfaceFrame,attitudeFinite(pointMetres),massKilograms.isFinite,massKilograms > 0,
+        guard phase == .flying,frame === surfaceFrame,mechanicsFinite(pointMetres),massKilograms.isFinite,massKilograms > 0,
               normalSpeedMetresPerSecond.isFinite,normalSpeedMetresPerSecond > 0,incidenceCosine.isFinite,(0...1).contains(incidenceCosine) else { throw LandingMechanicsError.invalidParameter }
         let depth=0.5*massKilograms*normalSpeedMetresPerSecond*normalSpeedMetresPerSecond/substrate.penetrationResistanceNewtons
         guard depth.isFinite else { throw LandingMechanicsError.numericalRange }
@@ -89,7 +90,7 @@ extension MechanicalBody {
     /// removed and translated to the remaining body's new centre of mass.
     public func launching(id projectileID:String,massKilograms m:Double,inertia projectileInertia:RigidBodyInertia,
         centreBodyMetres r:SIMD3<Double>,impulseBodyNewtonSeconds j:SIMD3<Double>) throws -> MechanicalLaunch {
-        guard m.isFinite,m > 0,m < massKilograms,projectileID != id,attitudeFinite(r),attitudeFinite(j) else { throw LandingMechanicsError.invalidParameter }
+        guard m.isFinite,m > 0,m < massKilograms,projectileID != id,mechanicsFinite(r),mechanicsFinite(j) else { throw LandingMechanicsError.invalidParameter }
         let remaining=massKilograms-m,s = -r*(m/remaining)
         func parallel(_ v:SIMD3<Double>,_ mass:Double,_ i:Int,_ k:Int)->Double { mass*((i == k ? (v*v).sum() : 0)-v[i]*v[k]) }
         func entry(_ i:Int,_ k:Int)->Double { inertia.matrix[i,k]-projectileInertia.matrix[i,k]-parallel(r,m,i,k)-parallel(s,remaining,i,k) }
@@ -97,7 +98,7 @@ extension MechanicalBody {
         let impulse=bodyToReference.matrix*j
         let retained=try MechanicalBody(id:id,massKilograms:remaining,inertia:retainedInertia,positionMetres:point(s),
             velocityMetresPerSecond:pointVelocity(s)-impulse/remaining,bodyToReference:bodyToReference,
-            angularVelocityBody:angularVelocityBody+retainedInertia.solve(attitudeCross(r-s,-j)))
+            angularVelocityBody:angularVelocityBody+retainedInertia.solve(mechanicsCross(r-s,-j)))
         let projectile=try MechanicalBody(id:projectileID,massKilograms:m,inertia:projectileInertia,positionMetres:point(r),
             velocityMetresPerSecond:pointVelocity(r)+impulse/m,bodyToReference:bodyToReference,angularVelocityBody:angularVelocityBody)
         return MechanicalLaunch(retained:retained,projectile:projectile,retainedCentreBodyMetres:s)

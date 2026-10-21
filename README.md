@@ -31,9 +31,9 @@ Linux and Windows builds are covered by CI.
 
 ## Modules
 
-Use the `CelMek`, `Math`, `FluidDynamics`, `Aerodynamics`, `Hydrodynamics`,
+Use the `CelMek`, `Mechanics`, `Math`, `FluidDynamics`, `Aerodynamics`, `Hydrodynamics`,
 `Atmospheres`, or `MagneticFields` product for the modules your application needs.
-The `Physics` product bundles all seven.
+The `Physics` product bundles all eight.
 Import the corresponding module names. See [MODULES.md](MODULES.md) for responsibilities and dependency rules.
 
 ## Documentation

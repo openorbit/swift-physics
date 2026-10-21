@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import CelMek
+import Mechanics
 import Math
 
 private func mechanicalBody(_ id:String,_ p:SIMD3<Double>,_ v:SIMD3<Double> = .zero) throws -> MechanicalBody {

@@ -2,6 +2,7 @@
 // Copyright 2026 Mattias Holm
 import Foundation
 import Math
+import CelMek
 
 public enum LandingMechanicsError: Error { case invalidParameter, invalidTopology, numericalRange }
 
@@ -19,7 +20,7 @@ public struct MechanicalBody {
         positionMetres: SIMD3<Double>, velocityMetresPerSecond: SIMD3<Double> = .zero,
         bodyToReference: Quaternion = .identity, angularVelocityBody: SIMD3<Double> = .zero) throws {
         guard !id.isEmpty, massKilograms.isFinite, massKilograms > 0,
-              attitudeFinite(positionMetres), attitudeFinite(velocityMetresPerSecond), attitudeFinite(angularVelocityBody) else {
+              mechanicsFinite(positionMetres), mechanicsFinite(velocityMetresPerSecond), mechanicsFinite(angularVelocityBody) else {
             throw LandingMechanicsError.invalidParameter
         }
         self.id=id; self.massKilograms=massKilograms; self.inertia=inertia
@@ -28,7 +29,7 @@ public struct MechanicalBody {
     }
     public func point(_ local: SIMD3<Double>) -> SIMD3<Double> { positionMetres + bodyToReference.matrix*local }
     public func pointVelocity(_ local: SIMD3<Double>) -> SIMD3<Double> {
-        velocityMetresPerSecond + bodyToReference.matrix*attitudeCross(angularVelocityBody,local)
+        velocityMetresPerSecond + bodyToReference.matrix*mechanicsCross(angularVelocityBody,local)
     }
 }
 
@@ -40,7 +41,7 @@ public struct MechanicalWrench {
     }
     public mutating func apply(force: SIMD3<Double>, at local: SIMD3<Double>, to body: MechanicalBody) {
         forceReferenceNewtons += force
-        torqueBodyNewtonMetres += attitudeCross(local,body.bodyToReference.invMatrix*force)
+        torqueBodyNewtonMetres += mechanicsCross(local,body.bodyToReference.invMatrix*force)
     }
 }
 
@@ -62,7 +63,7 @@ public struct MechanicalTether {
         lengthMetres: Double, stiffnessNewtonsPerMetre: Double, dampingNewtonSecondsPerMetre: Double,
         breakingTensionNewtons: Double = .greatestFiniteMagnitude) throws {
         guard !id.isEmpty, !firstBody.isEmpty, !secondBody.isEmpty, firstBody != secondBody,
-              attitudeFinite(firstMountMetres), attitudeFinite(secondMountMetres),
+              mechanicsFinite(firstMountMetres), mechanicsFinite(secondMountMetres),
               [lengthMetres,stiffnessNewtonsPerMetre,breakingTensionNewtons].allSatisfy({$0.isFinite && $0 > 0}),
               dampingNewtonSecondsPerMetre.isFinite, dampingNewtonSecondsPerMetre >= 0 else { throw LandingMechanicsError.invalidParameter }
         self.id=id; self.firstBody=firstBody; self.secondBody=secondBody
@@ -137,7 +138,7 @@ public struct MechanicalGround {
     public let normal: SIMD3<Double>
     public let velocityMetresPerSecond: SIMD3<Double>
     public init(pointMetres: SIMD3<Double>, normal: SIMD3<Double>, velocityMetresPerSecond: SIMD3<Double> = .zero) throws {
-        guard attitudeFinite(pointMetres), attitudeFinite(velocityMetresPerSecond), attitudeFinite(normal),
+        guard mechanicsFinite(pointMetres), mechanicsFinite(velocityMetresPerSecond), mechanicsFinite(normal),
               (normal*normal).sum().isFinite, (normal*normal).sum() > 1e-24 else { throw LandingMechanicsError.invalidParameter }
         self.pointMetres=pointMetres; self.normal=normal/sqrt((normal*normal).sum()); self.velocityMetresPerSecond=velocityMetresPerSecond
     }
@@ -159,7 +160,7 @@ public struct MechanicalContact {
     public init(body: String, mountMetres: SIMD3<Double>, radiusMetres: Double,
         stiffnessNewtonsPerMetre: Double, dampingNewtonSecondsPerMetre: Double,
         frictionCoefficient: Double = 0.6, frictionTransitionMetresPerSecond: Double = 0.05, rollingResistanceMetres: Double = 0, cushion: GasCushion? = nil) throws {
-        guard !body.isEmpty, attitudeFinite(mountMetres),
+        guard !body.isEmpty, mechanicsFinite(mountMetres),
               [radiusMetres,stiffnessNewtonsPerMetre,dampingNewtonSecondsPerMetre,frictionCoefficient,rollingResistanceMetres].allSatisfy({$0.isFinite && $0 >= 0}),
               frictionTransitionMetresPerSecond.isFinite, frictionTransitionMetresPerSecond > 0 else { throw LandingMechanicsError.invalidParameter }
         self.body=body; self.mountMetres=mountMetres; self.radiusMetres=radiusMetres
@@ -177,7 +178,7 @@ public struct MechanicalContact {
             + (try cushion?.forceNewtons(compressionMetres:penetration,ambientPressurePascals:ambientPressurePascals) ?? 0)*min(1,penetration/max(0.001,radiusMetres*0.5))
         let tangent=velocity-ground.normal*normalSpeed, speed=sqrt((tangent*tangent).sum())
         let force=ground.normal*normalForce-tangent*(frictionCoefficient*normalForce/max(frictionTransitionMetresPerSecond,speed))
-        guard attitudeFinite(force) else { throw LandingMechanicsError.numericalRange }
+        guard mechanicsFinite(force) else { throw LandingMechanicsError.numericalRange }
         var result=MechanicalWrench(); result.apply(force:force,at:local,to:state)
         let nBody=state.bodyToReference.invMatrix*ground.normal
         let roll=state.angularVelocityBody-nBody*(state.angularVelocityBody*nBody).sum()
@@ -238,7 +239,7 @@ public struct MechanicalSystem {
         }
         func advanced(_ base:MechanicalBody, using sample:MechanicalBody, load:MechanicalWrench, dt:Double) throws -> MechanicalBody {
             let momentum=try sample.inertia.angularMomentumBody(for:sample.angularVelocityBody)
-            let angularAcceleration=try sample.inertia.solve(load.torqueBodyNewtonMetres-attitudeCross(sample.angularVelocityBody,momentum))
+            let angularAcceleration=try sample.inertia.solve(load.torqueBodyNewtonMetres-mechanicsCross(sample.angularVelocityBody,momentum))
             let qdot=0.5*(sample.bodyToReference*Quaternion(x:sample.angularVelocityBody.x,y:sample.angularVelocityBody.y,z:sample.angularVelocityBody.z,w:0))
             return try MechanicalBody(id:base.id,massKilograms:base.massKilograms,inertia:base.inertia,
                 positionMetres:base.positionMetres+sample.velocityMetresPerSecond*dt,

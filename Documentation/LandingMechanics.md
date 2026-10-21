@@ -1,6 +1,6 @@
 # Compliant landing mechanics
 
-`CelMek/LandingMechanics.swift` provides independent rigid bodies, cable edges,
+`Mechanics/LandingMechanics.swift` provides independent rigid bodies, cable edges,
 spherical contact lobes/feet, local terrain planes and adiabatic gas cushions.
 This is a compliant engineering model, not a rigid constraint solver or deformable
 fabric model. All quantities use SI units.
@@ -54,3 +54,5 @@ contact/cable natural frequency and check convergence. Open Orbit uses 0.002 s
 for its declared low-mass landing demonstrations. No continuous collision search,
 inter-body collision, rigid joints, line/cable terrain collision or long-duration
 tether orbital integrator is provided.
+
+Import `Mechanics` explicitly. Frames, epochs and inertia remain public CelMek contracts.
