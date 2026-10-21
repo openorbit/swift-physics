@@ -107,3 +107,19 @@ optional incompressible rotor/body CFD and a compressible Sod reference problem.
 Liquid properties and vehicle coefficients in these examples are illustrative.
 See the FluidDynamics and Hydrodynamics DocC guides for coverage, numerical cost,
 pressure-reference rules and the remaining real-gas/free-surface fidelity work.
+
+
+Single finite-burn position targeting is available through
+`FiniteBurnPositionTargeting.refine`. It keeps ignition, thrust and exhaust speed
+fixed, correcting duration and inertial direction through numerical endpoint
+sensitivities and bounded backtracking. The result reports position convergence,
+velocity residual, propellant, evaluation count and rejection count. Velocity is
+**not** a targeted constraint; callers must separately verify it along with
+clearance, attitude and reserve. Every trial uses `ScheduledThrustPropagator` and
+caller-supplied force models; no gravity or physical origin is assumed implicitly.
+
+`FiniteBurnStateTargeting.refine` corrects two fixed-ignition finite burns against
+both terminal position and velocity using six duration-vector controls, central
+differences, pivoted elimination and bounded backtracking/evaluation count.
+It returns the best evaluated schedule, including on nonconvergence: callers must
+check both residuals and independently validate clearance, resources and operations.
