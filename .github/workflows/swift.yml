@@ -20,7 +20,7 @@ jobs:
           - os: macos-latest
             build-system: swiftbuild
           # Use the previous backend while investigating opaque Linux/Windows failures.
-          - os: ubuntu-24.04
+          - os: ubuntu-26.04
             build-system: native
           - os: windows-latest
             build-system: native
