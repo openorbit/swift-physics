@@ -194,3 +194,13 @@ The common solver does not require gas molecular properties for a liquid. Contin
 applicability is a material/model responsibility. Hydrodynamics adds liquid-property
 and absolute-pressure reference helpers; see [Hydrodynamics](/documentation/hydrodynamics).
 Compressible flow uses a distinct conservation solver described in <doc:CompressibleFlow>.
+
+## RPM-driven coefficient rotor
+
+`PropellerRotor` converts caller-supplied CT, profile CP, radius, angular speed,
+collective and density to thrust/shaft torque. It uses `ActuatorDiskSlipstream`
+for ideal induced power and accepts added coaxial inflow. CT uses rho A (omega R)^2;
+CP uses rho A (omega R)^3. Spin inertia is metadata for a caller's coupled motor
+integration. No blade-element lift/stall, dynamic inflow, vortex-ring descent,
+windmilling, ground effect, blade flexibility or measured propeller map is supplied.
+Do not add its reaction thrust a second time through a separate actuator disk.
