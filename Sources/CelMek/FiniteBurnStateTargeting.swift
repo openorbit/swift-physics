@@ -4,7 +4,9 @@ import Math
 
 /// Two fixed-ignition inertial burns corrected against a full terminal state.
 /// Six duration-vector components are solved with finite differences and
-/// pivoted elimination. Clearance and operational constraints remain caller checks.
+/// pivoted elimination. `relativeControlStep` scales the duration-vector finite
+/// differences (with a 1 ms floor); a smaller value can resolve long-burn
+/// terminal encounters. Existing callers retain the 1e-4 default. Clearance and operational constraints remain caller checks.
 public struct FiniteBurnStateTargetingReport {
     public let best: FiniteTransferEvaluation
     public let evaluations: Int
@@ -16,19 +18,22 @@ public enum FiniteBurnStateTargeting {
         positionToleranceMetres: Double = 10, velocityToleranceMetresPerSecond: Double = 0.01,
         minimumRemainingPropellantKilograms: Double = 0, maximumEvaluations: Int = 160,
         numericalOptions: NumericalPropagationOptions = .preset(for:.high),
-        exhaustVelocityForDirection: ((SIMD3<Double>) throws -> Double)? = nil) throws -> FiniteTransferEvaluation {
+        exhaustVelocityForDirection: ((SIMD3<Double>) throws -> Double)? = nil,
+        relativeControlStep: Double = 1e-4) throws -> FiniteTransferEvaluation {
         try refineWithReport(initialState:initialState,initialSchedule:initialSchedule,target:target,context:context,
             backgroundModels:backgroundModels,positionToleranceMetres:positionToleranceMetres,
             velocityToleranceMetresPerSecond:velocityToleranceMetresPerSecond,minimumRemainingPropellantKilograms:minimumRemainingPropellantKilograms,
-            maximumEvaluations:maximumEvaluations,numericalOptions:numericalOptions,exhaustVelocityForDirection:exhaustVelocityForDirection).best
+            maximumEvaluations:maximumEvaluations,numericalOptions:numericalOptions,exhaustVelocityForDirection:exhaustVelocityForDirection,relativeControlStep:relativeControlStep).best
     }
     public static func refineWithReport(initialState: SpacecraftState, initialSchedule: ScheduledThrust,
         target: CartesianState, context: ForceEvaluationContext, backgroundModels: [any ForceModel],
         positionToleranceMetres: Double = 10, velocityToleranceMetresPerSecond: Double = 0.01,
         minimumRemainingPropellantKilograms: Double = 0, maximumEvaluations: Int = 160,
         numericalOptions: NumericalPropagationOptions = .preset(for:.high),
-        exhaustVelocityForDirection: ((SIMD3<Double>) throws -> Double)? = nil) throws -> FiniteBurnStateTargetingReport {
-        guard initialSchedule.burns.count == 2, (14...10_000).contains(maximumEvaluations),
+        exhaustVelocityForDirection: ((SIMD3<Double>) throws -> Double)? = nil,
+        relativeControlStep: Double = 1e-4) throws -> FiniteBurnStateTargetingReport {
+        guard relativeControlStep.isFinite,relativeControlStep>0,relativeControlStep<=0.01,
+            initialSchedule.burns.count == 2, (14...10_000).contains(maximumEvaluations),
             initialSchedule.frame === initialState.frame,
             positionToleranceMetres.isFinite, velocityToleranceMetresPerSecond.isFinite,
             minimumRemainingPropellantKilograms.isFinite,
@@ -78,7 +83,7 @@ public enum FiniteBurnStateTargeting {
             var matrix = Array(repeating:Array(repeating:0.0,count:7),count:6)
             let r = residual(best)
             for j in 0..<6 {
-                let h = max(0.001,abs(controls[j])*1e-4)
+                let h = max(0.001,abs(controls[j])*relativeControlStep)
                 var a = controls, b = controls; a[j] += h; b[j] -= h
                 let ea = try evaluate(a), eb = try evaluate(b)
                 guard ea != nil || eb != nil else { throw FiniteTransferPlanningError.invalidInput }
