@@ -137,4 +137,22 @@ import Testing
         }
     }
 
+    @Test func fractionalStepRemaindersReachExactEndpointWithoutCollapsedStages() throws {
+        let frame=Frame(name:"fractional endpoint",pseudoInertial:true)
+        let dynamics=try SpacecraftDynamics(models:[Constant(acceleration:SIMD3(2,0,0))],context:ForceEvaluationContext(frame:frame,origin:.earth))
+        for fraction in [0.5,0.2693127683618036,0.99] {
+            for sign in [1.0,-1.0] {
+                let start=Epoch(offsetFromJ2000:try Duration(wholeSeconds:800000000,fractionalSecond:fraction))
+                let seed=SpacecraftState(cartesian:try CartesianState(epoch:start,frame:frame,position:.zero,velocity:SIMD3(3,0,0)),mass:try SpacecraftMassProperties(dryMassKilograms:1))
+                let options=try NumericalPropagationOptions(initialStepSeconds:0.1,maximumStepSeconds:2)
+                let model=try NumericalSpacecraftPropagator(initialState:seed,dynamics:dynamics,options:options)
+                let target=try start.advanced(by:Duration(seconds:sign*0.6))
+                let result=try model.propagation(at:target)
+                #expect(result.state.epoch==target)
+                #expect(abs(result.state.cartesian.position.x-(3*sign*0.6+0.36))<1e-12)
+                #expect(abs(result.state.cartesian.velocity.x-(3+2*sign*0.6))<1e-12)
+            }
+        }
+    }
+
 }

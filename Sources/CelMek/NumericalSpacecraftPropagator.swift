@@ -158,7 +158,19 @@ public struct NumericalSpacecraftPropagator: StateProvider {
             let remaining = try forward ? target.duration(since: current) : current.duration(since: target)
             let magnitude = min(nextStep,remaining.seconds)
             let final = magnitude >= remaining.seconds
-            let end = final ? target : try current.advanced(by: Duration(seconds: forward ? magnitude : -magnitude))
+            var end = final ? target : try current.advanced(by: Duration(seconds: forward ? magnitude : -magnitude))
+            // Split epochs canonicalize their fractional seconds in 0..<1. A
+            // normal step can land a few rounding units before the endpoint
+            // (e.g. 0.1 + 0.5 on a 0.6 s query), leaving an unresolvable RK
+            // remainder. Integrate that rounding sliver with this step instead
+            // of dropping elapsed time or fabricating a state at a later epoch.
+            // Do not merge genuinely tiny requested/attempted steps: their stage
+            // resolution checks below must still reject collapsed timestamps.
+            let endpointRoundoffSeconds = 8*Double.ulpOfOne
+            if !final, magnitude > 16*endpointRoundoffSeconds,
+               abs(try target.duration(since:end).seconds) <= endpointRoundoffSeconds {
+                end = target
+            }
             guard forward ? end > current : end < current else { throw NumericalPropagationError.epochResolutionExceeded }
             let h = try end.duration(since: current).seconds
             var stages: [[Double]] = [], candidate = y, depleted = false
